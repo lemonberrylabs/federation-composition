@@ -92,9 +92,33 @@ impl FieldMove {
         }
     }
 
-    /// `toString()` (lazy in TS; logging only).
+    /// `toString()` (lazy in TS). Used for logging and for the `debugPostFix` of duplicated nodes.
     pub fn to_string(&self) -> String {
-        todo!()
+        let mut str = self.field_name.clone();
+
+        if let Some(requires) = &self.requires {
+            str += &format!(" @require({})", requires.to_string());
+        }
+
+        if let Some(provides) = &self.provides {
+            str += &format!(" @provides({})", provides.to_string());
+        }
+
+        if self.provided {
+            str += " @provided";
+        }
+
+        if let Some(r#override) = &self.r#override {
+            // `${null}` is "null".
+            str += &format!(" @override(label: {}", r#override.label.as_deref().unwrap_or("null"));
+            str += &format!(", on: {})", r#override.value);
+        }
+
+        if !self.required_contexts.is_zero() {
+            str += &format!(" @fromContext(mask: {})", self.required_contexts);
+        }
+
+        str
     }
 }
 
@@ -130,5 +154,60 @@ impl EntityMove {
 
     pub fn to_string(&self) -> String {
         format!("🔑 {}", self.key_fields.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn selection(source: &str) -> Rc<Selection> {
+        Rc::new(Selection::new("User".to_string(), source.to_string(), Vec::new()))
+    }
+
+    #[test]
+    fn field_move_to_string() {
+        let plain = FieldMove::new("User".into(), "name".into(), None, None, None, false, ContextMask::zero());
+        assert_eq!(plain.to_string(), "name");
+
+        let full = FieldMove::new(
+            "User".into(),
+            "name".into(),
+            Some(selection("id\n  email")),
+            Some(selection("a { b }")),
+            Some(FieldMoveOverride {
+                label: None,
+                from_graph_id: None,
+                value: false,
+            }),
+            true,
+            ContextMask::bit(0).or(&ContextMask::bit(2)),
+        );
+        assert_eq!(
+            full.to_string(),
+            "name @require(id email) @provides(a { b }) @provided @override(label: null, on: false) @fromContext(mask: 5)"
+        );
+
+        let labelled = FieldMove::new(
+            "User".into(),
+            "name".into(),
+            None,
+            None,
+            Some(FieldMoveOverride {
+                label: Some("percent(5)".into()),
+                from_graph_id: Some("a".into()),
+                value: true,
+            }),
+            false,
+            ContextMask::zero(),
+        );
+        assert_eq!(labelled.to_string(), "name @override(label: percent(5), on: true)");
+    }
+
+    #[test]
+    fn abstract_and_entity_move_to_string() {
+        assert_eq!(AbstractMove::new(None).to_string(), "🔮");
+        assert_eq!(AbstractMove::new(Some(selection("id"))).to_string(), "🔮 🔑 id");
+        assert_eq!(EntityMove::new(selection("id  name")).to_string(), "🔑 id name");
     }
 }

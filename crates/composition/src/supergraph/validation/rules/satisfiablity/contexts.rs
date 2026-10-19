@@ -119,7 +119,34 @@ pub struct Contexts {
 
 impl Contexts {
     pub fn new(supergraph_state: &SupergraphState) -> Self {
-        todo!()
+        let mut contexts = Contexts::default();
+        // Union contexts are processed first because union members
+        // inherit the contexts declared on their unions.
+        contexts.add_union_contexts(supergraph_state);
+
+        for ty in supergraph_state.object_types.values() {
+            contexts.add_type_contexts(
+                supergraph_state,
+                ContextAwareType {
+                    name: &ty.name,
+                    contexts: &ty.contexts,
+                    interfaces: &ty.interfaces,
+                },
+            );
+        }
+
+        for ty in supergraph_state.interface_types.values() {
+            contexts.add_type_contexts(
+                supergraph_state,
+                ContextAwareType {
+                    name: &ty.name,
+                    contexts: &ty.contexts,
+                    interfaces: &ty.interfaces,
+                },
+            );
+        }
+
+        contexts
     }
 
     /// The bit assigned to a single context.
@@ -128,24 +155,91 @@ impl Contexts {
     }
 
     pub fn mask_for<'c>(&self, contexts: impl IntoIterator<Item = &'c String>) -> ContextMask {
-        todo!()
+        // no contexts by default
+        let mut mask = ContextMask::zero();
+
+        for context in contexts {
+            mask.or_assign(&self.bit_for(context));
+        }
+
+        mask
     }
 
     /// The bit assigned to a context; new contexts receive the next unused bit.
     fn bit_for(&self, context: &str) -> ContextMask {
-        todo!()
+        if let Some(bit) = self.bit_by_context.borrow().get(context) {
+            return bit.clone();
+        }
+
+        let mut bit_by_context = self.bit_by_context.borrow_mut();
+        let bit = ContextMask::bit(bit_by_context.len());
+        bit_by_context.insert(context.to_string(), bit.clone());
+        bit
     }
 
     fn add_mask(&mut self, type_name: &str, mask: ContextMask) {
-        todo!()
+        if mask.is_zero() {
+            return;
+        }
+
+        let existing = self.by_type_name.get(type_name).cloned().unwrap_or_default();
+        self.by_type_name.insert(type_name.to_string(), existing.or(&mask));
     }
 
     fn add_union_contexts(&mut self, supergraph_state: &SupergraphState) {
-        todo!()
+        for union in supergraph_state.union_types.values() {
+            let mask = self.mask_for(&union.contexts);
+
+            for member in &union.members {
+                self.add_mask(member, mask.clone());
+            }
+        }
     }
 
     /// Adds the contexts declared on the type itself and on the interfaces it implements.
     fn add_type_contexts(&mut self, supergraph_state: &SupergraphState, ty: ContextAwareType<'_>) {
-        todo!()
+        let mut mask = self.mask_for(ty.contexts);
+
+        // The list already has all parents, so one look is enough.
+        for interface_name in ty.interfaces {
+            if let Some(interface_type) = supergraph_state.interface_types.get(interface_name) {
+                mask.or_assign(&self.mask_for(&interface_type.contexts));
+            }
+        }
+
+        self.add_mask(ty.name, mask);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bits_are_assigned_in_first_seen_order() {
+        let contexts = Contexts::default();
+        assert_eq!(contexts.mask_of("auth"), ContextMask::bit(0));
+        assert_eq!(contexts.mask_of("tenant"), ContextMask::bit(1));
+        assert_eq!(contexts.mask_of("auth"), ContextMask::bit(0));
+        let both = contexts.mask_for(&["tenant".to_string(), "locale".to_string()]);
+        assert_eq!(both, ContextMask::bit(1).or(&ContextMask::bit(2)));
+        assert_eq!(both.to_string(), "6");
+    }
+
+    #[test]
+    fn masks_grow_beyond_64_bits() {
+        let contexts = Contexts::default();
+        for i in 0..130 {
+            contexts.mask_of(&format!("c{i}"));
+        }
+        let high = contexts.mask_of("c129");
+        assert_eq!(high, ContextMask::bit(129));
+        // 2^129
+        assert_eq!(high.to_string(), "680564733841876926926749214863536422912");
+        let low = contexts.mask_of("c0");
+        assert!(!high.or(&low).contains_all(&ContextMask::bit(5)));
+        assert!(high.or(&low).contains_all(&low));
+        assert!(high.and(&low).is_zero());
+        assert!(ContextMask::zero().contains_all(&ContextMask::zero()));
     }
 }

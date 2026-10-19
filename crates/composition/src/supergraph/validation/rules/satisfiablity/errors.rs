@@ -3,6 +3,7 @@
 use std::rc::Rc;
 
 use super::helpers::Lazy;
+use crate::utils::js::JsResult;
 
 /// `SatisfiabilityErrorKind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -151,10 +152,17 @@ pub enum OneOrMany<T> {
     Many(Vec<T>),
 }
 
+/// A shared lazy error value: `Lazy<T | T[]>`.
+///
+/// NOTE(port): the value is a `JsResult` because a TS lazy error factory can throw when it is
+/// evaluated (`findDirectPaths` calls `graph.nodesOf(typeName)` inside one); the throw reaches
+/// whoever evaluates it (`toArray()`, from `WalkTracker.listErrors()`).
+pub type LazyError<'a, T> = Rc<Lazy<'a, JsResult<OneOrMany<T>>>>;
+
 /// `LazyErrors<T>`: errors collected lazily and evaluated only when reported.
 #[derive(Clone, Debug)]
 pub struct LazyErrors<'a, T> {
-    lazy_error: Vec<Rc<Lazy<'a, OneOrMany<T>>>>,
+    lazy_error: Vec<LazyError<'a, T>>,
 }
 
 impl<T> Default for LazyErrors<'_, T> {
@@ -169,7 +177,7 @@ impl<'a, T: Clone> LazyErrors<'a, T> {
     }
 
     /// `add(lazyError)` for a single lazy error (or list of errors).
-    pub fn add(&mut self, lazy_error: Rc<Lazy<'a, OneOrMany<T>>>) -> &mut Self {
+    pub fn add(&mut self, lazy_error: LazyError<'a, T>) -> &mut Self {
         self.lazy_error.push(lazy_error);
         self
     }
@@ -180,20 +188,21 @@ impl<'a, T: Clone> LazyErrors<'a, T> {
         self
     }
 
-    pub fn get_lazy_errors(&self) -> &[Rc<Lazy<'a, OneOrMany<T>>>] {
+    pub fn get_lazy_errors(&self) -> &[LazyError<'a, T>] {
         &self.lazy_error
     }
 
-    /// `toArray()`: evaluates every lazy error and flattens.
-    pub fn to_array(&self) -> Vec<T> {
+    /// `toArray()`: evaluates every lazy error and flattens (`filter(isDefined)` has nothing to
+    /// remove: values are never `undefined`). Throws if a factory throws.
+    pub fn to_array(&self) -> JsResult<Vec<T>> {
         let mut out = Vec::new();
         for e in &self.lazy_error {
-            match e.get() {
+            match e.get()? {
                 OneOrMany::One(v) => out.push(v),
                 OneOrMany::Many(vs) => out.extend(vs),
             }
         }
-        out
+        Ok(out)
     }
 
     pub fn is_empty(&self) -> bool {
