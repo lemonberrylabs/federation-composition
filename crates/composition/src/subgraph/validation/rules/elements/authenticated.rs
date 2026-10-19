@@ -16,7 +16,7 @@ pub struct AuthenticatedRule {}
 impl<'a> SubgraphRule<'a> for AuthenticatedRule {
     const NAME: &'static str = "AuthenticatedRule";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         AuthenticatedRule {}
     }
 }

@@ -9,15 +9,13 @@ use crate::utils::js::JsResult;
 
 /// `OverrideLabelWithRequiresRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeField`.
-pub struct OverrideLabelWithRequiresRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct OverrideLabelWithRequiresRule;
 
-impl<'s> SupergraphRule<'s> for OverrideLabelWithRequiresRule<'s> {
+impl<'s> SupergraphRule<'s> for OverrideLabelWithRequiresRule {
     const NAME: &'static str = "OverrideLabelWithRequiresRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(OverrideLabelWithRequiresRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(OverrideLabelWithRequiresRule)
     }
 }
 
@@ -26,7 +24,7 @@ fn is_truthy(value: &Option<String>) -> bool {
     value.as_deref().is_some_and(|v| !v.is_empty())
 }
 
-impl<'s> SupergraphVisitor<'s> for OverrideLabelWithRequiresRule<'s> {
+impl<'s> SupergraphVisitor<'s> for OverrideLabelWithRequiresRule {
     fn object_type_field(
         &mut self,
         cx: &mut SupergraphValidationContext,

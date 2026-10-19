@@ -14,19 +14,17 @@ use crate::utils::js::JsResult;
 /// Visitor callbacks: `EnumType`, `ObjectType`, `InterfaceType`, `InputObjectType`.
 /// If a type is not annotated with @inaccessible, but all of its fields are. We should error.
 /// If a type is annotated with @inaccessible and all of its fields are as well, we should NOT error.
-pub struct OnlyInaccessibleChildrenRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct OnlyInaccessibleChildrenRule;
 
-impl<'s> SupergraphRule<'s> for OnlyInaccessibleChildrenRule<'s> {
+impl<'s> SupergraphRule<'s> for OnlyInaccessibleChildrenRule {
     const NAME: &'static str = "OnlyInaccessibleChildrenRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(OnlyInaccessibleChildrenRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(OnlyInaccessibleChildrenRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for OnlyInaccessibleChildrenRule<'s> {
+impl<'s> SupergraphVisitor<'s> for OnlyInaccessibleChildrenRule {
     fn enum_type(
         &mut self,
         cx: &mut SupergraphValidationContext,

@@ -20,13 +20,13 @@ pub struct OverrideRules {}
 impl<'a> SubgraphRule<'a> for OverrideRules {
     const NAME: &'static str = "OverrideRules";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         OverrideRules {}
     }
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for OverrideRules {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "override", cx),
             NodeRef::Directive(node) => directive(node, cx),
@@ -150,13 +150,8 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
     Ok(())
 }
 
-/// `labelNonPercentRegex`.
-const LABEL_NON_PERCENT_REGEX: &str = r"^[a-zA-Z][a-zA-Z0-9_\-:./]*$";
-/// `labelPercentRegex`.
-const LABEL_PERCENT_REGEX: &str = r"^percent\(((\d{1,2}(\.\d{1,8})?)|100(\.[0]{1,8})?)\)$";
-
-/// `labelNonPercentRegex.test(value)`, hand-written ([`LABEL_NON_PERCENT_REGEX`]; the crate
-/// has no regex dependency).
+/// `labelNonPercentRegex.test(value)` for `/^[a-zA-Z][a-zA-Z0-9_\-:./]*$/`, hand-written (the
+/// crate has no regex dependency).
 fn matches_label_non_percent(value: &str) -> bool {
     let mut chars = value.chars();
     match chars.next() {
@@ -166,7 +161,8 @@ fn matches_label_non_percent(value: &str) -> bool {
     chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | ':' | '.' | '/'))
 }
 
-/// `labelPercentRegex.test(value)`, hand-written ([`LABEL_PERCENT_REGEX`]). JS `\d` is
+/// `labelPercentRegex.test(value)` for
+/// `/^percent\(((\d{1,2}(\.\d{1,8})?)|100(\.[0]{1,8})?)\)$/`, hand-written. JS `\d` is
 /// ASCII-only, and `$` without the `m` flag only matches at the end of the input.
 fn matches_label_percent(value: &str) -> bool {
     let Some(inner) = value.strip_prefix("percent(").and_then(|rest| rest.strip_suffix(')')) else {

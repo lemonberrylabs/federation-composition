@@ -168,13 +168,15 @@ the tests use).
 - Every exported TS function has its Rust counterpart with the same behavior.
 - `// NOTE(port):` comments for every place where a JS semantic needed thought.
 - No `todo!()`/`unimplemented!()` left behind.
+- No crate-level `allow`s. A parameter a trait signature requires but the body does not use
+  is prefixed with `_`. Unused code the TS also has is removed unless removing it would make
+  the Rust structure diverge from the TS file; then it keeps a targeted `#[allow(...)]` with a
+  one-line `// TS: ...` reason.
 
 ## Design decisions
 
-The skeleton (`crates/composition`, every TS declaration with `todo!()` bodies) fixes these
-representations. Porters fill bodies in their own files; if a signature has to change, change
-it and fix the call sites (a mechanical edit in another file is fine), and say so in the
-commit message.
+These representations are fixed. If a signature has to change, change it and fix the call
+sites (a mechanical edit in another file is fine), and say so in the commit message.
 
 **Thrown values.** `crate::utils::js::JsError` is a JS throw: `JsError::Error { name, message }`
 (`new Error`, or a runtime `TypeError`) or `JsError::GraphQL(GraphQLError)`. Every function
@@ -264,21 +266,22 @@ the no-op logger; compute them on demand.
 
 **Results.** `CompositionResult` is an enum; `CompositionSuccess` caches `supergraphSdl`,
 `publicDocumentNode`, `publicSdl` in `OnceCell`s (the getters that can throw return `JsResult`).
-`apply_tag_filter_on_subgraphs` works on `ServiceDefinition`s; the TS spreads extra properties
-onto the returned objects, which only the bindings may need to reproduce.
+`apply_tag_filter_on_subgraphs` works on `ServiceDefinition`s; the extra properties the TS
+spreads onto the returned objects come from `apply_tag_filter_on_subgraph_type_defs`, which the
+bindings use.
 
 ## Status
 
-| Area | TS lines | Status |
-|---|---:|---|
-| graphql crate (graphql-js port) | — | done: differential tests vs graphql-js pass (regenerate `crates/graphql/tests/corpus.json` with `node crates/graphql/tests/gen-corpus.mjs`) |
-| composition crate skeleton (types, signatures, constants) | — | done |
-| `utils/`, `specifications/`, `graphql/`, `types`, `subgraph/context` | 3,606 | not started |
-| `subgraph/state`, `subgraph/helpers` | 3,582 | not started |
-| `subgraph/validation/` | 7,307 | not started |
-| `supergraph/state`, `supergraph/composition/` | 5,837 | not started |
-| `supergraph/validation/rules/` (non-satisfiability) | 3,454 | not started |
-| `supergraph/validation/rules/satisfiablity/` | 4,891 | not started |
-| `contracts/` | 977 | not started |
-| `compose`, `validate`, `index` | 558 | not started |
-| WebAssembly bindings + JS shim | — | done: wired to `federation_composition`; `pnpm test:wasm --run` passes the whole suite |
+Everything is ported: `src/` in `crates/composition` (no `todo!()` left), the graphql-js
+language layer in `crates/graphql`, and the WebAssembly bindings in `crates/composition-wasm`
+with the shim in `wasm/`.
+
+## Verification
+
+| Check | Command | Expected |
+|---|---|---|
+| Build, no warnings | `cargo build --workspace` and `cargo build --release --target wasm32-unknown-unknown --workspace` | 0 warnings |
+| Rust unit and differential tests | `cargo test --workspace` | all pass; includes `crates/graphql`'s differential tests against graphql-js (regenerate `crates/graphql/tests/corpus.json` with `node crates/graphql/tests/gen-corpus.mjs`) |
+| Rust vs TS on every composition the test suite runs | `pnpm bench:capture`, then `cargo test -p federation_composition --release --test corpus -- --ignored` | every captured composition matches (3567/3567 on 2026-10-19) |
+| The TS test suite against the WebAssembly build | `pnpm wasm:build && pnpm test:wasm --run` | 7,350 passed (the 7,343 TS tests plus 7 bridge checks in `wasm/runtime.spec.ts`), 25 skipped, 8 todo |
+| The TS test suite itself | `pnpm test --run` | 7,343 passed, 25 skipped, 8 todo |

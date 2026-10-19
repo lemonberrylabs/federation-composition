@@ -18,7 +18,7 @@ pub struct OnlyInterfaceImplementationRule {
 impl<'a> SimpleRule<'a> for OnlyInterfaceImplementationRule {
     const NAME: &'static str = "OnlyInterfaceImplementationRule";
 
-    fn new(context: &mut SimpleValidationContext<'a>) -> Self {
+    fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         OnlyInterfaceImplementationRule {
             filled: false,
             type_name_to_kind: IndexMap::new(),
@@ -60,8 +60,8 @@ impl OnlyInterfaceImplementationRule {
         self.type_name_to_kind.get(type_name).copied()
     }
 
-    /// `check(node)` for an object type definition or extension (its `name` and `interfaces`).
-    fn check(&mut self, context: &mut SimpleValidationContext<'_>, name: &str, interfaces: &[NamedType]) {
+    /// `check(node)` for an object type definition or extension (its `interfaces`).
+    fn check(&mut self, context: &mut SimpleValidationContext<'_>, interfaces: &[NamedType]) {
         // `if (!node.interfaces) return;` is the same as iterating an empty list.
         for interface_node in interfaces {
             let interface_name = &interface_node.name.value;
@@ -81,10 +81,10 @@ impl OnlyInterfaceImplementationRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for OnlyInterfaceImplementationRule {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
-            NodeRef::ObjectTypeDefinition(node) => self.check(cx, &node.name.value, &node.interfaces),
-            NodeRef::ObjectTypeExtension(node) => self.check(cx, &node.name.value, &node.interfaces),
+            NodeRef::ObjectTypeDefinition(node) => self.check(cx, &node.interfaces),
+            NodeRef::ObjectTypeExtension(node) => self.check(cx, &node.interfaces),
             _ => {}
         }
         VisitAction::Continue

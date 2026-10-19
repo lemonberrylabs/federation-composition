@@ -18,7 +18,7 @@ pub struct ExternalMissingOnBaseRule<'s> {
 impl<'s> SupergraphRule<'s> for ExternalMissingOnBaseRule<'s> {
     const NAME: &'static str = "ExternalMissingOnBaseRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
+    fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
         Ok(ExternalMissingOnBaseRule { supergraph })
     }
 }

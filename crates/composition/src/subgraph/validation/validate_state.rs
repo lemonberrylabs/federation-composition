@@ -8,7 +8,7 @@ use indexmap::{IndexMap, IndexSet};
 
 use super::validation_context::SubgraphValidationContext;
 use crate::subgraph::state::{
-    Argument, EnumType, Field, InputField, InputObjectType, InterfaceType, ObjectType, SubgraphState, SubgraphType,
+    Argument, EnumType, Field, InputField, InputObjectType, InterfaceType, SubgraphState, SubgraphType,
     TypeKind, UnionType,
 };
 use crate::utils::format::and_list;

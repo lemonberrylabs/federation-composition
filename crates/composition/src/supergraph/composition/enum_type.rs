@@ -1,6 +1,6 @@
 //! Port of `src/supergraph/composition/enum-type.ts`.
 
-use graphql_js::{Definition, Directive as DirectiveNode};
+use graphql_js::Definition;
 use indexmap::{IndexMap, IndexSet};
 
 use super::ast::{create_enum_type_node, CostAst, EnumTypeAst, EnumValueAst, JoinAst, JoinEnumValueAst, JoinTypeAst};
@@ -127,7 +127,7 @@ impl TypeBuilder<EnumType, EnumTypeState> for EnumTypeBuilder {
     fn compose_supergraph_node(
         &mut self,
         enum_type: &EnumTypeState,
-        graphs: &SubgraphStates,
+        _graphs: &SubgraphStates,
         helpers: ComposeHelpers<'_>,
     ) -> JsResult<Definition> {
         let supergraph_state = helpers.supergraph_state;

@@ -16,7 +16,7 @@ pub struct UniqueEnumValueNamesRule {
 impl<'a> SimpleRule<'a> for UniqueEnumValueNamesRule {
     const NAME: &'static str = "UniqueEnumValueNamesRule";
 
-    fn new(context: &mut SimpleValidationContext<'a>) -> Self {
+    fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueEnumValueNamesRule {
             known_value_names: IndexMap::new(),
         }
@@ -44,7 +44,7 @@ impl UniqueEnumValueNamesRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueEnumValueNamesRule {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::EnumTypeDefinition(n) => self.check_value_uniqueness(cx, &n.name.value, &n.values),
             NodeRef::EnumTypeExtension(n) => self.check_value_uniqueness(cx, &n.name.value, &n.values),

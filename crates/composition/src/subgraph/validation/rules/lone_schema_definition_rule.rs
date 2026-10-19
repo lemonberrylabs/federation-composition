@@ -13,7 +13,7 @@ pub struct LoneSchemaDefinitionRule {
 impl<'a> SimpleRule<'a> for LoneSchemaDefinitionRule {
     const NAME: &'static str = "LoneSchemaDefinitionRule";
 
-    fn new(context: &mut SimpleValidationContext<'a>) -> Self {
+    fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         LoneSchemaDefinitionRule {
             schema_definitions_count: 0,
         }
@@ -21,7 +21,7 @@ impl<'a> SimpleRule<'a> for LoneSchemaDefinitionRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for LoneSchemaDefinitionRule {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         if let NodeRef::SchemaDefinition(_) = node {
             if self.schema_definitions_count > 0 {
                 cx.report_error(GraphQLError::with_code(

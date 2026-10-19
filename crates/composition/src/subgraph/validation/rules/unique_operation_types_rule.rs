@@ -16,7 +16,7 @@ pub struct UniqueOperationTypesRule {
 impl<'a> SimpleRule<'a> for UniqueOperationTypesRule {
     const NAME: &'static str = "UniqueOperationTypesRule";
 
-    fn new(context: &mut SimpleValidationContext<'a>) -> Self {
+    fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueOperationTypesRule {
             defined_operation_types: IndexSet::new(),
         }
@@ -43,7 +43,7 @@ impl UniqueOperationTypesRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueOperationTypesRule {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::SchemaDefinition(n) => self.check_operation_types(cx, &n.operation_types),
             NodeRef::SchemaExtension(n) => self.check_operation_types(cx, &n.operation_types),

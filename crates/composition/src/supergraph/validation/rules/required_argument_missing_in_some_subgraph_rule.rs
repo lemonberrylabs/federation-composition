@@ -9,19 +9,17 @@ use crate::utils::js::JsResult;
 
 /// `RequiredArgumentMissingInSomeSubgraph(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeFieldArg`.
-pub struct RequiredArgumentMissingInSomeSubgraph<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct RequiredArgumentMissingInSomeSubgraph;
 
-impl<'s> SupergraphRule<'s> for RequiredArgumentMissingInSomeSubgraph<'s> {
+impl<'s> SupergraphRule<'s> for RequiredArgumentMissingInSomeSubgraph {
     const NAME: &'static str = "RequiredArgumentMissingInSomeSubgraph";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(RequiredArgumentMissingInSomeSubgraph { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(RequiredArgumentMissingInSomeSubgraph)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for RequiredArgumentMissingInSomeSubgraph<'s> {
+impl<'s> SupergraphVisitor<'s> for RequiredArgumentMissingInSomeSubgraph {
     fn object_type_field_arg(
         &mut self,
         cx: &mut SupergraphValidationContext,

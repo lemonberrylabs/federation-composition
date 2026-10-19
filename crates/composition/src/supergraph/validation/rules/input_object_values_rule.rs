@@ -9,19 +9,17 @@ use crate::utils::js::JsResult;
 
 /// `InputObjectValuesRule(context, supergraph)`.
 /// Visitor callbacks: `InputObjectType`.
-pub struct InputObjectValuesRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct InputObjectValuesRule;
 
-impl<'s> SupergraphRule<'s> for InputObjectValuesRule<'s> {
+impl<'s> SupergraphRule<'s> for InputObjectValuesRule {
     const NAME: &'static str = "InputObjectValuesRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(InputObjectValuesRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(InputObjectValuesRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for InputObjectValuesRule<'s> {
+impl<'s> SupergraphVisitor<'s> for InputObjectValuesRule {
     fn input_object_type(
         &mut self,
         cx: &mut SupergraphValidationContext,

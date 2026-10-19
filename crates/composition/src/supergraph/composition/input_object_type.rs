@@ -1,6 +1,6 @@
 //! Port of `src/supergraph/composition/input-object-type.ts`.
 
-use graphql_js::{Definition, Directive as DirectiveNode};
+use graphql_js::Definition;
 use indexmap::{IndexMap, IndexSet};
 
 use super::ast::{create_input_object_type_node, CostAst, InputFieldAst, InputObjectTypeAst, JoinAst, JoinFieldAst, JoinTypeAst};
@@ -117,7 +117,7 @@ impl TypeBuilder<InputObjectType, InputObjectTypeState> for InputObjectTypeBuild
     fn compose_supergraph_node(
         &mut self,
         input_object_type: &InputObjectTypeState,
-        graphs: &SubgraphStates,
+        _graphs: &SubgraphStates,
         helpers: ComposeHelpers<'_>,
     ) -> JsResult<Definition> {
         let supergraph_state = helpers.supergraph_state;

@@ -1,6 +1,6 @@
 //! Port of `src/supergraph/composition/directive.ts`.
 
-use graphql_js::{Definition, Directive as DirectiveNode};
+use graphql_js::Definition;
 use indexmap::{IndexMap, IndexSet};
 
 use super::ast::{create_directive_node, DirectiveAst, FieldArgumentAst};
@@ -104,8 +104,8 @@ impl TypeBuilder<Directive, DirectiveState> for DirectiveBuilder {
     fn compose_supergraph_node(
         &mut self,
         directive: &DirectiveState,
-        graphs: &SubgraphStates,
-        helpers: ComposeHelpers<'_>,
+        _graphs: &SubgraphStates,
+        _helpers: ComposeHelpers<'_>,
     ) -> JsResult<Definition> {
         Ok(Definition::DirectiveDefinition(create_directive_node(&DirectiveAst {
             name: directive.name.clone(),

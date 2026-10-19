@@ -17,7 +17,7 @@ pub struct RequiresScopesRule {}
 impl<'a> SubgraphRule<'a> for RequiresScopesRule {
     const NAME: &'static str = "RequiresScopesRule";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         RequiresScopesRule {}
     }
 }

@@ -223,35 +223,35 @@ pub struct Intercepts {
 /// local struct implementing this trait, and gets the context as a parameter.
 /// Only the methods named in the `Intercepts` passed to `visit_fields` are called.
 pub trait VisitFieldsInterceptor<'a> {
-    fn intercept_field(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_field(&mut self, _context: &mut SubgraphValidationContext<'a>, _info: &InterceptFieldInfo) -> JsResult<()> {
         Ok(())
     }
     fn intercept_field_with_missing_selection_set(
         &mut self,
-        context: &mut SubgraphValidationContext<'a>,
-        info: &InterceptMissingSelectionSetInfo,
+        _context: &mut SubgraphValidationContext<'a>,
+        _info: &InterceptMissingSelectionSetInfo,
     ) -> JsResult<()> {
         Ok(())
     }
-    fn intercept_arguments(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_arguments(&mut self, _context: &mut SubgraphValidationContext<'a>, _info: &InterceptFieldInfo) -> JsResult<()> {
         Ok(())
     }
-    fn intercept_unknown_field(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_unknown_field(&mut self, _context: &mut SubgraphValidationContext<'a>, _info: &InterceptFieldInfo) -> JsResult<()> {
         Ok(())
     }
-    fn intercept_directive(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptDirectiveInfo) -> JsResult<()> {
+    fn intercept_directive(&mut self, _context: &mut SubgraphValidationContext<'a>, _info: &InterceptDirectiveInfo) -> JsResult<()> {
         Ok(())
     }
-    fn intercept_interface_type(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_interface_type(&mut self, _context: &mut SubgraphValidationContext<'a>, _info: &InterceptFieldInfo) -> JsResult<()> {
         Ok(())
     }
-    fn intercept_external_field(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_external_field(&mut self, _context: &mut SubgraphValidationContext<'a>, _info: &InterceptFieldInfo) -> JsResult<()> {
         Ok(())
     }
     fn intercept_non_external_field(
         &mut self,
-        context: &mut SubgraphValidationContext<'a>,
-        info: &InterceptFieldInfo,
+        _context: &mut SubgraphValidationContext<'a>,
+        _info: &InterceptFieldInfo,
     ) -> JsResult<()> {
         Ok(())
     }

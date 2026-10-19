@@ -149,7 +149,6 @@ pub enum WalkMethod {
 pub struct Walker<'s> {
     logger: Logger,
     path_finder: PathFinder<'s>,
-    move_checker: MoveValidator<'s>,
     supergraph: Rc<Graph<'s>>,
     merged_graph: Rc<Graph<'s>>,
 }
@@ -161,7 +160,6 @@ impl<'s> Walker<'s> {
         Walker {
             logger,
             path_finder,
-            move_checker,
             supergraph,
             merged_graph,
         }

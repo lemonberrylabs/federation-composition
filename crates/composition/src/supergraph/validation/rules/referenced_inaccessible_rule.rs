@@ -17,7 +17,7 @@ pub struct ReferencedInaccessibleRule<'s> {
 impl<'s> SupergraphRule<'s> for ReferencedInaccessibleRule<'s> {
     const NAME: &'static str = "ReferencedInaccessibleRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
+    fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
         Ok(ReferencedInaccessibleRule { supergraph })
     }
 }

@@ -1,6 +1,6 @@
 //! Port of `src/supergraph/composition/union-type.ts`.
 
-use graphql_js::{Definition, Directive as DirectiveNode};
+use graphql_js::Definition;
 use indexmap::{IndexMap, IndexSet};
 
 use super::ast::{create_union_type_node, JoinAst, JoinTypeAst, JoinUnionMemberAst, UnionTypeAst};
@@ -70,8 +70,8 @@ impl TypeBuilder<UnionType, UnionTypeState> for UnionTypeBuilder {
     fn compose_supergraph_node(
         &mut self,
         union_type: &UnionTypeState,
-        graphs: &SubgraphStates,
-        helpers: ComposeHelpers<'_>,
+        _graphs: &SubgraphStates,
+        _helpers: ComposeHelpers<'_>,
     ) -> JsResult<Definition> {
         Ok(Definition::UnionTypeDefinition(create_union_type_node(&UnionTypeAst {
             name: union_type.name.clone(),

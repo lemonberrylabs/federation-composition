@@ -39,7 +39,7 @@ fn store_implementation(
 impl<'s> SupergraphRule<'s> for InterfaceSubtypeRule<'s> {
     const NAME: &'static str = "InterfaceSubtypeRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
+    fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
         let mut implementations_map: IndexMap<String, IndexSet<String>> = IndexMap::new();
 
         for ty in supergraph.interface_types.values() {
@@ -213,6 +213,8 @@ fn type_name(ty: SupergraphType<'_>) -> &str {
 
 /// `SupergraphType`.
 #[derive(Clone, Copy, Debug)]
+// TS: the `SupergraphType` union lists enum and scalar states, which `getTypeFromSupergraph` never returns.
+#[allow(dead_code)]
 enum SupergraphType<'s> {
     Object(&'s ObjectTypeState),
     Enum(&'s EnumTypeState),

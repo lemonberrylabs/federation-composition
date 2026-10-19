@@ -13,19 +13,17 @@ use crate::utils::js::{JsError, JsResult};
 
 /// `ExternalTypeMismatchRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeField`.
-pub struct ExternalTypeMismatchRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct ExternalTypeMismatchRule;
 
-impl<'s> SupergraphRule<'s> for ExternalTypeMismatchRule<'s> {
+impl<'s> SupergraphRule<'s> for ExternalTypeMismatchRule {
     const NAME: &'static str = "ExternalTypeMismatchRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(ExternalTypeMismatchRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(ExternalTypeMismatchRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for ExternalTypeMismatchRule<'s> {
+impl<'s> SupergraphVisitor<'s> for ExternalTypeMismatchRule {
     fn object_type_field(
         &mut self,
         cx: &mut SupergraphValidationContext,

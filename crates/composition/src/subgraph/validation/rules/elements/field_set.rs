@@ -11,7 +11,7 @@ pub struct FieldSetRules {}
 impl<'a> SubgraphRule<'a> for FieldSetRules {
     const NAME: &'static str = "FieldSetRules";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         FieldSetRules {}
     }
 }
@@ -31,7 +31,7 @@ impl FieldSetRules {
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for FieldSetRules {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::ScalarTypeDefinition(node) => {
                 if node.name.value == "FieldSet" && cx.is_available_federation_type("FieldSet") {

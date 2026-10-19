@@ -14,7 +14,7 @@ pub struct UniqueArgumentNamesRule {}
 impl<'a> SimpleRule<'a> for UniqueArgumentNamesRule {
     const NAME: &'static str = "UniqueArgumentNamesRule";
 
-    fn new(context: &mut SimpleValidationContext<'a>) -> Self {
+    fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueArgumentNamesRule {}
     }
 }
@@ -41,7 +41,7 @@ impl UniqueArgumentNamesRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueArgumentNamesRule {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::Field(n) => self.check_arg_uniqueness(cx, &n.arguments),
             NodeRef::Directive(n) => self.check_arg_uniqueness(cx, &n.arguments),

@@ -24,7 +24,7 @@ impl<'a> SubgraphRule<'a> for RootTypeUsedRule<'a> {
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for RootTypeUsedRule<'a> {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::SchemaDefinition(node) => validate_schema_node(&node.operation_types, self.definitions, cx),
             NodeRef::SchemaExtension(node) => validate_schema_node(&node.operation_types, self.definitions, cx),

@@ -17,7 +17,7 @@ pub struct InterfaceFieldNoImplementationRule<'s> {
 impl<'s> SupergraphRule<'s> for InterfaceFieldNoImplementationRule<'s> {
     const NAME: &'static str = "InterfaceFieldNoImplementationRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
+    fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
         Ok(InterfaceFieldNoImplementationRule { supergraph })
     }
 }

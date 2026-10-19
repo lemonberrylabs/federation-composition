@@ -10,19 +10,17 @@ use crate::utils::version::satisfies_version_range;
 
 /// `InterfaceKeyMissingImplementationTypeRule(context, supergraph)`.
 /// Visitor callbacks: `InterfaceType`.
-pub struct InterfaceKeyMissingImplementationTypeRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct InterfaceKeyMissingImplementationTypeRule;
 
-impl<'s> SupergraphRule<'s> for InterfaceKeyMissingImplementationTypeRule<'s> {
+impl<'s> SupergraphRule<'s> for InterfaceKeyMissingImplementationTypeRule {
     const NAME: &'static str = "InterfaceKeyMissingImplementationTypeRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(InterfaceKeyMissingImplementationTypeRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(InterfaceKeyMissingImplementationTypeRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for InterfaceKeyMissingImplementationTypeRule<'s> {
+impl<'s> SupergraphVisitor<'s> for InterfaceKeyMissingImplementationTypeRule {
     fn interface_type(
         &mut self,
         cx: &mut SupergraphValidationContext,

@@ -17,7 +17,7 @@ pub struct PolicyRule {}
 impl<'a> SubgraphRule<'a> for PolicyRule {
     const NAME: &'static str = "PolicyRule";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         PolicyRule {}
     }
 }

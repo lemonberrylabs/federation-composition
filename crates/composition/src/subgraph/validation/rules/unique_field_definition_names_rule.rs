@@ -16,7 +16,7 @@ pub struct UniqueFieldDefinitionNamesRule {
 impl<'a> SimpleRule<'a> for UniqueFieldDefinitionNamesRule {
     const NAME: &'static str = "UniqueFieldDefinitionNamesRule";
 
-    fn new(context: &mut SimpleValidationContext<'a>) -> Self {
+    fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueFieldDefinitionNamesRule {
             known_field_names: IndexMap::new(),
         }
@@ -45,7 +45,7 @@ impl UniqueFieldDefinitionNamesRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueFieldDefinitionNamesRule {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         let (name, field_names): (&Name, Vec<&Name>) = match node {
             NodeRef::InputObjectTypeDefinition(n) => (&n.name, n.fields.iter().map(|f| &f.name).collect()),
             NodeRef::InputObjectTypeExtension(n) => (&n.name, n.fields.iter().map(|f| &f.name).collect()),

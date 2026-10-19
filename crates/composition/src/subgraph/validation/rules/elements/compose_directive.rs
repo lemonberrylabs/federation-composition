@@ -17,13 +17,13 @@ pub struct ComposeDirectiveRules {}
 impl<'a> SubgraphRule<'a> for ComposeDirectiveRules {
     const NAME: &'static str = "ComposeDirectiveRules";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         ComposeDirectiveRules {}
     }
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for ComposeDirectiveRules {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "composeDirective", cx),
             NodeRef::Directive(node) => directive(node, cx),

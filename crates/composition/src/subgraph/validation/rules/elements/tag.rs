@@ -16,7 +16,7 @@ pub struct TagRules {}
 impl<'a> SubgraphRule<'a> for TagRules {
     const NAME: &'static str = "TagRules";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         TagRules {}
     }
 }

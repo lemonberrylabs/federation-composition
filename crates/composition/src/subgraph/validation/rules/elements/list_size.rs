@@ -17,7 +17,7 @@ pub struct ListSizeRule {}
 impl<'a> SubgraphRule<'a> for ListSizeRule {
     const NAME: &'static str = "ListSizeRule";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         ListSizeRule {}
     }
 }

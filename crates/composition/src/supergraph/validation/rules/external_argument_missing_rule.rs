@@ -9,19 +9,17 @@ use crate::utils::js::JsResult;
 
 /// `ExternalArgumentMissingRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeFieldArg`.
-pub struct ExternalArgumentMissingRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct ExternalArgumentMissingRule;
 
-impl<'s> SupergraphRule<'s> for ExternalArgumentMissingRule<'s> {
+impl<'s> SupergraphRule<'s> for ExternalArgumentMissingRule {
     const NAME: &'static str = "ExternalArgumentMissingRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(ExternalArgumentMissingRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(ExternalArgumentMissingRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for ExternalArgumentMissingRule<'s> {
+impl<'s> SupergraphVisitor<'s> for ExternalArgumentMissingRule {
     fn object_type_field_arg(
         &mut self,
         cx: &mut SupergraphValidationContext,

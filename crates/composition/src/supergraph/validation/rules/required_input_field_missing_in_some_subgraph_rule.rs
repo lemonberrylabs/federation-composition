@@ -9,19 +9,17 @@ use crate::utils::js::JsResult;
 
 /// `RequiredInputFieldMissingInSomeSubgraphRule(context, supergraph)`.
 /// Visitor callbacks: `InputObjectTypeField`.
-pub struct RequiredInputFieldMissingInSomeSubgraphRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct RequiredInputFieldMissingInSomeSubgraphRule;
 
-impl<'s> SupergraphRule<'s> for RequiredInputFieldMissingInSomeSubgraphRule<'s> {
+impl<'s> SupergraphRule<'s> for RequiredInputFieldMissingInSomeSubgraphRule {
     const NAME: &'static str = "RequiredInputFieldMissingInSomeSubgraphRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(RequiredInputFieldMissingInSomeSubgraphRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(RequiredInputFieldMissingInSomeSubgraphRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for RequiredInputFieldMissingInSomeSubgraphRule<'s> {
+impl<'s> SupergraphVisitor<'s> for RequiredInputFieldMissingInSomeSubgraphRule {
     fn input_object_type_field(
         &mut self,
         cx: &mut SupergraphValidationContext,

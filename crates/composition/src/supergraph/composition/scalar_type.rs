@@ -1,6 +1,6 @@
 //! Port of `src/supergraph/composition/scalar-type.ts`.
 
-use graphql_js::{Definition, Directive as DirectiveNode};
+use graphql_js::Definition;
 use indexmap::{IndexMap, IndexSet};
 
 use super::ast::{create_scalar_type_node, CostAst, JoinAst, JoinTypeAst, ScalarTypeAst};
@@ -79,7 +79,7 @@ impl TypeBuilder<ScalarType, ScalarTypeState> for ScalarTypeBuilder {
     fn compose_supergraph_node(
         &mut self,
         scalar_type: &ScalarTypeState,
-        graphs: &SubgraphStates,
+        _graphs: &SubgraphStates,
         helpers: ComposeHelpers<'_>,
     ) -> JsResult<Definition> {
         let supergraph_state = helpers.supergraph_state;

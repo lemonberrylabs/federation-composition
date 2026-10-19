@@ -16,7 +16,7 @@ pub struct InaccessibleRules {}
 impl<'a> SubgraphRule<'a> for InaccessibleRules {
     const NAME: &'static str = "InaccessibleRules";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         InaccessibleRules {}
     }
 }

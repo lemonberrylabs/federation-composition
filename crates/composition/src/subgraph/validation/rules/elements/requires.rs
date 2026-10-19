@@ -19,13 +19,13 @@ pub struct RequiresRules {}
 impl<'a> SubgraphRule<'a> for RequiresRules {
     const NAME: &'static str = "RequiresRules";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         RequiresRules {}
     }
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for RequiresRules {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "requires", cx),
             NodeRef::Directive(node) => directive(node, cx),

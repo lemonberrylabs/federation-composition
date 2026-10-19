@@ -13,15 +13,13 @@ use crate::utils::js::JsResult;
 
 /// `FieldsOfTheSameTypeRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeField`, `InputObjectTypeField`.
-pub struct FieldsOfTheSameTypeRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct FieldsOfTheSameTypeRule;
 
-impl<'s> SupergraphRule<'s> for FieldsOfTheSameTypeRule<'s> {
+impl<'s> SupergraphRule<'s> for FieldsOfTheSameTypeRule {
     const NAME: &'static str = "FieldsOfTheSameTypeRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(FieldsOfTheSameTypeRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(FieldsOfTheSameTypeRule)
     }
 }
 
@@ -59,7 +57,7 @@ fn first_but_second_and_rest(groups: &[String]) -> String {
     )
 }
 
-impl<'s> SupergraphVisitor<'s> for FieldsOfTheSameTypeRule<'s> {
+impl<'s> SupergraphVisitor<'s> for FieldsOfTheSameTypeRule {
     fn object_type_field(
         &mut self,
         cx: &mut SupergraphValidationContext,

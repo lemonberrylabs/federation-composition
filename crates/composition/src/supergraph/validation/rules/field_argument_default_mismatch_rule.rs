@@ -11,19 +11,17 @@ use crate::utils::js::JsResult;
 
 /// `FieldArgumentDefaultMismatchRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeFieldArg`.
-pub struct FieldArgumentDefaultMismatchRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct FieldArgumentDefaultMismatchRule;
 
-impl<'s> SupergraphRule<'s> for FieldArgumentDefaultMismatchRule<'s> {
+impl<'s> SupergraphRule<'s> for FieldArgumentDefaultMismatchRule {
     const NAME: &'static str = "FieldArgumentDefaultMismatchRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(FieldArgumentDefaultMismatchRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(FieldArgumentDefaultMismatchRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for FieldArgumentDefaultMismatchRule<'s> {
+impl<'s> SupergraphVisitor<'s> for FieldArgumentDefaultMismatchRule {
     fn object_type_field_arg(
         &mut self,
         cx: &mut SupergraphValidationContext,

@@ -20,7 +20,7 @@ pub struct DefaultValueUsesInaccessibleRule<'s> {
 impl<'s> SupergraphRule<'s> for DefaultValueUsesInaccessibleRule<'s> {
     const NAME: &'static str = "DefaultValueUsesInaccessibleRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
+    fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
         Ok(DefaultValueUsesInaccessibleRule { supergraph })
     }
 }

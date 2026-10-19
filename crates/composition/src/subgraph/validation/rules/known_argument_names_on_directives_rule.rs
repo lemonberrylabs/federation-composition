@@ -33,7 +33,7 @@ impl<'a> SimpleRule<'a> for KnownArgumentNamesOnDirectivesRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for KnownArgumentNamesOnDirectivesRule {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         if let NodeRef::Directive(directive_node) = node {
             let directive_name = &directive_node.name.value;
             let known_args = self.directive_args.get(directive_name);

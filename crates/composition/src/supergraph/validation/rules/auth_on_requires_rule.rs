@@ -26,7 +26,7 @@ pub struct AuthOnRequiresRule<'s> {
 impl<'s> SupergraphRule<'s> for AuthOnRequiresRule<'s> {
     const NAME: &'static str = "AuthOnRequiresRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
+    fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
         Ok(AuthOnRequiresRule { supergraph })
     }
 }

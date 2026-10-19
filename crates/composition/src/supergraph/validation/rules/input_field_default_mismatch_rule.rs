@@ -11,19 +11,17 @@ use crate::utils::js::JsResult;
 
 /// `InputFieldDefaultMismatchRule(context, supergraph)`.
 /// Visitor callbacks: `InputObjectTypeField`.
-pub struct InputFieldDefaultMismatchRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct InputFieldDefaultMismatchRule;
 
-impl<'s> SupergraphRule<'s> for InputFieldDefaultMismatchRule<'s> {
+impl<'s> SupergraphRule<'s> for InputFieldDefaultMismatchRule {
     const NAME: &'static str = "InputFieldDefaultMismatchRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(InputFieldDefaultMismatchRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(InputFieldDefaultMismatchRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for InputFieldDefaultMismatchRule<'s> {
+impl<'s> SupergraphVisitor<'s> for InputFieldDefaultMismatchRule {
     fn input_object_type_field(
         &mut self,
         cx: &mut SupergraphValidationContext,

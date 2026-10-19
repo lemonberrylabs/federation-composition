@@ -19,7 +19,7 @@ pub struct AuthOnContextRule<'s> {
 impl<'s> SupergraphRule<'s> for AuthOnContextRule<'s> {
     const NAME: &'static str = "AuthOnContextRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
+    fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
         Ok(AuthOnContextRule { supergraph })
     }
 }

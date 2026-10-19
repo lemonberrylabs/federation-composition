@@ -8,14 +8,12 @@ use crate::utils::js::JsResult;
 
 /// `SubgraphNameRule(context, supergraph)`. Its body runs in `new` (the TS returns `{}`).
 /// Visitor callbacks: none.
-pub struct SubgraphNameRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct SubgraphNameRule;
 
-impl<'s> SupergraphRule<'s> for SubgraphNameRule<'s> {
+impl<'s> SupergraphRule<'s> for SubgraphNameRule {
     const NAME: &'static str = "SubgraphNameRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
+    fn new(context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
         let mut errors = Vec::new();
         for subgraph in context.subgraph_states.values() {
             let id = &subgraph.graph.id;
@@ -30,8 +28,8 @@ impl<'s> SupergraphRule<'s> for SubgraphNameRule<'s> {
             context.report_error(error);
         }
 
-        Ok(SubgraphNameRule { supergraph })
+        Ok(SubgraphNameRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for SubgraphNameRule<'s> {}
+impl<'s> SupergraphVisitor<'s> for SubgraphNameRule {}

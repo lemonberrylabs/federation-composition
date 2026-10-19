@@ -16,64 +16,64 @@ use crate::utils::js::JsResult;
 /// `'s` is the lifetime of the supergraph state, so rules may keep references into it.
 pub trait SupergraphVisitor<'s> {
     // Object
-    fn object_type(&mut self, cx: &mut SupergraphValidationContext, object_state: &'s ObjectTypeState) -> JsResult<()> {
+    fn object_type(&mut self, _cx: &mut SupergraphValidationContext, _object_state: &'s ObjectTypeState) -> JsResult<()> {
         Ok(())
     }
     fn object_type_field(
         &mut self,
-        cx: &mut SupergraphValidationContext,
-        object_state: &'s ObjectTypeState,
-        field_state: &'s ObjectTypeFieldState,
+        _cx: &mut SupergraphValidationContext,
+        _object_state: &'s ObjectTypeState,
+        _field_state: &'s ObjectTypeFieldState,
     ) -> JsResult<()> {
         Ok(())
     }
     fn object_type_field_arg(
         &mut self,
-        cx: &mut SupergraphValidationContext,
-        object_state: &'s ObjectTypeState,
-        field_state: &'s ObjectTypeFieldState,
-        arg_state: &'s ObjectTypeFieldArgState,
+        _cx: &mut SupergraphValidationContext,
+        _object_state: &'s ObjectTypeState,
+        _field_state: &'s ObjectTypeFieldState,
+        _arg_state: &'s ObjectTypeFieldArgState,
     ) -> JsResult<()> {
         Ok(())
     }
     // Interface
     fn interface_type_field(
         &mut self,
-        cx: &mut SupergraphValidationContext,
-        interface_state: &'s InterfaceTypeState,
-        field_state: &'s InterfaceTypeFieldState,
+        _cx: &mut SupergraphValidationContext,
+        _interface_state: &'s InterfaceTypeState,
+        _field_state: &'s InterfaceTypeFieldState,
     ) -> JsResult<()> {
         Ok(())
     }
     // Enum
-    fn enum_type(&mut self, cx: &mut SupergraphValidationContext, enum_state: &'s EnumTypeState) -> JsResult<()> {
+    fn enum_type(&mut self, _cx: &mut SupergraphValidationContext, _enum_state: &'s EnumTypeState) -> JsResult<()> {
         Ok(())
     }
     // Input Object
-    fn input_object_type(&mut self, cx: &mut SupergraphValidationContext, input_object_state: &'s InputObjectTypeState) -> JsResult<()> {
+    fn input_object_type(&mut self, _cx: &mut SupergraphValidationContext, _input_object_state: &'s InputObjectTypeState) -> JsResult<()> {
         Ok(())
     }
     fn input_object_type_field(
         &mut self,
-        cx: &mut SupergraphValidationContext,
-        input_object_state: &'s InputObjectTypeState,
-        field_state: &'s InputObjectTypeFieldState,
+        _cx: &mut SupergraphValidationContext,
+        _input_object_state: &'s InputObjectTypeState,
+        _field_state: &'s InputObjectTypeFieldState,
     ) -> JsResult<()> {
         Ok(())
     }
     // Interface
-    fn interface_type(&mut self, cx: &mut SupergraphValidationContext, interface_state: &'s InterfaceTypeState) -> JsResult<()> {
+    fn interface_type(&mut self, _cx: &mut SupergraphValidationContext, _interface_state: &'s InterfaceTypeState) -> JsResult<()> {
         Ok(())
     }
     // Directive
-    fn directive(&mut self, cx: &mut SupergraphValidationContext, directive_state: &'s DirectiveState) -> JsResult<()> {
+    fn directive(&mut self, _cx: &mut SupergraphValidationContext, _directive_state: &'s DirectiveState) -> JsResult<()> {
         Ok(())
     }
     fn directive_field_arg(
         &mut self,
-        cx: &mut SupergraphValidationContext,
-        directive_state: &'s DirectiveState,
-        directive_arg_state: &'s DirectiveArgState,
+        _cx: &mut SupergraphValidationContext,
+        _directive_state: &'s DirectiveState,
+        _directive_arg_state: &'s DirectiveArgState,
     ) -> JsResult<()> {
         Ok(())
     }

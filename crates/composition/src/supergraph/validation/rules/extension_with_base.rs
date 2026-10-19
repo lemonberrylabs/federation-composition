@@ -11,19 +11,17 @@ use crate::utils::js::{JsError, JsResult};
 
 /// `ExtensionWithBaseRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectType`.
-pub struct ExtensionWithBaseRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct ExtensionWithBaseRule;
 
-impl<'s> SupergraphRule<'s> for ExtensionWithBaseRule<'s> {
+impl<'s> SupergraphRule<'s> for ExtensionWithBaseRule {
     const NAME: &'static str = "ExtensionWithBaseRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(ExtensionWithBaseRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(ExtensionWithBaseRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for ExtensionWithBaseRule<'s> {
+impl<'s> SupergraphVisitor<'s> for ExtensionWithBaseRule {
     fn object_type(
         &mut self,
         cx: &mut SupergraphValidationContext,

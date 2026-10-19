@@ -12,19 +12,17 @@ use crate::utils::js::JsResult;
 
 /// `FieldArgumentsOfTheSameTypeRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeFieldArg`, `DirectiveFieldArg`.
-pub struct FieldArgumentsOfTheSameTypeRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct FieldArgumentsOfTheSameTypeRule;
 
-impl<'s> SupergraphRule<'s> for FieldArgumentsOfTheSameTypeRule<'s> {
+impl<'s> SupergraphRule<'s> for FieldArgumentsOfTheSameTypeRule {
     const NAME: &'static str = "FieldArgumentsOfTheSameTypeRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(FieldArgumentsOfTheSameTypeRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(FieldArgumentsOfTheSameTypeRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for FieldArgumentsOfTheSameTypeRule<'s> {
+impl<'s> SupergraphVisitor<'s> for FieldArgumentsOfTheSameTypeRule {
     fn object_type_field_arg(
         &mut self,
         cx: &mut SupergraphValidationContext,

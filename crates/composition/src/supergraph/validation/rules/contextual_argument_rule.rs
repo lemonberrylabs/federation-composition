@@ -9,19 +9,17 @@ use crate::utils::js::JsResult;
 
 /// `ContextualArgumentRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeFieldArg`.
-pub struct ContextualArgumentRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct ContextualArgumentRule;
 
-impl<'s> SupergraphRule<'s> for ContextualArgumentRule<'s> {
+impl<'s> SupergraphRule<'s> for ContextualArgumentRule {
     const NAME: &'static str = "ContextualArgumentRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(ContextualArgumentRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(ContextualArgumentRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for ContextualArgumentRule<'s> {
+impl<'s> SupergraphVisitor<'s> for ContextualArgumentRule {
     fn object_type_field_arg(
         &mut self,
         cx: &mut SupergraphValidationContext,

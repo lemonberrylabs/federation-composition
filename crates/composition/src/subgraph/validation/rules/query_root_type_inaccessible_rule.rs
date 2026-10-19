@@ -14,7 +14,7 @@ pub struct QueryRootTypeInaccessibleRule {
 impl<'a> SubgraphRule<'a> for QueryRootTypeInaccessibleRule {
     const NAME: &'static str = "QueryRootTypeInaccessibleRule";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         QueryRootTypeInaccessibleRule {
             root_type_name: "Query".to_string(),
         }
@@ -35,7 +35,7 @@ impl QueryRootTypeInaccessibleRule {
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for QueryRootTypeInaccessibleRule {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::SchemaDefinition(node) => self.check_operation_types(&node.operation_types),
             NodeRef::SchemaExtension(node) => self.check_operation_types(&node.operation_types),

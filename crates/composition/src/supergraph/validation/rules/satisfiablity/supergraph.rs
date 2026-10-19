@@ -20,7 +20,6 @@ use crate::utils::logger::{Logger, LoggerContext};
 pub struct Supergraph<'s> {
     supergraph: Rc<Graph<'s>>,
     merged_graph: Rc<Graph<'s>>,
-    selection_resolver: Rc<SelectionResolver<'s>>,
     move_requirement_checker: MoveValidator<'s>,
     logger: Logger,
 }
@@ -83,7 +82,6 @@ impl<'s> Supergraph<'s> {
         Ok(Supergraph {
             supergraph: Rc::new(supergraph),
             merged_graph,
-            selection_resolver,
             move_requirement_checker,
             logger,
         })

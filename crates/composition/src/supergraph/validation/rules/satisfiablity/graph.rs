@@ -63,7 +63,6 @@ pub struct Graph<'s> {
     /// Can type A lead to type B?
     type_children_cache: RefCell<IndexMap<String, bool>>,
     is_subgraph: bool,
-    logger: Logger,
     /// `idSymbol`.
     id: GraphId,
     /// `id`: the subgraph id, or the symbol's `toString()`.
@@ -133,7 +132,7 @@ fn with_type_name(selection: &SelectionNode, type_name: &str) -> SelectionNode {
 
 impl<'s> Graph<'s> {
     pub fn new(
-        logger: &Logger,
+        _logger: &Logger,
         id: GraphId,
         name: String,
         supergraph_state: &'s SupergraphState,
@@ -157,7 +156,6 @@ impl<'s> Graph<'s> {
             type_children: Vec::new(),
             type_children_cache: RefCell::new(IndexMap::new()),
             is_subgraph,
-            logger: logger.create("Graph"),
             id,
             id_str,
             name,

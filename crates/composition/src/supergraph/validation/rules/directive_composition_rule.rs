@@ -14,9 +14,7 @@ use crate::utils::js::{parse_int, JsResult};
 /// (`linkIdentityToMajorVersion`, `appliedDirectiveToGraphs`,
 /// `appliedDirectiveToLinkIdentities`) are only used in `new`.
 /// Visitor callbacks: `Directive`.
-pub struct DirectiveCompositionRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct DirectiveCompositionRule;
 
 /// A JS number as JSON: integers as integers, `NaN`/`Infinity` as `null` (`JSON.stringify`).
 fn js_number_to_json(n: f64) -> serde_json::Value {
@@ -27,7 +25,7 @@ fn js_number_to_json(n: f64) -> serde_json::Value {
     }
 }
 
-impl<'s> SupergraphRule<'s> for DirectiveCompositionRule<'s> {
+impl<'s> SupergraphRule<'s> for DirectiveCompositionRule {
     const NAME: &'static str = "DirectiveCompositionRule";
 
     fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
@@ -129,11 +127,11 @@ impl<'s> SupergraphRule<'s> for DirectiveCompositionRule<'s> {
             }
         }
 
-        Ok(DirectiveCompositionRule { supergraph })
+        Ok(DirectiveCompositionRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for DirectiveCompositionRule<'s> {
+impl<'s> SupergraphVisitor<'s> for DirectiveCompositionRule {
     fn directive(
         &mut self,
         cx: &mut SupergraphValidationContext,

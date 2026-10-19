@@ -11,19 +11,17 @@ use crate::utils::js::JsResult;
 
 /// `OverrideSourceHasOverrideRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeField`.
-pub struct OverrideSourceHasOverrideRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct OverrideSourceHasOverrideRule;
 
-impl<'s> SupergraphRule<'s> for OverrideSourceHasOverrideRule<'s> {
+impl<'s> SupergraphRule<'s> for OverrideSourceHasOverrideRule {
     const NAME: &'static str = "OverrideSourceHasOverrideRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(OverrideSourceHasOverrideRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(OverrideSourceHasOverrideRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for OverrideSourceHasOverrideRule<'s> {
+impl<'s> SupergraphVisitor<'s> for OverrideSourceHasOverrideRule {
     fn object_type_field(
         &mut self,
         cx: &mut SupergraphValidationContext,

@@ -14,7 +14,7 @@ pub struct UniqueArgumentDefinitionNamesRule {}
 impl<'a> SimpleRule<'a> for UniqueArgumentDefinitionNamesRule {
     const NAME: &'static str = "UniqueArgumentDefinitionNamesRule";
 
-    fn new(context: &mut SimpleValidationContext<'a>) -> Self {
+    fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueArgumentDefinitionNamesRule {}
     }
 }
@@ -53,7 +53,7 @@ impl UniqueArgumentDefinitionNamesRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueArgumentDefinitionNamesRule {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::DirectiveDefinition(directive_node) => {
                 let argument_nodes = &directive_node.arguments;

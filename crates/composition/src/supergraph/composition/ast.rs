@@ -897,10 +897,6 @@ fn apply_directives(common: &CommonDirectivesAst<'_>) -> Vec<ConstDirective> {
     directives
 }
 
-fn non_empty<T>(value: &Option<T>) -> bool {
-    value.is_some()
-}
-
 /// `buildInDirectives`: the specified directive names.
 static BUILD_IN_DIRECTIVES: LazyLock<IndexSet<String>> = LazyLock::new(|| {
     graphql_js::specified_directives()

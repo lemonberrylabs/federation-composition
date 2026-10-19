@@ -29,7 +29,7 @@ impl<'a> SubgraphRule<'a> for FromContextDirectiveRules {
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for FromContextDirectiveRules {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "fromContext", cx),
             NodeRef::Directive(node) => self.directive(node, cx),
@@ -262,11 +262,6 @@ impl SelectableType {
     /// `type.kind === "OBJECT"`.
     fn is_object(&self) -> bool {
         matches!(self, SelectableType::ObjectOrInterface { is_interface: false, .. })
-    }
-
-    /// `type.kind === "INTERFACE"`.
-    fn is_interface(&self) -> bool {
-        matches!(self, SelectableType::ObjectOrInterface { is_interface: true, .. })
     }
 }
 

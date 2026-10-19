@@ -15,7 +15,7 @@ pub struct UniqueDirectiveNamesRule {
 impl<'a> SimpleRule<'a> for UniqueDirectiveNamesRule {
     const NAME: &'static str = "UniqueDirectiveNamesRule";
 
-    fn new(context: &mut SimpleValidationContext<'a>) -> Self {
+    fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueDirectiveNamesRule {
             known_directive_name_nodes: IndexSet::new(),
         }
@@ -23,7 +23,7 @@ impl<'a> SimpleRule<'a> for UniqueDirectiveNamesRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueDirectiveNamesRule {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         if let NodeRef::DirectiveDefinition(node) = node {
             let directive_name = &node.name.value;
             let existing_name_node = self.known_directive_name_nodes.contains(directive_name);

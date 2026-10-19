@@ -33,7 +33,7 @@ pub struct SatisfiabilityRule<'s> {
 impl<'s> SupergraphRule<'s> for SatisfiabilityRule<'s> {
     const NAME: &'static str = "SatisfiabilityRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
+    fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
         let satisfiability_supergraph = Supergraph::new(supergraph)?;
 
         let unreachables = satisfiability_supergraph.validate()?;

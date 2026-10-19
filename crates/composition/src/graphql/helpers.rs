@@ -1,6 +1,6 @@
 //! Port of `src/graphql/helpers.ts`.
 
-use graphql_js::{Definition, DirectiveDefinition, Document};
+use graphql_js::{Definition, Document};
 
 /// `isDirectiveDefinition(node)`.
 pub fn is_directive_definition(node: &Definition) -> bool {

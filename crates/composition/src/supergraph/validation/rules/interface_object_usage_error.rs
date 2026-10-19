@@ -9,19 +9,17 @@ use crate::utils::js::JsResult;
 
 /// `InterfaceObjectUsageErrorRule(context, supergraph)`.
 /// Visitor callbacks: `InterfaceType`.
-pub struct InterfaceObjectUsageErrorRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct InterfaceObjectUsageErrorRule;
 
-impl<'s> SupergraphRule<'s> for InterfaceObjectUsageErrorRule<'s> {
+impl<'s> SupergraphRule<'s> for InterfaceObjectUsageErrorRule {
     const NAME: &'static str = "InterfaceObjectUsageErrorRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(InterfaceObjectUsageErrorRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(InterfaceObjectUsageErrorRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for InterfaceObjectUsageErrorRule<'s> {
+impl<'s> SupergraphVisitor<'s> for InterfaceObjectUsageErrorRule {
     fn interface_type(
         &mut self,
         cx: &mut SupergraphValidationContext,

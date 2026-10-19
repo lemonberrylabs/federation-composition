@@ -7,9 +7,7 @@
 
 /// `LoggerContext`: shared indentation and timing state of a family of loggers.
 #[derive(Clone, Debug, Default)]
-pub struct LoggerContext {
-    indent_level: usize,
-}
+pub struct LoggerContext {}
 
 impl LoggerContext {
     pub fn new() -> Self {
@@ -54,16 +52,12 @@ impl<F: FnOnce() -> String> LogMessage for F {
 #[derive(Clone, Debug)]
 pub struct Logger {
     pub is_enabled: bool,
-    id: String,
 }
 
 impl Logger {
     /// `new Logger(id, context)`.
-    pub fn new(id: &str, _context: &mut LoggerContext) -> Self {
-        Logger {
-            is_enabled: false,
-            id: id.to_string(),
-        }
+    pub fn new(_id: &str, _context: &mut LoggerContext) -> Self {
+        Logger { is_enabled: false }
     }
 
     /// `log(msg, prefix = "- ")`. No-op: `msg` is not evaluated.
@@ -76,10 +70,7 @@ impl Logger {
     pub fn group_end(&self, _msg: impl LogMessage) {}
 
     /// `create(id)`: a logger sharing this logger's context.
-    pub fn create(&self, id: &str) -> Logger {
-        Logger {
-            is_enabled: false,
-            id: id.to_string(),
-        }
+    pub fn create(&self, _id: &str) -> Logger {
+        Logger { is_enabled: false }
     }
 }

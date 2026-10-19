@@ -19,7 +19,7 @@ pub struct InvalidFieldSharingRule<'s> {
 impl<'s> SupergraphRule<'s> for InvalidFieldSharingRule<'s> {
     const NAME: &'static str = "InvalidFieldSharingRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
+    fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
         Ok(InvalidFieldSharingRule { supergraph })
     }
 }

@@ -16,7 +16,7 @@ pub struct CostRule {}
 impl<'a> SubgraphRule<'a> for CostRule {
     const NAME: &'static str = "CostRule";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         CostRule {}
     }
 }

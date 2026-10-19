@@ -614,11 +614,6 @@ fn is_schema_definition_or_extension_node(node: &graphql_js::Definition) -> bool
     )
 }
 
-/// `onlyDocumentNode(item)`.
-fn only_document_node(item: Option<&Document>) -> bool {
-    item.is_some()
-}
-
 /// `cleanSubgraphTypeDefsFromSubgraphSpec(typeDefs)`: removes `_Any`, `_Entity`, `_Service`
 /// and the `_service`/`_entities` query fields, in place.
 ///

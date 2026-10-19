@@ -71,7 +71,7 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueDirectivesPerLocatio
     // Many different AST nodes may contain directives. Rather than listing
     // them all, just listen for entering any node, and check to see if it
     // defines any directives.
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         // NOTE(port): an absent `directives` and an empty list behave the same here.
         let Some(directives) = node_directives(node) else {
             return VisitAction::Continue;

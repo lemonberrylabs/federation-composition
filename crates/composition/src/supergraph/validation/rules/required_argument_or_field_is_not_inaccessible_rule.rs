@@ -10,19 +10,17 @@ use crate::utils::js::JsResult;
 
 /// `RequiredArgumentOrFieldIsNotInaccessibleRule(context, supergraph)`.
 /// Visitor callbacks: `InputObjectTypeField`, `ObjectTypeFieldArg`.
-pub struct RequiredArgumentOrFieldIsNotInaccessibleRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct RequiredArgumentOrFieldIsNotInaccessibleRule;
 
-impl<'s> SupergraphRule<'s> for RequiredArgumentOrFieldIsNotInaccessibleRule<'s> {
+impl<'s> SupergraphRule<'s> for RequiredArgumentOrFieldIsNotInaccessibleRule {
     const NAME: &'static str = "RequiredArgumentOrFieldIsNotInaccessibleRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(RequiredArgumentOrFieldIsNotInaccessibleRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(RequiredArgumentOrFieldIsNotInaccessibleRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for RequiredArgumentOrFieldIsNotInaccessibleRule<'s> {
+impl<'s> SupergraphVisitor<'s> for RequiredArgumentOrFieldIsNotInaccessibleRule {
     fn input_object_type_field(
         &mut self,
         cx: &mut SupergraphValidationContext,

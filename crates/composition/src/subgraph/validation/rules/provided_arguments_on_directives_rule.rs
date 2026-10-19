@@ -15,7 +15,7 @@ pub struct ProvidedArgumentsOnDirectivesRule {}
 impl<'a> SimpleRule<'a> for ProvidedArgumentsOnDirectivesRule {
     const NAME: &'static str = "ProvidedArgumentsOnDirectivesRule";
 
-    fn new(context: &mut SimpleValidationContext<'a>) -> Self {
+    fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         ProvidedArgumentsOnDirectivesRule {}
     }
 }

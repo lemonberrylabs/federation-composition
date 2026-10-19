@@ -9,19 +9,17 @@ use crate::utils::js::JsResult;
 
 /// `EnumValuesRule(context, supergraph)`.
 /// Visitor callbacks: `EnumType`.
-pub struct EnumValuesRule<'s> {
-    supergraph: &'s SupergraphState,
-}
+pub struct EnumValuesRule;
 
-impl<'s> SupergraphRule<'s> for EnumValuesRule<'s> {
+impl<'s> SupergraphRule<'s> for EnumValuesRule {
     const NAME: &'static str = "EnumValuesRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(EnumValuesRule { supergraph })
+    fn new(_context: &mut SupergraphValidationContext, _supergraph: &'s SupergraphState) -> JsResult<Self> {
+        Ok(EnumValuesRule)
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for EnumValuesRule<'s> {
+impl<'s> SupergraphVisitor<'s> for EnumValuesRule {
     fn enum_type(
         &mut self,
         cx: &mut SupergraphValidationContext,

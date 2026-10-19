@@ -27,7 +27,7 @@ pub struct ListSizeSlicingArgumentsRule<'s> {
 impl<'s> SupergraphRule<'s> for ListSizeSlicingArgumentsRule<'s> {
     const NAME: &'static str = "ListSizeSlicingArgumentsRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
+    fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
         Ok(ListSizeSlicingArgumentsRule { supergraph })
     }
 }

@@ -16,13 +16,13 @@ pub struct ExtendsRules {}
 impl<'a> SubgraphRule<'a> for ExtendsRules {
     const NAME: &'static str = "ExtendsRules";
 
-    fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
+    fn new(_context: &mut SubgraphValidationContext<'a>) -> Self {
         ExtendsRules {}
     }
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for ExtendsRules {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "extends", cx),
             NodeRef::Directive(node) => directive(node, cx),

@@ -45,7 +45,7 @@ impl<'a> SubgraphRule<'a> for KnownFederationDirectivesRule {
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for KnownFederationDirectivesRule {
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         let NodeRef::Directive(node) = node else {
             return VisitAction::Continue;
         };

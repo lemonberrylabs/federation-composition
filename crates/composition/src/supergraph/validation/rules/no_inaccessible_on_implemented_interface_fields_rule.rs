@@ -18,7 +18,7 @@ pub struct NoInaccessibleOnImplementedInterfaceFieldsRule<'s> {
 impl<'s> SupergraphRule<'s> for NoInaccessibleOnImplementedInterfaceFieldsRule<'s> {
     const NAME: &'static str = "NoInaccessibleOnImplementedInterfaceFieldsRule";
 
-    fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
+    fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
         Ok(NoInaccessibleOnImplementedInterfaceFieldsRule { supergraph })
     }
 }
