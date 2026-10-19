@@ -50,6 +50,18 @@ pub trait TypeBuilder<T, S> {
     ) -> JsResult<Definition>;
 }
 
+/// The `getOrCreate*` helpers' `map.get(key) ?? map.set(key, create()).get(key)`.
+/// PERF: looks the key up before allocating it; `entry(key.to_string())` allocated a `String`
+/// on every visit, and the key is already present for every subgraph after the first. A new
+/// entry is appended, as with `entry`.
+pub fn get_or_insert_with<'m, V>(map: &'m mut IndexMap<String, V>, key: &str, create: impl FnOnce() -> V) -> &'m mut V {
+    let index = match map.get_index_of(key) {
+        Some(index) => index,
+        None => map.insert_full(key.to_string(), create()).0,
+    };
+    &mut map[index]
+}
+
 /// `convertToConst(nodes)`: a type cast in TS; directives are already const here.
 pub fn convert_to_const(nodes: &[DirectiveNode]) -> Vec<ConstDirective> {
     nodes.to_vec()

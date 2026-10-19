@@ -115,6 +115,12 @@ impl Selection {
     }
 
     pub fn equals(&self, other: &Selection) -> bool {
+        // PERF: resolved selections are shared (`Rc<Selection>`), and a selection equals itself
+        // (same type name and source), so identity answers without comparing strings.
+        if std::ptr::eq(self, other) {
+            return true;
+        }
+
         if self.type_name != other.type_name {
             return false;
         }

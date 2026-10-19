@@ -308,14 +308,35 @@ pub struct JoinEnumValueAst {
     pub graph: String,
 }
 
+/// The argument of the node builders below.
+/// PERF: the builders take their argument by value, so its strings and directive nodes are
+/// moved into the AST instead of copied (and the argument is not dropped afterwards). A
+/// reference, as the tests pass, is cloned first; the output is the same either way.
+pub trait AstArg<T> {
+    fn into_arg(self) -> T;
+}
+
+impl<T> AstArg<T> for T {
+    fn into_arg(self) -> T {
+        self
+    }
+}
+
+impl<T: Clone> AstArg<T> for &T {
+    fn into_arg(self) -> T {
+        self.clone()
+    }
+}
+
 /// The argument of `applyDirectives`: the union of the properties the builders pass.
+/// `ast` is owned so the node's own directives are moved into the result.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CommonDirectivesAst<'c> {
-    pub ast: &'c [ConstDirective],
-    pub join: Option<&'c JoinAst>,
+    pub ast: Vec<ConstDirective>,
+    pub join: Option<JoinAst>,
     pub deprecated: Option<&'c Deprecated>,
     pub specified_by: Option<&'c str>,
-    pub tags: &'c [String],
+    pub tags: Vec<String>,
     pub inaccessible: bool,
     pub authenticated: bool,
     pub policies: &'c [Vec<String>],
@@ -355,24 +376,26 @@ pub fn create_schema_node(schema: &SchemaAst) -> SchemaDefinition {
     }
 }
 
-pub fn create_directive_node(directive: &DirectiveAst) -> DirectiveDefinition {
+pub fn create_directive_node(directive: impl AstArg<DirectiveAst>) -> DirectiveDefinition {
+    let directive = directive.into_arg();
     DirectiveDefinition {
         description: None,
-        name: Name::new(directive.name.as_str()),
-        locations: directive.locations.iter().map(|location| Name::new(location.as_str())).collect(),
+        name: Name::new(directive.name),
+        locations: directive.locations.into_iter().map(Name::new).collect(),
         repeatable: directive.repeatable,
-        arguments: directive.arguments.iter().map(create_field_argument_node).collect(),
+        arguments: directive.arguments.into_iter().map(create_field_argument_node).collect(),
         directives: vec![],
     }
 }
 
-pub fn create_object_type_node(object_type: &ObjectTypeAst) -> ObjectTypeDefinition {
+pub fn create_object_type_node(object_type: impl AstArg<ObjectTypeAst>) -> ObjectTypeDefinition {
+    let object_type = object_type.into_arg();
     ObjectTypeDefinition {
-        name: Name::new(object_type.name.as_str()),
-        directives: apply_directives(&CommonDirectivesAst {
-            ast: &object_type.ast,
-            join: Some(&object_type.join),
-            tags: &object_type.tags,
+        name: Name::new(object_type.name),
+        directives: apply_directives(CommonDirectivesAst {
+            ast: object_type.ast,
+            join: Some(object_type.join),
+            tags: object_type.tags,
             inaccessible: object_type.inaccessible,
             authenticated: object_type.authenticated,
             policies: &object_type.policies,
@@ -381,19 +404,20 @@ pub fn create_object_type_node(object_type: &ObjectTypeAst) -> ObjectTypeDefinit
             cost: object_type.cost.as_ref(),
             ..Default::default()
         }),
-        fields: object_type.fields.iter().map(create_field_node).collect(),
-        description: object_type.description.as_ref().map(create_description_node),
-        interfaces: object_type.interfaces.iter().map(|i| create_named_type_node(i)).collect(),
+        fields: object_type.fields.into_iter().map(create_field_node).collect(),
+        description: object_type.description.map(create_description_node),
+        interfaces: object_type.interfaces.into_iter().map(create_named_type_node).collect(),
     }
 }
 
-pub fn create_interface_type_node(interface_type: &InterfaceTypeAst) -> InterfaceTypeDefinition {
+pub fn create_interface_type_node(interface_type: impl AstArg<InterfaceTypeAst>) -> InterfaceTypeDefinition {
+    let interface_type = interface_type.into_arg();
     InterfaceTypeDefinition {
-        name: Name::new(interface_type.name.as_str()),
-        directives: apply_directives(&CommonDirectivesAst {
-            ast: &interface_type.ast,
-            join: Some(&interface_type.join),
-            tags: &interface_type.tags,
+        name: Name::new(interface_type.name),
+        directives: apply_directives(CommonDirectivesAst {
+            ast: interface_type.ast,
+            join: Some(interface_type.join),
+            tags: interface_type.tags,
             inaccessible: interface_type.inaccessible,
             authenticated: interface_type.authenticated,
             policies: &interface_type.policies,
@@ -401,51 +425,54 @@ pub fn create_interface_type_node(interface_type: &InterfaceTypeAst) -> Interfac
             contexts: &interface_type.contexts,
             ..Default::default()
         }),
-        description: interface_type.description.as_ref().map(create_description_node),
-        fields: interface_type.fields.iter().map(create_field_node).collect(),
-        interfaces: interface_type.interfaces.iter().map(|i| create_named_type_node(i)).collect(),
+        description: interface_type.description.map(create_description_node),
+        fields: interface_type.fields.into_iter().map(create_field_node).collect(),
+        interfaces: interface_type.interfaces.into_iter().map(create_named_type_node).collect(),
     }
 }
 
-pub fn create_input_object_type_node(input_object_type: &InputObjectTypeAst) -> InputObjectTypeDefinition {
+pub fn create_input_object_type_node(input_object_type: impl AstArg<InputObjectTypeAst>) -> InputObjectTypeDefinition {
+    let input_object_type = input_object_type.into_arg();
     InputObjectTypeDefinition {
-        name: Name::new(input_object_type.name.as_str()),
-        directives: apply_directives(&CommonDirectivesAst {
-            ast: &input_object_type.ast,
-            join: Some(&input_object_type.join),
-            tags: &input_object_type.tags,
+        name: Name::new(input_object_type.name),
+        directives: apply_directives(CommonDirectivesAst {
+            ast: input_object_type.ast,
+            join: Some(input_object_type.join),
+            tags: input_object_type.tags,
             inaccessible: input_object_type.inaccessible,
             is_one_of: input_object_type.is_one_of,
             ..Default::default()
         }),
-        fields: input_object_type.fields.iter().map(create_input_field_node).collect(),
-        description: input_object_type.description.as_ref().map(create_description_node),
+        fields: input_object_type.fields.into_iter().map(create_input_field_node).collect(),
+        description: input_object_type.description.map(create_description_node),
     }
 }
 
-pub fn create_union_type_node(union_type: &UnionTypeAst) -> UnionTypeDefinition {
+pub fn create_union_type_node(union_type: impl AstArg<UnionTypeAst>) -> UnionTypeDefinition {
+    let union_type = union_type.into_arg();
     UnionTypeDefinition {
-        name: Name::new(union_type.name.as_str()),
-        directives: apply_directives(&CommonDirectivesAst {
-            ast: &union_type.ast,
-            join: Some(&union_type.join),
+        name: Name::new(union_type.name),
+        directives: apply_directives(CommonDirectivesAst {
+            ast: union_type.ast,
+            join: Some(union_type.join),
             inaccessible: union_type.inaccessible,
             contexts: &union_type.contexts,
-            tags: &union_type.tags,
+            tags: union_type.tags,
             ..Default::default()
         }),
-        description: union_type.description.as_ref().map(create_description_node),
-        types: union_type.members.iter().map(|member| NamedType::new(member.as_str())).collect(),
+        description: union_type.description.map(create_description_node),
+        types: union_type.members.into_iter().map(NamedType::new).collect(),
     }
 }
 
-pub fn create_enum_type_node(enum_type: &EnumTypeAst) -> EnumTypeDefinition {
+pub fn create_enum_type_node(enum_type: impl AstArg<EnumTypeAst>) -> EnumTypeDefinition {
+    let enum_type = enum_type.into_arg();
     EnumTypeDefinition {
-        name: Name::new(enum_type.name.as_str()),
-        directives: apply_directives(&CommonDirectivesAst {
-            ast: &enum_type.ast,
-            join: Some(&enum_type.join),
-            tags: &enum_type.tags,
+        name: Name::new(enum_type.name),
+        directives: apply_directives(CommonDirectivesAst {
+            ast: enum_type.ast,
+            join: Some(enum_type.join),
+            tags: enum_type.tags,
             inaccessible: enum_type.inaccessible,
             authenticated: enum_type.authenticated,
             policies: &enum_type.policies,
@@ -453,19 +480,20 @@ pub fn create_enum_type_node(enum_type: &EnumTypeAst) -> EnumTypeDefinition {
             cost: enum_type.cost.as_ref(),
             ..Default::default()
         }),
-        description: enum_type.description.as_ref().map(create_description_node),
-        values: enum_type.values.iter().map(create_enum_value_node).collect(),
+        description: enum_type.description.map(create_description_node),
+        values: enum_type.values.into_iter().map(create_enum_value_node).collect(),
     }
 }
 
-pub fn create_scalar_type_node(scalar_type: &ScalarTypeAst) -> ScalarTypeDefinition {
+pub fn create_scalar_type_node(scalar_type: impl AstArg<ScalarTypeAst>) -> ScalarTypeDefinition {
+    let scalar_type = scalar_type.into_arg();
     ScalarTypeDefinition {
-        name: Name::new(scalar_type.name.as_str()),
-        description: scalar_type.description.as_ref().map(create_description_node),
-        directives: apply_directives(&CommonDirectivesAst {
-            ast: &scalar_type.ast,
-            join: Some(&scalar_type.join),
-            tags: &scalar_type.tags,
+        name: Name::new(scalar_type.name),
+        description: scalar_type.description.map(create_description_node),
+        directives: apply_directives(CommonDirectivesAst {
+            ast: scalar_type.ast,
+            join: Some(scalar_type.join),
+            tags: scalar_type.tags,
             inaccessible: scalar_type.inaccessible,
             authenticated: scalar_type.authenticated,
             policies: &scalar_type.policies,
@@ -479,7 +507,7 @@ pub fn create_scalar_type_node(scalar_type: &ScalarTypeAst) -> ScalarTypeDefinit
 
 /// `createJoinGraphEnumTypeNode(graphs)`: the `join__Graph` enum.
 pub fn create_join_graph_enum_type_node(graphs: &[JoinGraphAst]) -> EnumTypeDefinition {
-    create_enum_type_node(&EnumTypeAst {
+    create_enum_type_node(EnumTypeAst {
         name: "join__Graph".to_string(),
         cost: None,
         values: graphs
@@ -497,7 +525,47 @@ pub fn create_join_graph_enum_type_node(graphs: &[JoinGraphAst]) -> EnumTypeDefi
 /// NOTE(port): `parseType(field.type)` throws on an invalid type string; the types are printed
 /// by the subgraph state from parsed type nodes, so they always parse.
 fn parse_type_string(ty: &str) -> Type {
+    // PERF: printed type strings (`[User!]!`) have no whitespace, comments or commas, so they
+    // are read directly; `parseType` would produce the same node. Anything else goes through
+    // the parser.
+    let mut position = 0;
+    if let Some(parsed) = parse_printed_type(ty, &mut position) {
+        if position == ty.len() {
+            return parsed;
+        }
+    }
     graphql_js::parse_type(ty).unwrap_or_else(|e| panic!("{}", e.message))
+}
+
+/// `Type : NamedType | "[" Type "]" | Type "!"` (a non-null type cannot be wrapped in another
+/// `!`), with names `[_A-Za-z][_0-9A-Za-z]*`. `None` when `ty` is not in that form at
+/// `position`.
+fn parse_printed_type(ty: &str, position: &mut usize) -> Option<Type> {
+    let bytes = ty.as_bytes();
+    let parsed = if bytes.get(*position) == Some(&b'[') {
+        *position += 1;
+        let inner = parse_printed_type(ty, position)?;
+        if bytes.get(*position) != Some(&b']') {
+            return None;
+        }
+        *position += 1;
+        Type::list(inner)
+    } else {
+        let start = *position;
+        if !bytes.get(start).is_some_and(|b| b.is_ascii_alphabetic() || *b == b'_') {
+            return None;
+        }
+        *position += 1;
+        while bytes.get(*position).is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_') {
+            *position += 1;
+        }
+        Type::named(&ty[start..*position])
+    };
+    if bytes.get(*position) == Some(&b'!') {
+        *position += 1;
+        return Some(Type::non_null(parsed));
+    }
+    Some(parsed)
 }
 
 /// NOTE(port): `parseConstValue(value)` throws on invalid input; default values are printed by
@@ -506,58 +574,61 @@ fn parse_const_value_string(value: &str) -> ConstValue {
     graphql_js::parse_const_value(value).unwrap_or_else(|e| panic!("{}", e.message))
 }
 
-fn create_field_node(field: &FieldAst) -> FieldDefinition {
+fn create_field_node(field: impl AstArg<FieldAst>) -> FieldDefinition {
+    let field = field.into_arg();
     FieldDefinition {
-        name: Name::new(field.name.as_str()),
+        name: Name::new(field.name),
         ty: parse_type_string(&field.r#type),
-        directives: apply_directives(&CommonDirectivesAst {
-            ast: &field.ast,
-            join: Some(&field.join),
+        directives: apply_directives(CommonDirectivesAst {
+            ast: field.ast,
+            join: Some(field.join),
             inaccessible: field.inaccessible,
             authenticated: field.authenticated,
             policies: &field.policies,
             scopes: &field.scopes,
             cost: field.cost.as_ref(),
             list_size: field.list_size.as_ref(),
-            tags: &field.tags,
+            tags: field.tags,
             deprecated: field.deprecated.as_ref(),
             ..Default::default()
         }),
-        description: field.description.as_ref().map(create_description_node),
-        arguments: field.arguments.iter().map(create_field_argument_node).collect(),
+        description: field.description.map(create_description_node),
+        arguments: field.arguments.into_iter().map(create_field_argument_node).collect(),
     }
 }
 
-fn create_input_field_node(input_field: &InputFieldAst) -> InputValueDefinition {
+fn create_input_field_node(input_field: impl AstArg<InputFieldAst>) -> InputValueDefinition {
+    let input_field = input_field.into_arg();
     InputValueDefinition {
-        name: Name::new(input_field.name.as_str()),
+        name: Name::new(input_field.name),
         ty: parse_type_string(&input_field.r#type),
-        directives: apply_directives(&CommonDirectivesAst {
-            ast: &input_field.ast,
-            join: Some(&input_field.join),
-            tags: &input_field.tags,
+        directives: apply_directives(CommonDirectivesAst {
+            ast: input_field.ast,
+            join: Some(input_field.join),
+            tags: input_field.tags,
             inaccessible: input_field.inaccessible,
             cost: input_field.cost.as_ref(),
             deprecated: input_field.deprecated.as_ref(),
             ..Default::default()
         }),
-        description: input_field.description.as_ref().map(create_description_node),
+        description: input_field.description.map(create_description_node),
         default_value: input_field.default_value.as_deref().map(parse_const_value_string),
     }
 }
 
-fn create_enum_value_node(enum_value: &EnumValueAst) -> EnumValueDefinition {
+fn create_enum_value_node(enum_value: impl AstArg<EnumValueAst>) -> EnumValueDefinition {
+    let enum_value = enum_value.into_arg();
     EnumValueDefinition {
-        name: Name::new(enum_value.name.as_str()),
-        directives: apply_directives(&CommonDirectivesAst {
-            ast: &enum_value.ast,
-            join: Some(&enum_value.join),
-            tags: &enum_value.tags,
+        name: Name::new(enum_value.name),
+        directives: apply_directives(CommonDirectivesAst {
+            ast: enum_value.ast,
+            join: Some(enum_value.join),
+            tags: enum_value.tags,
             inaccessible: enum_value.inaccessible,
             deprecated: enum_value.deprecated.as_ref(),
             ..Default::default()
         }),
-        description: enum_value.description.as_ref().map(create_description_node),
+        description: enum_value.description.map(create_description_node),
     }
 }
 
@@ -587,20 +658,21 @@ fn js_substring(s: &str, start: usize, end: usize) -> &str {
     &s[start.min(s.len())..end.min(s.len())]
 }
 
-fn create_field_argument_node(argument: &FieldArgumentAst) -> InputValueDefinition {
+fn create_field_argument_node(argument: impl AstArg<FieldArgumentAst>) -> InputValueDefinition {
+    let argument = argument.into_arg();
     InputValueDefinition {
-        name: Name::new(argument.name.as_str()),
+        name: Name::new(argument.name),
         default_value: create_default_value(argument.default_value.as_deref(), argument.kind),
         ty: parse_type_string(&argument.r#type),
-        directives: apply_directives(&CommonDirectivesAst {
-            ast: &argument.ast,
+        directives: apply_directives(CommonDirectivesAst {
+            ast: argument.ast,
             inaccessible: argument.inaccessible,
             cost: argument.cost.as_ref(),
-            tags: &argument.tags,
+            tags: argument.tags,
             deprecated: argument.deprecated.as_ref(),
             ..Default::default()
         }),
-        description: argument.description.as_ref().map(create_description_node),
+        description: argument.description.map(create_description_node),
     }
 }
 
@@ -609,9 +681,15 @@ fn truthy(value: &Option<String>) -> Option<&str> {
     value.as_deref().filter(|s| !s.is_empty())
 }
 
-fn create_join_type_directive_node(join: &JoinTypeAst) -> ConstDirective {
-    let mut arguments = vec![ConstArgument::new("graph", ConstValue::enum_value(join.graph.as_str()))];
-    if let Some(key) = truthy(&join.key) {
+/// `truthy` for an owned string, which is then moved into the node.
+fn truthy_owned(value: Option<String>) -> Option<String> {
+    value.filter(|s| !s.is_empty())
+}
+
+fn create_join_type_directive_node(join: impl AstArg<JoinTypeAst>) -> ConstDirective {
+    let join = join.into_arg();
+    let mut arguments = vec![ConstArgument::new("graph", ConstValue::enum_value(join.graph))];
+    if let Some(key) = truthy_owned(join.key) {
         arguments.push(ConstArgument::new("key", ConstValue::string(key)));
     }
     if join.resolvable == Some(false) {
@@ -626,28 +704,30 @@ fn create_join_type_directive_node(join: &JoinTypeAst) -> ConstDirective {
     ConstDirective::new("join__type", arguments)
 }
 
-fn create_join_implements_directive_node(join: &JoinImplementsAst) -> ConstDirective {
+fn create_join_implements_directive_node(join: impl AstArg<JoinImplementsAst>) -> ConstDirective {
+    let join = join.into_arg();
     ConstDirective::new(
         "join__implements",
         vec![
-            ConstArgument::new("graph", ConstValue::enum_value(join.graph.as_str())),
-            ConstArgument::new("interface", ConstValue::string(join.interface.as_str())),
+            ConstArgument::new("graph", ConstValue::enum_value(join.graph)),
+            ConstArgument::new("interface", ConstValue::string(join.interface)),
         ],
     )
 }
 
-fn create_join_field_directive_node(join: &JoinFieldAst) -> ConstDirective {
+fn create_join_field_directive_node(join: impl AstArg<JoinFieldAst>) -> ConstDirective {
+    let join = join.into_arg();
     let mut arguments = Vec::new();
-    if let Some(graph) = truthy(&join.graph) {
+    if let Some(graph) = truthy_owned(join.graph) {
         arguments.push(ConstArgument::new("graph", ConstValue::enum_value(graph)));
     }
-    if let Some(ty) = truthy(&join.r#type) {
+    if let Some(ty) = truthy_owned(join.r#type) {
         arguments.push(ConstArgument::new("type", ConstValue::string(ty)));
     }
-    if let Some(r#override) = truthy(&join.r#override) {
+    if let Some(r#override) = truthy_owned(join.r#override) {
         arguments.push(ConstArgument::new("override", ConstValue::string(r#override)));
     }
-    if let Some(override_label) = truthy(&join.override_label) {
+    if let Some(override_label) = truthy_owned(join.override_label) {
         arguments.push(ConstArgument::new("overrideLabel", ConstValue::string(override_label)));
     }
     if join.used_overridden == Some(true) {
@@ -656,24 +736,24 @@ fn create_join_field_directive_node(join: &JoinFieldAst) -> ConstDirective {
     if join.external == Some(true) {
         arguments.push(ConstArgument::new("external", ConstValue::boolean(true)));
     }
-    if let Some(provides) = truthy(&join.provides) {
+    if let Some(provides) = truthy_owned(join.provides) {
         arguments.push(ConstArgument::new("provides", ConstValue::string(provides)));
     }
-    if let Some(requires) = truthy(&join.requires) {
+    if let Some(requires) = truthy_owned(join.requires) {
         arguments.push(ConstArgument::new("requires", ConstValue::string(requires)));
     }
-    if let Some(context_arguments) = join.context_arguments.as_ref().filter(|a| !a.is_empty()) {
+    if let Some(context_arguments) = join.context_arguments.filter(|a| !a.is_empty()) {
         arguments.push(ConstArgument::new(
             "contextArguments",
             ConstValue::list(
                 context_arguments
-                    .iter()
+                    .into_iter()
                     .map(|argument| {
                         ConstValue::object(vec![
-                            create_string_object_field_node("context", &argument.context),
-                            create_string_object_field_node("name", &argument.name),
-                            create_string_object_field_node("type", &argument.r#type),
-                            create_string_object_field_node("selection", &argument.selection),
+                            create_string_object_field_node("context", argument.context),
+                            create_string_object_field_node("name", argument.name),
+                            create_string_object_field_node("type", argument.r#type),
+                            create_string_object_field_node("selection", argument.selection),
                         ])
                     })
                     .collect(),
@@ -683,7 +763,7 @@ fn create_join_field_directive_node(join: &JoinFieldAst) -> ConstDirective {
     ConstDirective::new("join__field", arguments)
 }
 
-fn create_string_object_field_node(name: &str, value: &str) -> ConstObjectField {
+fn create_string_object_field_node(name: &str, value: String) -> ConstObjectField {
     ConstObjectField::new(name, ConstValue::string(value))
 }
 
@@ -692,20 +772,22 @@ fn create_context_directive_node(name: &str) -> ConstDirective {
     ConstDirective::new("context", vec![ConstArgument::new("name", ConstValue::string(name))])
 }
 
-fn create_join_union_member_directive_node(join: &JoinUnionMemberAst) -> ConstDirective {
+fn create_join_union_member_directive_node(join: impl AstArg<JoinUnionMemberAst>) -> ConstDirective {
+    let join = join.into_arg();
     ConstDirective::new(
         "join__unionMember",
         vec![
-            ConstArgument::new("graph", ConstValue::enum_value(join.graph.as_str())),
-            ConstArgument::new("member", ConstValue::string(join.member.as_str())),
+            ConstArgument::new("graph", ConstValue::enum_value(join.graph)),
+            ConstArgument::new("member", ConstValue::string(join.member)),
         ],
     )
 }
 
-fn create_join_enum_value_directive_node(join: &JoinEnumValueAst) -> ConstDirective {
+fn create_join_enum_value_directive_node(join: impl AstArg<JoinEnumValueAst>) -> ConstDirective {
+    let join = join.into_arg();
     ConstDirective::new(
         "join__enumValue",
-        vec![ConstArgument::new("graph", ConstValue::enum_value(join.graph.as_str()))],
+        vec![ConstArgument::new("graph", ConstValue::enum_value(join.graph))],
     )
 }
 
@@ -738,7 +820,7 @@ fn create_requires_scopes_directive_node(scopes: &[Vec<String>]) -> ConstDirecti
     ConstDirective::new("requiresScopes", vec![ConstArgument::new("scopes", string_list_list(scopes))])
 }
 
-fn create_tag_directive_node(name: &str) -> ConstDirective {
+fn create_tag_directive_node(name: String) -> ConstDirective {
     ConstDirective::new("tag", vec![graphql_js::Argument::new("name", ConstValue::string(name))])
 }
 
@@ -756,8 +838,8 @@ fn create_join_graph_directive_node(name: &str, url: Option<&str>) -> ConstDirec
 /// `createDescriptionNode(description)`: always a block string, because the supergraph SDL
 /// produced by @apollo/composition always has `block: true` (the TS ignores
 /// `description.block`).
-fn create_description_node(description: &DescriptionAst) -> StringValue {
-    StringValue::new(description.value.clone(), true)
+fn create_description_node(description: DescriptionAst) -> StringValue {
+    StringValue::new(description.value, true)
 }
 
 fn create_deprecated_directive_node(deprecated: &Deprecated) -> ConstDirective {
@@ -842,31 +924,36 @@ fn create_link_directive_node(link: &LinkAst) -> ConstDirective {
     ConstDirective::new("link", arguments)
 }
 
-fn create_named_type_node(name: &str) -> NamedType {
+fn create_named_type_node(name: impl Into<String>) -> NamedType {
     NamedType::new(name)
 }
 
 /// `applyDirectives(common)`: the node's own directives (deduplicated by their printed form,
 /// library printer) followed by the generated federation directives.
-fn apply_directives(common: &CommonDirectivesAst<'_>) -> Vec<ConstDirective> {
+fn apply_directives(common: CommonDirectivesAst<'_>) -> Vec<ConstDirective> {
     // `.filter((directive, index, all) => all.findIndex((d) => d.string === directive.string) === index)`
-    let printed: Vec<String> = common.ast.iter().map(print).collect();
     let mut directives: Vec<ConstDirective> = Vec::new();
-    for (index, directive) in common.ast.iter().enumerate() {
-        if printed.iter().position(|d| *d == printed[index]) == Some(index) {
-            directives.push(directive.clone());
+    // PERF: a single directive cannot have a duplicate, so it is not printed.
+    if common.ast.len() <= 1 {
+        directives = common.ast;
+    } else {
+        let printed: Vec<String> = common.ast.iter().map(print).collect();
+        for (index, directive) in common.ast.into_iter().enumerate() {
+            if printed.iter().position(|d| *d == printed[index]) == Some(index) {
+                directives.push(directive);
+            }
         }
     }
 
     if let Some(join) = common.join {
-        directives.extend(join.r#type.iter().map(create_join_type_directive_node));
-        directives.extend(join.implements.iter().map(create_join_implements_directive_node));
-        directives.extend(join.field.iter().map(create_join_field_directive_node));
-        directives.extend(join.union_member.iter().map(create_join_union_member_directive_node));
-        directives.extend(join.enum_value.iter().map(create_join_enum_value_directive_node));
+        directives.extend(join.r#type.into_iter().map(create_join_type_directive_node));
+        directives.extend(join.implements.into_iter().map(create_join_implements_directive_node));
+        directives.extend(join.field.into_iter().map(create_join_field_directive_node));
+        directives.extend(join.union_member.into_iter().map(create_join_union_member_directive_node));
+        directives.extend(join.enum_value.into_iter().map(create_join_enum_value_directive_node));
     }
     directives.extend(common.contexts.iter().map(|name| create_context_directive_node(name)));
-    directives.extend(common.tags.iter().map(|name| create_tag_directive_node(name)));
+    directives.extend(common.tags.into_iter().map(create_tag_directive_node));
     if common.inaccessible {
         directives.push(create_inaccessible_directive_node());
     }

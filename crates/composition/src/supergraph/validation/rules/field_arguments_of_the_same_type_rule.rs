@@ -30,6 +30,12 @@ impl<'s> SupergraphVisitor<'s> for FieldArgumentsOfTheSameTypeRule {
         field_state: &'s ObjectTypeFieldState,
         arg_state: &'s ObjectTypeFieldArgState,
     ) -> JsResult<()> {
+        // PERF: when every graph has the supergraph type, the normalized type below is that type
+        // for every graph, `typeToGraphs` has one entry and nothing is reported.
+        if arg_state.by_graph.values().all(|arg| arg.r#type == arg_state.r#type) {
+            return Ok(());
+        }
+
         let mut type_to_graphs: IndexMap<String, Vec<String>> = IndexMap::default();
 
         for (graph_name, arg) in &arg_state.by_graph {

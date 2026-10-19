@@ -15,6 +15,7 @@ pub struct UniqueInputFieldNamesRule {
 
 impl<'a> SimpleRule<'a> for UniqueInputFieldNamesRule {
     const NAME: &'static str = "UniqueInputFieldNamesRule";
+    type Visitor = Self;
 
     fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueInputFieldNamesRule {
@@ -25,6 +26,12 @@ impl<'a> SimpleRule<'a> for UniqueInputFieldNamesRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueInputFieldNamesRule {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter_leave(&[Kind::ObjectValue, Kind::ObjectField], &[Kind::ObjectValue])
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::ObjectValue(_) => {

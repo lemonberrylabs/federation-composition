@@ -62,7 +62,14 @@ impl OperationPath {
 
     /// `path.clone().move(edge)`.
     pub fn moved(&self, graph: &Graph<'_>, edge: EdgeId) -> OperationPath {
-        let mut new_path = self.clone();
+        // PERF: the copy is sized for the new edge, so `move` does not reallocate it.
+        let mut previous_edges = Vec::with_capacity(self.previous_edges.len() + 1);
+        previous_edges.extend_from_slice(&self.previous_edges);
+        let mut new_path = OperationPath {
+            root_node: self.root_node,
+            previous_edges,
+            contexts_in_scope: self.contexts_in_scope.clone(),
+        };
         new_path.r#move(graph, edge);
         new_path
     }

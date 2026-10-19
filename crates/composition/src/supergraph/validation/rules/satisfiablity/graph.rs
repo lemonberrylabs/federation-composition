@@ -10,6 +10,7 @@
 //! The edges of `replaceEdgeAt` are pushed to the arena without `addEdge` (as in TS, where they
 //! are only placed in the head/tail indexes), see [`Graph::push_edge`].
 
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -21,7 +22,7 @@ use super::contexts::{ContextMask, Contexts};
 use super::edge::{assert_abstract_edge, assert_field_edge, Edge, EdgeId};
 use super::helpers::{is_truthy_str, score_key_fields};
 use super::moves::{AbstractMove, EntityMove, FieldMove, FieldMoveOverride, Move};
-use super::node::{Node, NodeId, NodeTypeState};
+use super::node::{GraphComboIds, GraphNameId, GraphNames, Names, Node, NodeId, NodeTypeState};
 use super::selection::{Field, Fragment, SelectionNode, SelectionResolver};
 use crate::specifications::federation::FederationVersion;
 use crate::subgraph::state::FromContext;
@@ -32,7 +33,6 @@ use crate::supergraph::composition::union_type::UnionTypeState;
 use crate::supergraph::state::SupergraphState;
 use crate::utils::js::{JsError, JsResult};
 use crate::utils::logger::Logger;
-use crate::utils::state::strip_type_modifiers;
 
 /// An entry of the `queue` used while adding `@provides` fields: `{ head, providedFields }`.
 #[derive(Clone, Debug)]
@@ -48,10 +48,71 @@ pub enum FieldStateRef<'s> {
     Interface(&'s InterfaceTypeFieldState),
 }
 
+/// PERF: the types defined in each subgraph (`typeState.byGraph.has(graphId)`), each list in
+/// `SupergraphState` order. `addFromEntities` and `addUnreachableTypes` loop over every type of
+/// the supergraph for every subgraph; this index gives the same types in the same order.
+#[derive(Debug, Default)]
+pub struct TypesBySubgraph<'s> {
+    by_graph_id: IndexMap<&'s str, SubgraphTypes<'s>>,
+}
+
+/// The types of one subgraph, see [`TypesBySubgraph`].
+#[derive(Debug, Default)]
+pub struct SubgraphTypes<'s> {
+    object_types: Vec<(&'s str, &'s ObjectTypeState)>,
+    scalar_types: Vec<&'s str>,
+    enum_types: Vec<&'s EnumTypeState>,
+    union_types: Vec<&'s UnionTypeState>,
+    interface_types: Vec<&'s InterfaceTypeState>,
+}
+
+impl<'s> TypesBySubgraph<'s> {
+    pub fn new(state: &'s SupergraphState) -> Self {
+        let mut index = TypesBySubgraph::default();
+        for (type_name, s) in &state.object_types {
+            for graph_id in s.by_graph.keys() {
+                index.of_mut(graph_id).object_types.push((type_name, s));
+            }
+        }
+        for (type_name, s) in &state.scalar_types {
+            for graph_id in s.by_graph.keys() {
+                index.of_mut(graph_id).scalar_types.push(type_name);
+            }
+        }
+        for s in state.enum_types.values() {
+            for graph_id in s.by_graph.keys() {
+                index.of_mut(graph_id).enum_types.push(s);
+            }
+        }
+        for s in state.union_types.values() {
+            for graph_id in s.by_graph.keys() {
+                index.of_mut(graph_id).union_types.push(s);
+            }
+        }
+        for s in state.interface_types.values() {
+            for graph_id in s.by_graph.keys() {
+                index.of_mut(graph_id).interface_types.push(s);
+            }
+        }
+        index
+    }
+
+    fn of_mut(&mut self, graph_id: &'s str) -> &mut SubgraphTypes<'s> {
+        self.by_graph_id.entry(graph_id).or_default()
+    }
+
+    /// The types of the subgraph with this id (none if it defines no type).
+    pub fn of(&self, graph_id: &str) -> Option<&SubgraphTypes<'s>> {
+        self.by_graph_id.get(graph_id)
+    }
+}
+
 /// `Graph`.
 #[derive(Debug)]
 pub struct Graph<'s> {
     warned_about_incorrect_edge: Cell<bool>,
+    /// PERF: `indirectEdgesOfHead` per node, once `enable_edge_caches` was called (see there).
+    indirect_edges_cache: Option<RefCell<Vec<Option<Rc<[EdgeId]>>>>>,
     /// `nodesByTypeIndex` (one node per index).
     nodes: Vec<Node<'s>>,
     edges: Vec<Edge<'s>>,
@@ -68,6 +129,13 @@ pub struct Graph<'s> {
     /// `id`: the subgraph id, or the symbol's `toString()`.
     id_str: String,
     pub name: String,
+    /// PERF: the interned graph names of the `Supergraph` this graph belongs to.
+    pub graph_names: Rc<GraphNames>,
+    name_id: GraphNameId,
+    /// PERF: the interned keys of the combos recorded in this graph's nodes (`Node::is_graph_combo_visited`).
+    pub graph_combo_ids: GraphComboIds,
+    /// PERF: interned type and field names, captured by lazy errors (`findDirectPaths`).
+    pub names: Names,
     supergraph_state: &'s SupergraphState,
     selection_resolver: Rc<SelectionResolver<'s>>,
     ignore_inaccessible: bool,
@@ -115,6 +183,17 @@ fn from_contexts_in_graph<'a>(field: FieldStateRef<'a>, graph_id: &str) -> Vec<O
     }
 }
 
+/// `stripTypeModifiers(type)`.
+/// PERF: borrows the type name when it has no modifiers (most output types are named types
+/// here), instead of always allocating like `utils::state::strip_type_modifiers`.
+fn strip_type_modifiers(ty: &str) -> Cow<'_, str> {
+    if ty.contains(['!', '[', ']']) {
+        Cow::Owned(ty.replace(['!', '[', ']'], ""))
+    } else {
+        Cow::Borrowed(ty)
+    }
+}
+
 /// `{ ...providedField, typeName }`.
 fn with_type_name(selection: &SelectionNode, type_name: &str) -> SelectionNode {
     match selection {
@@ -139,15 +218,18 @@ impl<'s> Graph<'s> {
         selection_resolver: Rc<SelectionResolver<'s>>,
         ignore_inaccessible: bool,
         contexts: Option<Rc<Contexts>>,
+        graph_names: Rc<GraphNames>,
     ) -> Self {
         let is_subgraph = match &id {
             GraphId::Subgraph(_) => true,
             other => *other != GraphId::Supergraph,
         };
         let id_str = id.to_id_string();
+        let name_id = graph_names.intern(&name);
 
         Graph {
             warned_about_incorrect_edge: Cell::new(false),
+            indirect_edges_cache: None,
             nodes: Vec::new(),
             edges: Vec::new(),
             edges_by_head_type_index: Vec::new(),
@@ -159,6 +241,10 @@ impl<'s> Graph<'s> {
             id,
             id_str,
             name,
+            graph_names,
+            name_id,
+            graph_combo_ids: GraphComboIds::default(),
+            names: Names::default(),
             supergraph_state,
             selection_resolver,
             ignore_inaccessible,
@@ -205,38 +291,32 @@ impl<'s> Graph<'s> {
             .expect("only field edges are indexed as field edges")
     }
 
-    pub fn add_unreachable_types(&mut self) -> JsResult<&mut Self> {
+    /// PERF: `types` is this subgraph's entry of [`TypesBySubgraph`]: the types for which
+    /// `byGraph.has(this.id)`, in the order the TS loops visit them.
+    pub fn add_unreachable_types(&mut self, types: Option<&SubgraphTypes<'s>>) -> JsResult<&mut Self> {
         if !self.is_supergraph() {
-            let state = self.supergraph_state;
+            let Some(types) = types else {
+                return Ok(self);
+            };
 
-            for (type_name, s) in &state.object_types {
-                if s.by_graph.contains_key(&self.id_str) {
-                    self.create_nodes_and_edges_for_type(type_name)?;
-                }
+            for &(type_name, _) in &types.object_types {
+                self.create_nodes_and_edges_for_type(type_name)?;
             }
 
-            for (type_name, s) in &state.scalar_types {
-                if s.by_graph.contains_key(&self.id_str) {
-                    self.create_node_for_scalar_type(type_name)?;
-                }
+            for &type_name in &types.scalar_types {
+                self.create_node_for_scalar_type(type_name)?;
             }
 
-            for s in state.enum_types.values() {
-                if s.by_graph.contains_key(&self.id_str) {
-                    self.create_node_for_enum_type(s)?;
-                }
+            for &s in &types.enum_types {
+                self.create_node_for_enum_type(s)?;
             }
 
-            for s in state.union_types.values() {
-                if s.by_graph.contains_key(&self.id_str) {
-                    self.create_node_for_union_type(s)?;
-                }
+            for &s in &types.union_types {
+                self.create_node_for_union_type(s)?;
             }
 
-            for s in state.interface_types.values() {
-                if s.by_graph.contains_key(&self.id_str) {
-                    self.create_node_for_interface_type(s)?;
-                }
+            for &s in &types.interface_types {
+                self.create_node_for_interface_type(s)?;
             }
         }
 
@@ -305,7 +385,17 @@ impl<'s> Graph<'s> {
         Ok(self)
     }
 
-    pub fn add_from_entities(&mut self) -> JsResult<&mut Self> {
+    /// PERF: `types` as in `add_unreachable_types`; a subgraph graph only visits its own types.
+    pub fn add_from_entities(&mut self, types: Option<&SubgraphTypes<'s>>) -> JsResult<&mut Self> {
+        if self.is_subgraph {
+            for &(_, type_state) in types.map(|t| t.object_types.as_slice()).unwrap_or_default() {
+                if type_state.is_entity {
+                    self.create_nodes_and_edges_for_type(&type_state.name)?;
+                }
+            }
+            return Ok(self);
+        }
+
         let state = self.supergraph_state;
         for type_state in state.object_types.values() {
             if type_state.is_entity && self.true_or_if_subgraph_then(|| type_state.by_graph.contains_key(&self.id_str)) {
@@ -983,11 +1073,11 @@ impl<'s> Graph<'s> {
     }
 
     fn duplicate_node(&mut self, original_node: NodeId, r#move: &Move) -> NodeId {
-        let (type_name, type_state, graph_id, graph_name) = {
+        let (type_name, type_state, graph_id, graph_name, graph_name_id) = {
             let n = self.node(original_node);
-            (n.type_name.clone(), n.type_state, n.graph_id.clone(), n.graph_name.clone())
+            (n.type_name.clone(), n.type_state, n.graph_id.clone(), n.graph_name.clone(), n.graph_name_id)
         };
-        let new_node = self.create_node(&type_name, type_state, &graph_id, &graph_name);
+        let new_node = self.create_node(&type_name, type_state, &graph_id, &graph_name, graph_name_id);
 
         for edge in self.edges_of_head(original_node) {
             let e = self.edge(edge);
@@ -1115,10 +1205,22 @@ impl<'s> Graph<'s> {
     /// Throws `Expected edge to be defined at index X` for an index without an edge.
     fn get_same_graph_edges_of_index(&self, head: NodeId, indexes: Option<&Vec<usize>>, kind: &str) -> JsResult<Vec<EdgeId>> {
         let mut edges = Vec::new();
+        self.push_same_graph_edges_of_index(&mut edges, head, indexes, kind)?;
+        Ok(edges)
+    }
 
+    /// PERF: `getSameGraphEdgesOfIndex` appending to `edges`, so `indirectEdgesOfHead` fills one list.
+    fn push_same_graph_edges_of_index(
+        &self,
+        edges: &mut Vec<EdgeId>,
+        head: NodeId,
+        indexes: Option<&Vec<usize>>,
+        kind: &str,
+    ) -> JsResult<()> {
         let Some(indexes) = indexes else {
-            return Ok(Vec::new());
+            return Ok(());
         };
+        edges.reserve(indexes.len());
 
         let head_node = self.node(head);
         for &i in indexes {
@@ -1131,7 +1233,8 @@ impl<'s> Graph<'s> {
                 continue;
             }
 
-            if self.node(e.head).graph_name == head_node.graph_name {
+            // PERF: interned names compare like the names.
+            if self.node(e.head).graph_name_id == head_node.graph_name_id {
                 edges.push(edge);
                 continue;
             }
@@ -1146,7 +1249,7 @@ impl<'s> Graph<'s> {
             }
         }
 
-        Ok(edges)
+        Ok(())
     }
 
     pub fn field_edges_of_head(&self, head: NodeId, field_name: &str) -> JsResult<Vec<EdgeId>> {
@@ -1167,19 +1270,50 @@ impl<'s> Graph<'s> {
         self.get_same_graph_edges_of_index(head, node.get_entity_edge_indexes(&node.type_name), "entity")
     }
 
-    pub fn indirect_edges_of_head(&self, head: NodeId) -> JsResult<Vec<EdgeId>> {
-        let node = self.node(head);
-        let mut all = self.get_same_graph_edges_of_index(head, node.get_cross_graph_edge_indexes(&node.type_name), "cross-graph")?;
-        all.extend(self.get_same_graph_edges_of_index(head, node.get_abstract_edge_indexes(&node.type_name), "abstract")?);
+    /// PERF: called once the graph is complete (no node or edge is added, ignored or replaced
+    /// afterwards). From then on `indirectEdgesOfHead` remembers its result per node: the result
+    /// only depends on the finished graph. A throw is not remembered (the next call throws
+    /// again), and the one-time warning is printed by the first computation either way.
+    pub fn enable_edge_caches(&mut self) {
+        self.indirect_edges_cache = Some(RefCell::new(vec![None; self.nodes.len()]));
+    }
 
-        // `.filter((edge, i, all) => all.indexOf(edge) === i)`
-        let mut unique: Vec<EdgeId> = Vec::with_capacity(all.len());
-        for edge in all {
-            if !unique.contains(&edge) {
-                unique.push(edge);
+    pub fn indirect_edges_of_head(&self, head: NodeId) -> JsResult<Rc<[EdgeId]>> {
+        if let Some(cache) = &self.indirect_edges_cache {
+            if let Some(edges) = &cache.borrow()[head.0] {
+                return Ok(edges.clone());
             }
         }
-        Ok(unique)
+
+        let node = self.node(head);
+        let mut all = Vec::new();
+        self.push_same_graph_edges_of_index(&mut all, head, node.get_cross_graph_edge_indexes(&node.type_name), "cross-graph")?;
+        self.push_same_graph_edges_of_index(&mut all, head, node.get_abstract_edge_indexes(&node.type_name), "abstract")?;
+
+        // `.filter((edge, i, all) => all.indexOf(edge) === i)`
+        // PERF: in place; the kept edges are the prefix `all[..unique]`. Long lists (an entity
+        // type shared by many subgraphs has an edge to each of them) use a set instead of the
+        // quadratic scan; both keep the first occurrence of each edge, in order.
+        if all.len() > 32 {
+            let mut seen: IndexSet<EdgeId> = IndexSet::with_capacity_and_hasher(all.len(), Default::default());
+            all.retain(|&edge| seen.insert(edge));
+        } else {
+            let mut unique = 0;
+            for i in 0..all.len() {
+                let edge = all[i];
+                if !all[..unique].contains(&edge) {
+                    all[unique] = edge;
+                    unique += 1;
+                }
+            }
+            all.truncate(unique);
+        }
+
+        let edges: Rc<[EdgeId]> = all.into();
+        if let Some(cache) = &self.indirect_edges_cache {
+            cache.borrow_mut()[head.0] = Some(edges.clone());
+        }
+        Ok(edges)
     }
 
     pub fn edges_of_head(&self, head: NodeId) -> Vec<EdgeId> {
@@ -1277,6 +1411,13 @@ impl<'s> Graph<'s> {
     }
 
     fn create_nodes_and_edges_for_type(&mut self, type_name: &str) -> JsResult<NodeId> {
+        // PERF: every branch below starts with `ensureNonOrSingleNode(typeName)` and returns the
+        // existing node (or throws) when there is one, and a node only exists for a type of one
+        // of these kinds, so checking first skips the type-state lookups for known types.
+        if let Some(existing) = self.ensure_non_or_single_node(type_name)? {
+            return Ok(existing);
+        }
+
         let state = self.supergraph_state;
 
         if let Some(type_state) = state.object_types.get(type_name) {
@@ -1423,11 +1564,8 @@ impl<'s> Graph<'s> {
         let output_type_name = strip_type_modifiers(&field.r#type);
         let tail = self.create_nodes_and_edges_for_type(&output_type_name)?;
 
-        let (head_type_name, head_graph_id) = {
-            let n = self.node(head);
-            (n.type_name.clone(), n.graph_id.clone())
-        };
-        let field_state_in_graph = field.by_graph.get(&head_graph_id);
+        let head_type_name = self.node(head).type_name.clone();
+        let field_state_in_graph = field.by_graph.get(&self.node(head).graph_id);
         let requires = field_state_in_graph.and_then(|f| f.requires.as_deref());
         let provides = field_state_in_graph.and_then(|f| f.provides.as_deref());
 
@@ -1512,10 +1650,7 @@ impl<'s> Graph<'s> {
 
         let tail = self.create_nodes_and_edges_for_type(&output_type_name)?;
 
-        let (head_type_name, head_graph_id) = {
-            let n = self.node(head);
-            (n.type_name.clone(), n.graph_id.clone())
-        };
+        let head_type_name = self.node(head).type_name.clone();
 
         if self.is_supergraph() {
             // If the field has a @override(label:),
@@ -1544,7 +1679,7 @@ impl<'s> Graph<'s> {
             return Ok(());
         }
 
-        let field_state_in_graph = field.by_graph.get(&head_graph_id);
+        let field_state_in_graph = field.by_graph.get(&self.node(head).graph_id);
         let requires = field_state_in_graph.and_then(|f| f.requires.as_deref());
         let provides = field_state_in_graph.and_then(|f| f.provides.as_deref());
         let r#override = field_state_in_graph.and_then(|f| f.r#override.as_deref());
@@ -1600,7 +1735,8 @@ impl<'s> Graph<'s> {
 
         let graph_id = self.id_str.clone();
         let graph_name = self.name.clone();
-        Ok(self.create_node(type_name, type_state, &graph_id, &graph_name))
+        let graph_name_id = self.name_id;
+        Ok(self.create_node(type_name, type_state, &graph_id, &graph_name, graph_name_id))
     }
 
     fn create_node(
@@ -1609,6 +1745,7 @@ impl<'s> Graph<'s> {
         type_state: Option<NodeTypeState<'s>>,
         graph_id: &str,
         graph_name: &str,
+        graph_name_id: GraphNameId,
     ) -> NodeId {
         let index = self.nodes.len();
         let contexts = self
@@ -1622,6 +1759,7 @@ impl<'s> Graph<'s> {
             type_state,
             graph_id.to_string(),
             graph_name.to_string(),
+            graph_name_id,
             contexts,
         ));
         self.edges_by_head_type_index.push(Vec::new());
@@ -1673,10 +1811,14 @@ impl<'s> Graph<'s> {
         let edge_index = self.edges_by_head_type_index[head.0].len();
         self.edges_by_head_type_index[head.0].push(edge_id);
         self.edges_by_tail_type_index[tail.0].push(edge_id);
-        let tail_type_name = self.nodes[tail.0].type_name.clone();
-        self.type_children[head.0].insert(tail_type_name);
+        // PERF: inserting an existing name keeps its position, so copy the name only when new.
+        if !self.type_children[head.0].contains(&self.nodes[tail.0].type_name) {
+            let tail_type_name = self.nodes[tail.0].type_name.clone();
+            self.type_children[head.0].insert(tail_type_name);
+        }
 
-        let head_type_name = self.nodes[head.0].type_name.clone();
+        // PERF: the head's type name is copied (to index the edge under it) only for the edges
+        // indexed by type name; field edges are indexed by field name.
         let is_cross_graph_edge = edge.is_cross_graph_edge(&self.nodes[head.0].graph_id, &self.nodes[tail.0].graph_id);
 
         match &edge.r#move {
@@ -1691,11 +1833,18 @@ impl<'s> Graph<'s> {
 
                 self.nodes[head.0].add_field_edge(&field_move.field_name, edge_index);
             }
-            Move::Entity(_) => self.nodes[head.0].add_entity_edge(&head_type_name, edge_index),
-            Move::Abstract(_) => self.nodes[head.0].add_abstract_edge(&head_type_name, edge_index),
+            Move::Entity(_) => {
+                let head_type_name = self.nodes[head.0].type_name.clone();
+                self.nodes[head.0].add_entity_edge(&head_type_name, edge_index)
+            }
+            Move::Abstract(_) => {
+                let head_type_name = self.nodes[head.0].type_name.clone();
+                self.nodes[head.0].add_abstract_edge(&head_type_name, edge_index)
+            }
         }
 
         if is_cross_graph_edge {
+            let head_type_name = self.nodes[head.0].type_name.clone();
             self.nodes[head.0].add_cross_graph_edge(&head_type_name, edge_index);
         }
 

@@ -4,7 +4,7 @@ use graphql_js::Definition;
 use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::ast::{create_input_object_type_node, CostAst, InputFieldAst, InputObjectTypeAst, JoinAst, JoinFieldAst, JoinTypeAst};
-use super::common::{convert_to_const, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
+use super::common::{convert_to_const, get_or_insert_with, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
 use crate::utils::helpers::{ensure_value, math_max};
 use crate::specifications::federation::FederationVersion;
 use crate::subgraph::state::{Ast, ArgumentKind, Deprecated, Description, InputObjectType};
@@ -62,6 +62,11 @@ impl TypeBuilder<InputObjectType, InputObjectTypeState> for InputObjectTypeBuild
                 version: graph.version,
             },
         );
+
+        // PERF: a new type state gets room for the fields up front (only the capacity changes).
+        if input_object_type_state.fields.is_empty() {
+            input_object_type_state.fields.reserve(ty.fields.len());
+        }
 
         for field in ty.fields.values() {
             let field_state = get_or_create_field(input_object_type_state, &field.name, &field.r#type, field.kind);
@@ -172,7 +177,7 @@ impl TypeBuilder<InputObjectType, InputObjectTypeState> for InputObjectTypeBuild
             });
         }
 
-        Ok(Definition::InputObjectTypeDefinition(create_input_object_type_node(&InputObjectTypeAst {
+        Ok(Definition::InputObjectTypeDefinition(create_input_object_type_node(InputObjectTypeAst {
             name: input_object_type.name.clone(),
             tags: input_object_type.tags.iter().cloned().collect(),
             inaccessible: input_object_type.inaccessible,
@@ -245,19 +250,17 @@ fn get_or_create_input_object_type<'s>(
     state: &'s mut IndexMap<String, InputObjectTypeState>,
     type_name: &str,
 ) -> &'s mut InputObjectTypeState {
-    state
-        .entry(type_name.to_string())
-        .or_insert_with(|| InputObjectTypeState {
-            name: type_name.to_string(),
-            tags: IndexSet::default(),
-            has_definition: false,
-            inaccessible: false,
-            description: None,
-            is_one_of: None,
-            by_graph: IndexMap::default(),
-            fields: IndexMap::default(),
-            ast: Ast { directives: vec![] },
-        })
+    get_or_insert_with(state, type_name, || InputObjectTypeState {
+        name: type_name.to_string(),
+        tags: IndexSet::default(),
+        has_definition: false,
+        inaccessible: false,
+        description: None,
+        is_one_of: None,
+        by_graph: IndexMap::default(),
+        fields: IndexMap::default(),
+        ast: Ast { directives: vec![] },
+    })
 }
 
 fn get_or_create_field<'s>(
@@ -266,22 +269,19 @@ fn get_or_create_field<'s>(
     field_type: &str,
     field_kind: ArgumentKind,
 ) -> &'s mut InputObjectTypeFieldState {
-    object_type_state
-        .fields
-        .entry(field_name.to_string())
-        .or_insert_with(|| InputObjectTypeFieldState {
-            name: field_name.to_string(),
-            r#type: field_type.to_string(),
-            kind: field_kind,
-            tags: IndexSet::default(),
-            inaccessible: false,
-            cost: None,
-            default_value: None,
-            description: None,
-            deprecated: None,
-            by_graph: IndexMap::default(),
-            ast: Ast { directives: vec![] },
-        })
+    get_or_insert_with(&mut object_type_state.fields, field_name, || InputObjectTypeFieldState {
+        name: field_name.to_string(),
+        r#type: field_type.to_string(),
+        kind: field_kind,
+        tags: IndexSet::default(),
+        inaccessible: false,
+        cost: None,
+        default_value: None,
+        description: None,
+        deprecated: None,
+        by_graph: IndexMap::default(),
+        ast: Ast { directives: vec![] },
+    })
 }
 
 #[cfg(test)]

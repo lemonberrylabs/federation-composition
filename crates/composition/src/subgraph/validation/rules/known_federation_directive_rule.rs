@@ -45,6 +45,12 @@ impl<'a> SubgraphRule<'a> for KnownFederationDirectivesRule {
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for KnownFederationDirectivesRule {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter(&[Kind::Directive])
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         let NodeRef::Directive(node) = node else {
             return VisitAction::Continue;

@@ -1,7 +1,6 @@
 //! Port of `src/supergraph/validation/rules/satisfiablity/helpers.ts`.
 
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use crate::utils::collections::IndexMap;
 
@@ -32,20 +31,27 @@ pub fn score_key_fields(key_fields: &str) -> usize {
 /// `Rc`-shared). Share one `Lazy` between owners with `Rc<Lazy<..>>` (the TS shares the object).
 /// The `toString` caches of `Node`/`Edge`/moves/`OperationPath` are only used for logging and
 /// can be computed on demand instead.
-pub struct Lazy<'a, T> {
-    factory: Rc<dyn Fn() -> T + 'a>,
+///
+/// PERF: the factory is stored inline as the struct's unsized tail (`Lazy<'a, T>` is the
+/// `dyn Fn` form), so `Rc::new(lazy(..))` coerced to `Rc<Lazy<..>>` is one allocation instead
+/// of two. Satisfiability creates many lazy errors that are never evaluated.
+pub struct LazyCell<T, F: ?Sized> {
     value: RefCell<Option<T>>,
+    factory: F,
 }
 
+/// `Lazy<T>` with the factory type erased.
+pub type Lazy<'a, T> = LazyCell<T, dyn Fn() -> T + 'a>;
+
 /// `lazy(factory)`.
-pub fn lazy<'a, T>(factory: impl Fn() -> T + 'a) -> Lazy<'a, T> {
-    Lazy {
-        factory: Rc::new(factory),
+pub fn lazy<T, F: Fn() -> T>(factory: F) -> LazyCell<T, F> {
+    LazyCell {
         value: RefCell::new(None),
+        factory,
     }
 }
 
-impl<T: Clone> Lazy<'_, T> {
+impl<T: Clone, F: ?Sized + Fn() -> T> LazyCell<T, F> {
     pub fn get(&self) -> T {
         if let Some(v) = self.value.borrow().as_ref() {
             return v.clone();
@@ -60,7 +66,7 @@ impl<T: Clone> Lazy<'_, T> {
     }
 }
 
-impl<T> std::fmt::Debug for Lazy<'_, T> {
+impl<T, F: ?Sized> std::fmt::Debug for LazyCell<T, F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("Lazy")
     }

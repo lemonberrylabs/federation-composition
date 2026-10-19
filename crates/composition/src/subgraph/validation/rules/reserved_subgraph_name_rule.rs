@@ -1,6 +1,6 @@
 //! Port of `src/subgraph/validation/rules/reserved-subgraph-name-rule.ts`.
 
-use graphql_js::{GraphQLError, Visitor};
+use graphql_js::{GraphQLError, VisitKinds, Visitor};
 
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 
@@ -24,4 +24,9 @@ impl<'a> SubgraphRule<'a> for ReservedSubgraphNameRule {
     }
 }
 
-impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for ReservedSubgraphNameRule {}
+impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for ReservedSubgraphNameRule {
+    /// PERF: no callbacks, so `visit_in_parallel` never calls this visitor.
+    fn kinds(&self) -> VisitKinds {
+        VisitKinds::enter(&[])
+    }
+}

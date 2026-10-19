@@ -15,6 +15,7 @@ pub struct UniqueOperationTypesRule {
 
 impl<'a> SimpleRule<'a> for UniqueOperationTypesRule {
     const NAME: &'static str = "UniqueOperationTypesRule";
+    type Visitor = Self;
 
     fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueOperationTypesRule {
@@ -43,6 +44,12 @@ impl UniqueOperationTypesRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueOperationTypesRule {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter(&[Kind::SchemaDefinition, Kind::SchemaExtension])
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::SchemaDefinition(n) => self.check_operation_types(cx, &n.operation_types),

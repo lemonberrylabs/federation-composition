@@ -155,6 +155,10 @@ port it in `crates/composition`, do not substitute graphql-js `print` for it.
   object becomes a `match node { NodeRef::FieldDefinition(f) => ..., _ => {} }`.
   Visitors may keep `&'a` references into the document (see `TypeNodeInfo` in
   `crates/graphql/tests/visitor.rs`).
+  `Visitor::kinds()` (default: all kinds) lists the node kinds `enter` and `leave` act on;
+  `visit_in_parallel` calls a visitor only for those, the way graphql-js calls only the
+  handlers a visitor object defines. **When you change the kinds a callback matches, update
+  `kinds()` to match**: a kind missing from it means the callback is never called for it.
 - Editing visit (graphql-js `visit` with returned replacements):
   `visit_edit(root, &mut impl EditVisitor) -> EditResult` and `visit_in_parallel_edit`,
   `EditAction::{Replace(Node), Delete, Skip, Break, Continue}`; `.into_document()`.
@@ -217,7 +221,9 @@ document, and the subgraph context holds `state_builder: &'a mut SubgraphStateBu
 (`NAME` = the TS function name for `disableValidationRules`, `new(&mut cx)` = the factory body
 before `return { ... }`) and `Visitor<'a, Ctx<'a>>` (`enter`/`leave` = the returned object, as a
 `match node`). Struct fields are the factory's locals; add a lifetime parameter if a rule keeps
-`&'a` nodes. The state builder's visitor is `SubgraphStateVisitor` (from
+`&'a` nodes (a `SimpleRule` that does is a unit struct whose `type Visitor` is the struct holding
+the borrowed state; the others use `type Visitor = Self`). Prefer `&'a str` names borrowed from
+the document over cloned `String`s in rule state. The state builder's visitor is `SubgraphStateVisitor` (from
 `builder.visitor()`); it reads the builder and `TypeNodeInfo` through `cx`.
 `visit_with_type_node_info(visitor)` wraps the parallel visitor and maintains
 `cx.type_node_info` (trait `HasTypeNodeInfo`). A `throw` inside a visitor callback becomes

@@ -35,6 +35,12 @@ impl QueryRootTypeInaccessibleRule {
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for QueryRootTypeInaccessibleRule {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter(&[Kind::SchemaDefinition, Kind::SchemaExtension, Kind::ObjectTypeDefinition])
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::SchemaDefinition(node) => self.check_operation_types(&node.operation_types),

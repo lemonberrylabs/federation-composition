@@ -1,6 +1,6 @@
 // Shim of src/contracts/schema-contract.ts.
 import type { ServiceDefinition } from "../../src/types.js";
-import { fromCompositionJSON } from "../compose.js";
+import { fromCompositionOut } from "../compose.js";
 import { call, servicesToJSON } from "../runtime.js";
 import { filterToJSON, type SchemaContractFilter } from "./tag-extraction.js";
 
@@ -10,7 +10,7 @@ export function composeSchemaContract(
   tagFilter: SchemaContractFilter,
   removeUnreachableTypes = true,
 ) {
-  return fromCompositionJSON(
+  return fromCompositionOut(
     call(
       "compose_schema_contract",
       servicesToJSON(services),

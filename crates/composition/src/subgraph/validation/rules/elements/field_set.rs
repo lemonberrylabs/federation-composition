@@ -31,6 +31,12 @@ impl FieldSetRules {
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for FieldSetRules {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter(&[Kind::ScalarTypeDefinition, Kind::ObjectTypeDefinition, Kind::InterfaceTypeDefinition, Kind::UnionTypeDefinition, Kind::EnumTypeDefinition, Kind::InputObjectTypeDefinition])
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::ScalarTypeDefinition(node) => {

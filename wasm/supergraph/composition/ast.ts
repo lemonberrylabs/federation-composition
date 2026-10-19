@@ -10,7 +10,7 @@ import type {
   UnionTypeDefinitionNode,
 } from "graphql";
 import type * as ts from "../../../src/supergraph/composition/ast.js";
-import { call, parseJSON, toJSON } from "../../runtime.js";
+import { call, encodeJSON, parseJSON, toJSON } from "../../runtime.js";
 
 export type {
   DirectiveAST,
@@ -79,5 +79,5 @@ export function createJoinGraphEnumTypeNode(
 }
 
 export function stripFederation(supergraph: DocumentNode): DocumentNode {
-  return parseJSON(call("strip_federation", toJSON(supergraph)));
+  return parseJSON(call("strip_federation", encodeJSON(supergraph)));
 }

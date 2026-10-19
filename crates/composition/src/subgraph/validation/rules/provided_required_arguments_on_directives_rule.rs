@@ -14,25 +14,26 @@ pub struct ProvidedRequiredArgumentsOnDirectivesRule<'a> {
     /// `requiredArgsMap`: directive name to its required arguments by name.
     /// NOTE(port): plain objects in TS; GraphQL names are never integer-like, so insertion
     /// order is the iteration order.
-    required_args_map: IndexMap<String, IndexMap<String, &'a InputValueDefinition>>,
+    required_args_map: IndexMap<&'a str, IndexMap<&'a str, &'a InputValueDefinition>>,
 }
 
 impl<'a> SimpleRule<'a> for ProvidedRequiredArgumentsOnDirectivesRule<'a> {
     const NAME: &'static str = "ProvidedRequiredArgumentsOnDirectivesRule";
+    type Visitor = Self;
 
     fn new(context: &mut SimpleValidationContext<'a>) -> Self {
-        let mut required_args_map: IndexMap<String, IndexMap<String, &'a InputValueDefinition>> = IndexMap::default();
+        let mut required_args_map: IndexMap<&'a str, IndexMap<&'a str, &'a InputValueDefinition>> = IndexMap::default();
 
         let ast_definitions = &context.get_document().definitions;
         for def in ast_definitions {
             if let Definition::DirectiveDefinition(def) = def {
                 let required_args = def.arguments.iter().filter(|arg| is_required_argument_node(arg));
-                let mut args: IndexMap<String, &'a InputValueDefinition> = IndexMap::default();
+                let mut args: IndexMap<&'a str, &'a InputValueDefinition> = IndexMap::default();
 
                 for required_arg in required_args {
-                    args.insert(required_arg.name.value.clone(), required_arg);
+                    args.insert(&required_arg.name.value, required_arg);
                 }
-                required_args_map.insert(def.name.value.clone(), args);
+                required_args_map.insert(&def.name.value, args);
             }
         }
 
@@ -41,6 +42,12 @@ impl<'a> SimpleRule<'a> for ProvidedRequiredArgumentsOnDirectivesRule<'a> {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for ProvidedRequiredArgumentsOnDirectivesRule<'a> {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter_leave(&[], &[Kind::Directive])
+    }
+
     // Validate on leave to allow for deeper errors to appear first.
     fn leave(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         let NodeRef::Directive(directive_node) = node else {
@@ -48,11 +55,11 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for ProvidedRequiredArgumentsO
         };
 
         let directive_name = &directive_node.name.value;
-        if let Some(required_args) = self.required_args_map.get(directive_name) {
+        if let Some(required_args) = self.required_args_map.get(directive_name.as_str()) {
             let arg_node_map: IndexSet<&str> =
                 directive_node.arguments.iter().map(|arg| arg.name.value.as_str()).collect();
             for (arg_name, arg_def) in required_args {
-                if !arg_node_map.contains(arg_name.as_str()) {
+                if !arg_node_map.contains(arg_name) {
                     let arg_type = print(&arg_def.ty);
                     // NOTE(port): `versionInfo.major < 17` picks the graphql-js 16 message; the
                     // `graphql_js` crate is graphql-js 17.

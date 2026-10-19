@@ -7,7 +7,7 @@ use super::ast::{
     create_object_type_node, CostAst, FieldArgumentAst, FieldAst, JoinAst, JoinFieldAst, JoinFieldContextArgumentAst,
     JoinImplementsAst, JoinTypeAst, ObjectTypeAst,
 };
-use super::common::{convert_to_const, ComposeHelpers, Graph, Key, MapByGraph, TypeBuilder};
+use super::common::{convert_to_const, get_or_insert_with, ComposeHelpers, Graph, Key, MapByGraph, TypeBuilder};
 use super::interface_type::{
     graph_federation_version, list_size_ast, merge_list_size, truthy, InterfaceTypeFieldState, InterfaceTypeState,
 };
@@ -215,6 +215,12 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
             object_type_state.by_graph.get(&graph.id).expect("typeInGraph was just set"),
             graph.version,
         );
+
+        // PERF: a new type state gets room for the fields up front, instead of growing (and
+        // moving the field states) as they are added. Only the capacity changes.
+        if object_type_state.fields.is_empty() {
+            object_type_state.fields.reserve(ty.fields.len());
+        }
 
         for field in ty.fields.values() {
             let field_state = get_or_create_field(object_type_state, &field.name, &field.r#type);
@@ -529,16 +535,17 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
             None => None,
         };
 
-        let mut fields: Vec<FieldAst> = Vec::new();
+        let mut fields: Vec<FieldAst> = Vec::with_capacity(object_type.fields.len());
+        let mut field_coordinate_buffer = String::new();
 
         for field in object_type.fields.values() {
             let field_in_graphs: Vec<(&String, &FieldStateInGraph)> = field.by_graph.iter().collect();
-            let field_coordinate = to_field_coordinate(&object_type.name, &field.name);
+            let field_coordinate = write_field_coordinate(&mut field_coordinate_buffer, &object_type.name, &field.name);
             let is_effectively_required = |graph_id: &str, meta: &FieldStateInGraph| {
-                is_field_coordinate_effectively_required(requires_usage_index, &field_coordinate, graph_id, meta.required)
+                is_field_coordinate_effectively_required(requires_usage_index, field_coordinate, graph_id, meta.required)
             };
             let has_only_overridden_requires_usage = |graph_id: &str| {
-                has_only_overridden_requires_dependency(requires_usage_index, &field_coordinate, graph_id)
+                has_only_overridden_requires_dependency(requires_usage_index, field_coordinate, graph_id)
             };
 
             let has_different_output_type = field_in_graphs.iter().any(|(_, meta)| meta.r#type != field.r#type);
@@ -593,7 +600,10 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
             let mut graph_join_field_state: IndexMap<&str, GraphJoinFieldState> = IndexMap::default();
 
             // Precompute per-graph values once
-            for (graph_id, meta) in &field_in_graphs {
+            // PERF: only the `@override` branches below read `graphJoinFieldState`, so it is
+            // only built for fields with an override. The values are pure (the TS could only
+            // throw here for a field graph missing from the type's graphs, which cannot happen).
+            for (graph_id, meta) in field_in_graphs.iter().filter(|_| differences_between_graphs.r#override) {
                 let has_only_requires_usage = has_only_overridden_requires_usage(graph_id);
                 graph_join_field_state.insert(
                     graph_id.as_str(),
@@ -1004,7 +1014,7 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
             }
         }
 
-        Ok(Definition::ObjectTypeDefinition(create_object_type_node(&ObjectTypeAst {
+        Ok(Definition::ObjectTypeDefinition(create_object_type_node(ObjectTypeAst {
             name: object_type.name.clone(),
             // DirectiveNode and ConstDirectiveNode are identical (except the readonly shit...)
             ast: convert_to_const(&object_type.ast.directives),
@@ -1408,6 +1418,17 @@ fn to_field_coordinate(type_name: &str, field_name: &str) -> String {
     format!("{type_name}.{field_name}")
 }
 
+/// `toFieldCoordinate(typeName, fieldName)` written into a reused buffer.
+/// PERF: the coordinate is only looked up in the requires usage index, once per field (and per
+/// graph in `shouldKeepObjectTypeJoinTypeInGraph`), so it is not allocated each time.
+fn write_field_coordinate<'b>(buffer: &'b mut String, type_name: &str, field_name: &str) -> &'b str {
+    buffer.clear();
+    buffer.push_str(type_name);
+    buffer.push('.');
+    buffer.push_str(field_name);
+    buffer
+}
+
 fn get_requires_usage_state<'i>(
     requires_usage_index: &'i RequiresFieldUsageIndex,
     coordinate: &str,
@@ -1471,20 +1492,21 @@ fn should_keep_object_type_join_type_in_graph(input: ShouldKeepObjectTypeJoinTyp
         return true;
     }
 
+    let mut field_coordinate_buffer = String::new();
     for field in object_type.fields.values() {
         let Some(field_in_graph) = field.by_graph.get(graph_id) else {
             continue;
         };
 
-        let field_coordinate = to_field_coordinate(&object_type.name, &field.name);
+        let field_coordinate = write_field_coordinate(&mut field_coordinate_buffer, &object_type.name, &field.name);
         let is_effectively_required = is_field_coordinate_effectively_required(
             requires_usage_index,
-            &field_coordinate,
+            field_coordinate,
             graph_id,
             field_in_graph.required,
         );
         let has_only_overridden_requires =
-            has_only_overridden_requires_dependency(requires_usage_index, &field_coordinate, graph_id);
+            has_only_overridden_requires_dependency(requires_usage_index, field_coordinate, graph_id);
 
         if !field_in_graph.external
             || field_in_graph.provided
@@ -1632,9 +1654,9 @@ fn mark_requires_usage_for_coordinate(
     overridden_source_usage: bool,
     index: &mut RequiresFieldUsageIndex,
 ) {
-    let usage_by_graph = index.entry(coordinate.to_string()).or_default();
+    let usage_by_graph = get_or_insert_with(index, coordinate, IndexMap::default);
 
-    let usage_in_graph = usage_by_graph.entry(graph_id.to_string()).or_default();
+    let usage_in_graph = get_or_insert_with(usage_by_graph, graph_id, RequiresUsageStateInGraph::default);
 
     if overridden_source_usage {
         usage_in_graph.is_only_overridden_required = true;
@@ -1757,25 +1779,23 @@ pub struct ArgStateInGraph {
 }
 
 fn get_or_create_object_type<'s>(state: &'s mut IndexMap<String, ObjectTypeState>, type_name: &str) -> &'s mut ObjectTypeState {
-    state
-        .entry(type_name.to_string())
-        .or_insert_with(|| ObjectTypeState {
-            name: type_name.to_string(),
-            tags: IndexSet::default(),
-            has_definition: false,
-            is_entity: false,
-            inaccessible: false,
-            authenticated: false,
-            policies: Vec::new(),
-            scopes: Vec::new(),
-            contexts: IndexSet::default(),
-            cost: None,
-            interfaces: IndexSet::default(),
-            by_graph: IndexMap::default(),
-            fields: IndexMap::default(),
-            description: None,
-            ast: Ast::default(),
-        })
+    get_or_insert_with(state, type_name, || ObjectTypeState {
+        name: type_name.to_string(),
+        tags: IndexSet::default(),
+        has_definition: false,
+        is_entity: false,
+        inaccessible: false,
+        authenticated: false,
+        policies: Vec::new(),
+        scopes: Vec::new(),
+        contexts: IndexSet::default(),
+        cost: None,
+        interfaces: IndexSet::default(),
+        by_graph: IndexMap::default(),
+        fields: IndexMap::default(),
+        description: None,
+        ast: Ast::default(),
+    })
 }
 
 fn get_or_create_field<'s>(
@@ -1783,30 +1803,27 @@ fn get_or_create_field<'s>(
     field_name: &str,
     field_type: &str,
 ) -> &'s mut ObjectTypeFieldState {
-    object_type_state
-        .fields
-        .entry(field_name.to_string())
-        .or_insert_with(|| ObjectTypeFieldState {
-            name: field_name.to_string(),
-            r#type: field_type.to_string(),
-            is_leaf: false,
-            tags: IndexSet::default(),
-            inaccessible: false,
-            authenticated: false,
-            policies: Vec::new(),
-            scopes: Vec::new(),
-            cost: None,
-            list_size: None,
-            used_as_key: false,
-            r#override: None,
-            override_label: None,
-            by_graph: IndexMap::default(),
-            args: IndexMap::default(),
-            description: None,
-            deprecated: None,
-            ast: Ast::default(),
-            internal_seen_non_external: false,
-        })
+    get_or_insert_with(&mut object_type_state.fields, field_name, || ObjectTypeFieldState {
+        name: field_name.to_string(),
+        r#type: field_type.to_string(),
+        is_leaf: false,
+        tags: IndexSet::default(),
+        inaccessible: false,
+        authenticated: false,
+        policies: Vec::new(),
+        scopes: Vec::new(),
+        cost: None,
+        list_size: None,
+        used_as_key: false,
+        r#override: None,
+        override_label: None,
+        by_graph: IndexMap::default(),
+        args: IndexMap::default(),
+        description: None,
+        deprecated: None,
+        ast: Ast::default(),
+        internal_seen_non_external: false,
+    })
 }
 
 fn get_or_create_arg<'s>(
@@ -1815,23 +1832,20 @@ fn get_or_create_arg<'s>(
     arg_type: &str,
     arg_kind: ArgumentKind,
 ) -> &'s mut ObjectTypeFieldArgState {
-    field_state
-        .args
-        .entry(arg_name.to_string())
-        .or_insert_with(|| ObjectTypeFieldArgState {
-            name: arg_name.to_string(),
-            r#type: arg_type.to_string(),
-            kind: arg_kind,
-            tags: IndexSet::default(),
-            inaccessible: false,
-            cost: None,
-            default_value: None,
-            from_context: None,
-            by_graph: IndexMap::default(),
-            description: None,
-            deprecated: None,
-            ast: Ast::default(),
-        })
+    get_or_insert_with(&mut field_state.args, arg_name, || ObjectTypeFieldArgState {
+        name: arg_name.to_string(),
+        r#type: arg_type.to_string(),
+        kind: arg_kind,
+        tags: IndexSet::default(),
+        inaccessible: false,
+        cost: None,
+        default_value: None,
+        from_context: None,
+        by_graph: IndexMap::default(),
+        description: None,
+        deprecated: None,
+        ast: Ast::default(),
+    })
 }
 
 #[cfg(test)]

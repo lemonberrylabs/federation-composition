@@ -4,9 +4,10 @@
 //!
 //! * `Document`, `Definition`, `DirectiveDefinition`...: graphql-js AST JSON.
 //! * `GraphQLErrorJson`: `{ message, extensions? }`.
-//! * `CompositionJson`: `{ errors: GraphQLErrorJson[] }` or
-//!   `{ supergraphDocumentNode: Document }`; the shim adds the lazy
-//!   `supergraphSdl`, `publicDocumentNode` and `publicSdl` getters.
+//! * `CompositionOut` (see [`composition_out`]): `GraphQLErrorJson[]` as a
+//!   string, or the supergraph `Document` as bytes; the shim builds the
+//!   `CompositionSuccess` with lazy `supergraphDocumentNode`, `supergraphSdl`,
+//!   `publicDocumentNode` and `publicSdl` getters.
 //! * `Service`: `{ name, url?, typeDefs: Document }`.
 //! * `TagFilter`: `{ include: string[], exclude: string[] }` (the `Set`s).
 //! * `TagRegister`: `[coordinate, tags[]][]` (the `Map<string, Set<string>>`).
@@ -29,14 +30,14 @@ use fc::utils::link::link_url::{FederatedLinkUrl, SupportsVersion};
 use fc::utils::link::{LinkImplementations, LinkVersion};
 use fc::{CompositionResult, ServiceDefinition, ValidationResult};
 use federation_composition as fc;
-use graphql_js::{Directive, Document, Value};
 use federation_composition::utils::collections::{IndexMap, IndexSet};
-use serde::Deserialize;
+use graphql_js::{Directive, Document, Value};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use wasm_bindgen::prelude::*;
 
 use crate::convert::{self, LinkClassIn, LinkUrlIn};
-use crate::{from_json, graphql_error_json, thrown, to_json, JsResult, ThrownError};
+use crate::{from_json, graphql_error_json, thrown, to_json, to_json_bytes, JsResult, ThrownError};
 
 #[derive(Deserialize)]
 struct Service {
@@ -56,7 +57,7 @@ impl From<Service> for ServiceDefinition {
     }
 }
 
-fn services(json: &str) -> JsResult<Vec<ServiceDefinition>> {
+fn services(json: &[u8]) -> JsResult<Vec<ServiceDefinition>> {
     Ok(from_json::<Vec<Service>>("services", json)?
         .into_iter()
         .map(Into::into)
@@ -72,7 +73,7 @@ struct Internal {
 
 fn internal(json: Option<String>) -> JsResult<Option<InternalOptions>> {
     Ok(json
-        .map(|i| from_json::<Internal>("__internal", &i))
+        .map(|i| from_json::<Internal>("__internal", i.as_bytes()))
         .transpose()?
         .map(|i| InternalOptions {
             disable_validation_rules: i.disable_validation_rules,
@@ -86,7 +87,7 @@ struct TagFilter {
 }
 
 fn tag_filter(json: &str) -> JsResult<SchemaContractFilter> {
-    let f: TagFilter = from_json("tagFilter", json)?;
+    let f: TagFilter = from_json("tagFilter", json.as_bytes())?;
     Ok(SchemaContractFilter {
         include: f.include.into_iter().collect(),
         exclude: f.exclude.into_iter().collect(),
@@ -117,7 +118,7 @@ fn version_part(n: Option<f64>) -> i64 {
 
 /// Calls `supports` on the dispatched overload, or throws like the TS for other arguments.
 fn with_supports_version<R>(args: &str, f: impl FnOnce(SupportsVersion<'_>) -> R) -> JsResult<R> {
-    let args: SupportsArgs = from_json("supports arguments", args)?;
+    let args: SupportsArgs = from_json("supports arguments", args.as_bytes())?;
     let other_url: FederatedLinkUrl;
     let version = match args {
         SupportsArgs::String { ref version } => SupportsVersion::Str(version),
@@ -167,36 +168,41 @@ struct AddDirectiveOnTypesIn {
     directive_name: String,
 }
 
-fn composition_json(result: CompositionResult) -> String {
+/// What the exports returning a composition give back (`CompositionOut` in wasm/compose.ts):
+/// on success the supergraph `Document` JSON as bytes (a `Uint8Array`, which the shim decodes
+/// only when the document is read); on failure the `GraphQLErrorJson[]` JSON string.
+///
+/// The document is serialized straight from the AST: going through `json!` would first build a
+/// `serde_json::Value` copy of the whole document.
+fn composition_out(result: CompositionResult) -> JsValue {
     match result {
-        CompositionResult::Failure(failure) => to_json(&json!({
-            "errors": failure.errors.iter().map(graphql_error_json).collect::<Vec<_>>(),
-        })),
-        CompositionResult::Success(success) => to_json(&json!({
-            "supergraphDocumentNode": success.supergraph_document_node,
-        })),
+        CompositionResult::Failure(failure) => JsValue::from_str(&to_json(&failure.errors)),
+        CompositionResult::Success(success) => {
+            js_sys::Uint8Array::from(to_json_bytes(&success.supergraph_document_node).as_slice())
+                .into()
+        }
     }
 }
 
-fn document(what: &str, json: &str) -> JsResult<Document> {
+fn document(what: &str, json: &[u8]) -> JsResult<Document> {
     from_json(what, json)
 }
 
 // compose.ts
 
-/// `composeServices(services, __internal)` → `CompositionJson`.
+/// `composeServices(services, __internal)` → `CompositionOut`.
 #[wasm_bindgen]
-pub fn compose_services(services_json: &str, internal_json: Option<String>) -> JsResult<String> {
+pub fn compose_services(services_json: &[u8], internal_json: Option<String>) -> JsResult<JsValue> {
     let services = services(services_json)?;
     let internal = internal(internal_json)?;
     let result = fc::compose_services(&services, internal.as_ref()).map_err(thrown)?;
-    Ok(composition_json(result))
+    Ok(composition_out(result))
 }
 
 /// The library printer (`src/graphql/printer.ts` `print`) of a supergraph:
 /// the `supergraphSdl` / `publicSdl` getters → SDL string.
 #[wasm_bindgen]
-pub fn print_supergraph(document_json: &str) -> JsResult<String> {
+pub fn print_supergraph(document_json: &[u8]) -> JsResult<String> {
     let document = document("document", document_json)?;
     Ok(fc::graphql::printer::print(&document))
 }
@@ -206,28 +212,44 @@ pub fn print_supergraph(document_json: &str) -> JsResult<String> {
 /// `validate(subgraphs, __internal)` → `{ success: false, errors }` or
 /// `{ success: true, supergraph: Definition[], links, specs, federationVersion }`.
 #[wasm_bindgen]
-pub fn validate(subgraphs_json: &str, internal_json: Option<String>) -> JsResult<String> {
+pub fn validate(subgraphs_json: &[u8], internal_json: Option<String>) -> JsResult<String> {
     let subgraphs = services(subgraphs_json)?;
     let internal = internal(internal_json)?;
     let result = fc::validate(&subgraphs, internal.as_ref()).map_err(thrown)?;
-    Ok(to_json(&match result {
-        ValidationResult::Failure { errors } => json!({
-            "success": false,
-            "errors": errors.iter().map(graphql_error_json).collect::<Vec<_>>(),
+    // Serialized from these structs rather than `json!`, which would first copy the supergraph
+    // definitions into a `serde_json::Value`.
+    #[derive(Serialize)]
+    struct Failure<'a> {
+        success: bool,
+        errors: &'a [graphql_js::GraphQLError],
+    }
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Success<'a> {
+        success: bool,
+        supergraph: &'a [graphql_js::Definition],
+        links: Vec<serde_json::Value>,
+        specs: serde_json::Value,
+        federation_version: &'a str,
+    }
+    Ok(match result {
+        ValidationResult::Failure { errors } => to_json(&Failure {
+            success: false,
+            errors: &errors,
         }),
-        ValidationResult::Success(success) => json!({
-            "success": true,
-            "supergraph": success.supergraph,
-            "links": success.links.iter().map(convert::spec_link_json).collect::<Vec<_>>(),
-            "specs": convert::specs_json(&success.specs),
-            "federationVersion": success.federation_version.as_str(),
+        ValidationResult::Success(success) => to_json(&Success {
+            success: true,
+            supergraph: &success.supergraph,
+            links: success.links.iter().map(convert::spec_link_json).collect(),
+            specs: convert::specs_json(&success.specs),
+            federation_version: success.federation_version.as_str(),
         }),
-    }))
+    })
 }
 
 /// `validateSubgraph(subgraph)` → `GraphQLErrorJson[]`.
 #[wasm_bindgen]
-pub fn validate_subgraph(subgraph_json: &str) -> JsResult<String> {
+pub fn validate_subgraph(subgraph_json: &[u8]) -> JsResult<String> {
     let subgraph: ServiceDefinition = from_json::<Service>("subgraph", subgraph_json)?.into();
     let errors = fc::validate_subgraph(&subgraph).map_err(thrown)?;
     Ok(to_json(
@@ -239,14 +261,14 @@ pub fn validate_subgraph(subgraph_json: &str) -> JsResult<String> {
 
 /// `sortSDL(doc)` → `Document`.
 #[wasm_bindgen]
-pub fn sort_sdl(document_json: &str) -> JsResult<String> {
+pub fn sort_sdl(document_json: &[u8]) -> JsResult<String> {
     let document = document("document", document_json)?;
     Ok(to_json(&fc::sort_sdl(&document).map_err(thrown)?))
 }
 
 /// `transformSupergraphToPublicSchema(documentNode)` → `Document`.
 #[wasm_bindgen]
-pub fn transform_supergraph_to_public_schema(document_json: &str) -> JsResult<String> {
+pub fn transform_supergraph_to_public_schema(document_json: &[u8]) -> JsResult<String> {
     let document = document("document", document_json)?;
     Ok(to_json(
         &fc::transform_supergraph_to_public_schema(&document).map_err(thrown)?,
@@ -261,29 +283,29 @@ pub fn contains_supergraph_spec(sdl: &str) -> bool {
 
 // contracts/
 
-/// `composeSchemaContract(services, tagFilter, removeUnreachableTypes)` → `CompositionJson`.
+/// `composeSchemaContract(services, tagFilter, removeUnreachableTypes)` → `CompositionOut`.
 #[wasm_bindgen]
 pub fn compose_schema_contract(
-    services_json: &str,
+    services_json: &[u8],
     tag_filter_json: &str,
     remove_unreachable_types: bool,
-) -> JsResult<String> {
+) -> JsResult<JsValue> {
     let services = services(services_json)?;
     let filter = tag_filter(tag_filter_json)?;
     let result = fc::compose_schema_contract(&services, &filter, remove_unreachable_types)
         .map_err(thrown)?;
-    Ok(composition_json(result))
+    Ok(composition_out(result))
 }
 
 /// `addInaccessibleToUnreachableTypes(resolveName, compositionResult)` → the
-/// new supergraph `Document`. `resolve_name` is the JS callback
+/// new supergraph `Document`, as JSON bytes. `resolve_name` is the JS callback
 /// `(identity, name) => string`. The public document is computed from the
 /// supergraph, as the getter of the `CompositionSuccess` the TS receives does.
 #[wasm_bindgen]
 pub fn add_inaccessible_to_unreachable_types(
     resolve_name: &js_sys::Function,
-    supergraph_document_node: &str,
-) -> JsResult<String> {
+    supergraph_document_node: &[u8],
+) -> JsResult<Vec<u8>> {
     let supergraph = document("supergraphDocumentNode", supergraph_document_node)?;
     let success = fc::create_composition_success_read_cache_container(supergraph);
     // A throw from the callback is kept and rethrown once the crate returns.
@@ -313,12 +335,14 @@ pub fn add_inaccessible_to_unreachable_types(
     if let Some(e) = callback_error.into_inner() {
         return Err(e);
     }
-    Ok(to_json(&result.map_err(thrown)?.supergraph_document_node))
+    Ok(to_json_bytes(
+        &result.map_err(thrown)?.supergraph_document_node,
+    ))
 }
 
 /// `getReachableTypes(documentNode)` → `string[]` (the `Set`, in order).
 #[wasm_bindgen]
-pub fn get_reachable_types(document_json: &str) -> JsResult<String> {
+pub fn get_reachable_types(document_json: &[u8]) -> JsResult<String> {
     let document = document("documentNode", document_json)?;
     let types =
         fc::contracts::reachable_type_filter::get_reachable_types(&document).map_err(thrown)?;
@@ -327,7 +351,7 @@ pub fn get_reachable_types(document_json: &str) -> JsResult<String> {
 
 /// `addDirectiveOnTypes({ documentNode, excludedTypeNames, directiveName })` → `Document`.
 #[wasm_bindgen]
-pub fn add_directive_on_types(args_json: &str) -> JsResult<String> {
+pub fn add_directive_on_types(args_json: &[u8]) -> JsResult<String> {
     let args: AddDirectiveOnTypesIn = from_json("args", args_json)?;
     let excluded: IndexSet<String> = args.excluded_type_names.into_iter().collect();
     Ok(to_json(
@@ -350,7 +374,7 @@ fn tag_register_json(register: &SchemaCoordinateToTagsRegistry) -> String {
 
 /// `buildSchemaCoordinateTagRegister(documentNodes)` → `TagRegister`.
 #[wasm_bindgen]
-pub fn build_schema_coordinate_tag_register(document_nodes_json: &str) -> JsResult<String> {
+pub fn build_schema_coordinate_tag_register(document_nodes_json: &[u8]) -> JsResult<String> {
     let documents: Vec<Document> = from_json("documentNodes", document_nodes_json)?;
     let refs: Vec<&Document> = documents.iter().collect();
     let register = fc::contracts::tag_extraction::build_schema_coordinate_tag_register(&refs)
@@ -374,12 +398,13 @@ fn tag_filter_result_json(r: &TagFilterTransformResult) -> serde_json::Value {
 /// → `TagFilterResult`. The shim rebuilds `transformTagDirectives` from the two names.
 #[wasm_bindgen]
 pub fn apply_tag_filter_to_inaccessible_transform_on_subgraph_schema(
-    document_json: &str,
+    document_json: &[u8],
     tag_register_json: &str,
     filter_json: &str,
 ) -> JsResult<String> {
     let document = document("documentNode", document_json)?;
-    let register: Vec<(String, Vec<String>)> = from_json("tagRegister", tag_register_json)?;
+    let register: Vec<(String, Vec<String>)> =
+        from_json("tagRegister", tag_register_json.as_bytes())?;
     let register: SchemaCoordinateToTagsRegistry = register
         .into_iter()
         .map(|(coordinate, tags)| (coordinate, tags.into_iter().collect()))
@@ -396,7 +421,7 @@ pub fn apply_tag_filter_to_inaccessible_transform_on_subgraph_schema(
 /// `typeDefs` → `TagFilterResult[]`, which the shim spreads over the input
 /// subgraph objects.
 #[wasm_bindgen]
-pub fn apply_tag_filter_on_subgraphs(type_defs_json: &str, filter_json: &str) -> JsResult<String> {
+pub fn apply_tag_filter_on_subgraphs(type_defs_json: &[u8], filter_json: &str) -> JsResult<String> {
     let documents: Vec<Document> = from_json("subgraphs' typeDefs", type_defs_json)?;
     let refs: Vec<&Document> = documents.iter().collect();
     let filter = tag_filter(filter_json)?;
@@ -426,7 +451,7 @@ pub fn transform_tag_directives(
         #[serde(default)]
         directives: Option<Vec<Directive>>,
     }
-    let node: WithDirectives = from_json("node", node_json)?;
+    let node: WithDirectives = from_json("node", node_json.as_bytes())?;
     let transform = fc::contracts::tag_extraction::TransformTagDirectives::new(
         tag_directive_name,
         inaccessible_directive_name,
@@ -443,21 +468,21 @@ pub fn transform_tag_directives(
 /// `createSchemaNode(schema)` → `SchemaDefinition`.
 #[wasm_bindgen]
 pub fn create_schema_node(input: &str) -> JsResult<String> {
-    let input: convert::SchemaIn = from_json("createSchemaNode", input)?;
+    let input: convert::SchemaIn = from_json("createSchemaNode", input.as_bytes())?;
     Ok(to_json(&core_ast::create_schema_node(&input.into())))
 }
 
 /// `createObjectTypeNode(objectType)` → `ObjectTypeDefinition`.
 #[wasm_bindgen]
 pub fn create_object_type_node(input: &str) -> JsResult<String> {
-    let input: convert::ObjectLikeIn = from_json("createObjectTypeNode", input)?;
+    let input: convert::ObjectLikeIn = from_json("createObjectTypeNode", input.as_bytes())?;
     Ok(to_json(&core_ast::create_object_type_node(&input.into())))
 }
 
 /// `createInterfaceTypeNode(interfaceType)` → `InterfaceTypeDefinition`.
 #[wasm_bindgen]
 pub fn create_interface_type_node(input: &str) -> JsResult<String> {
-    let input: convert::ObjectLikeIn = from_json("createInterfaceTypeNode", input)?;
+    let input: convert::ObjectLikeIn = from_json("createInterfaceTypeNode", input.as_bytes())?;
     Ok(to_json(&core_ast::create_interface_type_node(
         &input.into(),
     )))
@@ -466,7 +491,7 @@ pub fn create_interface_type_node(input: &str) -> JsResult<String> {
 /// `createInputObjectTypeNode(inputObjectType)` → `InputObjectTypeDefinition`.
 #[wasm_bindgen]
 pub fn create_input_object_type_node(input: &str) -> JsResult<String> {
-    let input: convert::InputObjectIn = from_json("createInputObjectTypeNode", input)?;
+    let input: convert::InputObjectIn = from_json("createInputObjectTypeNode", input.as_bytes())?;
     Ok(to_json(&core_ast::create_input_object_type_node(
         &input.into(),
     )))
@@ -475,28 +500,29 @@ pub fn create_input_object_type_node(input: &str) -> JsResult<String> {
 /// `createUnionTypeNode(unionType)` → `UnionTypeDefinition`.
 #[wasm_bindgen]
 pub fn create_union_type_node(input: &str) -> JsResult<String> {
-    let input: convert::UnionIn = from_json("createUnionTypeNode", input)?;
+    let input: convert::UnionIn = from_json("createUnionTypeNode", input.as_bytes())?;
     Ok(to_json(&core_ast::create_union_type_node(&input.into())))
 }
 
 /// `createEnumTypeNode(enumType)` → `EnumTypeDefinition`.
 #[wasm_bindgen]
 pub fn create_enum_type_node(input: &str) -> JsResult<String> {
-    let input: convert::EnumIn = from_json("createEnumTypeNode", input)?;
+    let input: convert::EnumIn = from_json("createEnumTypeNode", input.as_bytes())?;
     Ok(to_json(&core_ast::create_enum_type_node(&input.into())))
 }
 
 /// `createScalarTypeNode(scalarType)` → `ScalarTypeDefinition`.
 #[wasm_bindgen]
 pub fn create_scalar_type_node(input: &str) -> JsResult<String> {
-    let input: convert::ScalarIn = from_json("createScalarTypeNode", input)?;
+    let input: convert::ScalarIn = from_json("createScalarTypeNode", input.as_bytes())?;
     Ok(to_json(&core_ast::create_scalar_type_node(&input.into())))
 }
 
 /// `createJoinGraphEnumTypeNode(graphs)` → `EnumTypeDefinition`.
 #[wasm_bindgen]
 pub fn create_join_graph_enum_type_node(input: &str) -> JsResult<String> {
-    let input: Vec<convert::JoinGraphIn> = from_json("createJoinGraphEnumTypeNode", input)?;
+    let input: Vec<convert::JoinGraphIn> =
+        from_json("createJoinGraphEnumTypeNode", input.as_bytes())?;
     let graphs: Vec<core_ast::JoinGraphAst> = input.into_iter().map(Into::into).collect();
     Ok(to_json(&core_ast::create_join_graph_enum_type_node(
         &graphs,
@@ -505,7 +531,7 @@ pub fn create_join_graph_enum_type_node(input: &str) -> JsResult<String> {
 
 /// `stripFederation(supergraph)` → `Document`.
 #[wasm_bindgen]
-pub fn strip_federation(supergraph_json: &str) -> JsResult<String> {
+pub fn strip_federation(supergraph_json: &[u8]) -> JsResult<String> {
     let supergraph = document("supergraph", supergraph_json)?;
     Ok(to_json(&core_ast::strip_federation(&supergraph)))
 }
@@ -577,14 +603,16 @@ pub fn link_url_from_url(url: &str) -> JsResult<String> {
 /// `linkUrl.supports(...args)`.
 #[wasm_bindgen]
 pub fn link_url_supports(link_url: &str, args: &str) -> JsResult<bool> {
-    let link_url: FederatedLinkUrl = from_json::<LinkUrlIn>("FederatedLinkUrl", link_url)?.into();
+    let link_url: FederatedLinkUrl =
+        from_json::<LinkUrlIn>("FederatedLinkUrl", link_url.as_bytes())?.into();
     with_supports_version(args, |version| link_url.supports(version))
 }
 
 /// `linkUrl.toString()`.
 #[wasm_bindgen]
 pub fn link_url_to_string(link_url: &str) -> JsResult<String> {
-    let link_url: FederatedLinkUrl = from_json::<LinkUrlIn>("FederatedLinkUrl", link_url)?.into();
+    let link_url: FederatedLinkUrl =
+        from_json::<LinkUrlIn>("FederatedLinkUrl", link_url.as_bytes())?.into();
     Ok(link_url.to_string())
 }
 
@@ -592,14 +620,15 @@ pub fn link_url_to_string(link_url: &str) -> JsResult<String> {
 #[wasm_bindgen]
 pub fn link_import_to_string(link_import: &str) -> JsResult<String> {
     let link_import: FederatedLinkImport =
-        from_json::<convert::LinkImportClassIn>("FederatedLinkImport", link_import)?.into();
+        from_json::<convert::LinkImportClassIn>("FederatedLinkImport", link_import.as_bytes())?
+            .into();
     Ok(link_import.to_string())
 }
 
 /// `FederatedLinkImport.fromTypedefs(node)` → `LinkImport[]`; throws `Error`.
 #[wasm_bindgen]
 pub fn link_import_from_typedefs(node: &str) -> JsResult<String> {
-    let node: Value = from_json("ConstValueNode", node)?;
+    let node: Value = from_json("ConstValueNode", node.as_bytes())?;
     let imports = FederatedLinkImport::from_typedefs(&node).map_err(thrown)?;
     Ok(to_json(
         &imports
@@ -611,7 +640,7 @@ pub fn link_import_from_typedefs(node: &str) -> JsResult<String> {
 
 /// `FederatedLink.fromTypedefs(typeDefs)` → `Link[]`.
 #[wasm_bindgen]
-pub fn link_from_typedefs(type_defs: &str) -> JsResult<String> {
+pub fn link_from_typedefs(type_defs: &[u8]) -> JsResult<String> {
     let document = document("typeDefs", type_defs)?;
     let links = FederatedLink::from_typedefs(&document).map_err(thrown)?;
     Ok(to_json(
@@ -623,7 +652,7 @@ pub fn link_from_typedefs(type_defs: &str) -> JsResult<String> {
 }
 
 fn link(json: &str) -> JsResult<FederatedLink> {
-    Ok(from_json::<LinkClassIn>("FederatedLink", json)?.into())
+    Ok(from_json::<LinkClassIn>("FederatedLink", json.as_bytes())?.into())
 }
 
 /// `link.resolveImportName(elementName)`.
@@ -648,7 +677,7 @@ pub fn link_supports(link_json: &str, args: &str) -> JsResult<bool> {
 /// `extractLinkImplementations(typeDefs).links` → `Link[]`; the shim keeps
 /// them for the two functions below.
 #[wasm_bindgen]
-pub fn extract_link_implementations(type_defs: &str) -> JsResult<String> {
+pub fn extract_link_implementations(type_defs: &[u8]) -> JsResult<String> {
     let document = document("typeDefs", type_defs)?;
     let implementations = fc::extract_link_implementations(&document).map_err(thrown)?;
     Ok(to_json(
@@ -661,7 +690,7 @@ pub fn extract_link_implementations(type_defs: &str) -> JsResult<String> {
 }
 
 fn link_implementations(links_json: &str) -> JsResult<LinkImplementations> {
-    let links: Vec<LinkClassIn> = from_json("links", links_json)?;
+    let links: Vec<LinkClassIn> = from_json("links", links_json.as_bytes())?;
     Ok(LinkImplementations::from_links(
         links.into_iter().map(Into::into).collect(),
     ))
@@ -685,7 +714,7 @@ pub fn extract_link_matches_implementation(
     version: &str,
 ) -> JsResult<bool> {
     let implementations = link_implementations(links_json)?;
-    let version = match from_json::<LinkVersionIn>("version", version)? {
+    let version = match from_json::<LinkVersionIn>("version", version.as_bytes())? {
         LinkVersionIn::String { version } => LinkVersion::Str(version),
         LinkVersionIn::Numbers { major, minor } => LinkVersion::MajorMinor {
             major: version_part(major),
@@ -702,7 +731,7 @@ pub fn extract_link_matches_implementation(
 /// Parses and reserializes a document: the JSON conversion both ways.
 #[wasm_bindgen]
 pub fn debug_roundtrip_document(document_json: &str) -> JsResult<String> {
-    let document = document("document", document_json)?;
+    let document = document("document", document_json.as_bytes())?;
     Ok(to_json(&document))
 }
 

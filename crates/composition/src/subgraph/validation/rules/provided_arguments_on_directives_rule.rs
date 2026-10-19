@@ -14,6 +14,7 @@ pub struct ProvidedArgumentsOnDirectivesRule {}
 
 impl<'a> SimpleRule<'a> for ProvidedArgumentsOnDirectivesRule {
     const NAME: &'static str = "ProvidedArgumentsOnDirectivesRule";
+    type Visitor = Self;
 
     fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         ProvidedArgumentsOnDirectivesRule {}
@@ -21,6 +22,12 @@ impl<'a> SimpleRule<'a> for ProvidedArgumentsOnDirectivesRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for ProvidedArgumentsOnDirectivesRule {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter_leave(&[], &[Kind::Directive])
+    }
+
     // Validate on leave to allow for deeper errors to appear first.
     fn leave(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
         let NodeRef::Directive(directive_node) = node else {

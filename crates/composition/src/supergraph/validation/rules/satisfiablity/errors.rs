@@ -183,8 +183,10 @@ impl<'a, T: Clone> LazyErrors<'a, T> {
     }
 
     /// `add(otherLazyErrors)`: appends the other collection's lazy errors.
-    pub fn add_all(&mut self, other: &LazyErrors<'a, T>) -> &mut Self {
-        self.lazy_error.extend(other.lazy_error.iter().cloned());
+    /// PERF: takes the other collection, which no caller uses afterwards, so its `Rc`s move
+    /// instead of being cloned and dropped.
+    pub fn add_all(&mut self, other: LazyErrors<'a, T>) -> &mut Self {
+        self.lazy_error.extend(other.lazy_error);
         self
     }
 

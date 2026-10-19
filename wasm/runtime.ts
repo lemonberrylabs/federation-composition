@@ -1,7 +1,7 @@
 // Loads the WebAssembly build (wasm/pkg, built by `pnpm wasm:build`) and
 // converts between JS values and the JSON the Rust exports take and return.
 // The conventions are described in crates/composition-wasm/src/lib.rs.
-import { GraphQLError, type DocumentNode } from "graphql";
+import { GraphQLError, Location, type DocumentNode } from "graphql";
 import { createRequire } from "node:module";
 
 type Bindings = typeof import("./pkg/composition_wasm.js");
@@ -108,13 +108,52 @@ function createError(name: string, message: string): Error {
   return error;
 }
 
+const dropLoc = (key: string, v: unknown) => (key === "loc" ? undefined : v);
+const locationPrototype = Location.prototype as { toJSON?: unknown };
+const locationToJSON = locationPrototype.toJSON;
+const omitLocation = () => undefined;
+
 /** JSON of an AST node (or an object containing AST nodes), without `loc`. */
 export function toJSON(value: unknown): string {
-  return JSON.stringify(value, (key, v) => (key === "loc" ? undefined : v));
+  // PERF: a replacer function runs for every key and halves JSON.stringify's speed. Instead,
+  // while this synchronous call runs, graphql's `Location#toJSON` returns `undefined`, so
+  // JSON.stringify leaves out every `loc` that holds a `Location` (what `parse` puts there).
+  // Any other `loc` value (a plain `{ start, end }` from a JSON round trip, or a `Location` of
+  // another copy of graphql) is still written, and the Rust deserializer ignores `loc` keys.
+  // If the prototype cannot be patched (frozen), the replacer does the same job.
+  try {
+    locationPrototype.toJSON = omitLocation;
+  } catch {
+    return JSON.stringify(value, dropLoc);
+  }
+  try {
+    if (locationPrototype.toJSON !== omitLocation) {
+      return JSON.stringify(value, dropLoc);
+    }
+    return JSON.stringify(value);
+  } finally {
+    locationPrototype.toJSON = locationToJSON;
+  }
+}
+
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+/**
+ * {@link toJSON} as UTF-8 bytes, for the exports that take documents (`&[u8]`): passing a
+ * `Uint8Array` is a copy, while wasm-bindgen re-encodes a string character by character.
+ */
+export function encodeJSON(value: unknown): Uint8Array {
+  return encoder.encode(toJSON(value));
 }
 
 export function parseJSON<T>(json: string): T {
   return JSON.parse(json) as T;
+}
+
+/** {@link parseJSON} of UTF-8 bytes returned by an export (`Vec<u8>`). */
+export function decodeJSON<T>(json: Uint8Array): T {
+  return JSON.parse(decoder.decode(json)) as T;
 }
 
 export interface GraphQLErrorJSON {
@@ -129,19 +168,23 @@ export function toGraphQLErrors(errors: GraphQLErrorJSON[]): GraphQLError[] {
   );
 }
 
-/** The JSON of `ServiceDefinition`s. `name` is converted the way `validate` does (`String(name)`). */
-export function servicesToJSON(
-  services: ReadonlyArray<{
-    name: string;
-    url?: string;
-    typeDefs: DocumentNode;
-  }>,
-): string {
-  return toJSON(
-    services.map((s) => ({
-      name: String(s.name),
-      url: s.url,
-      typeDefs: s.typeDefs,
-    })),
-  );
+type Service = {
+  name: string;
+  url?: string;
+  typeDefs: DocumentNode;
+};
+
+/** A `ServiceDefinition` as JSON, with `name` converted the way `validate` does (`String(name)`). */
+function serviceJSONValue(s: Service) {
+  return { name: String(s.name), url: s.url, typeDefs: s.typeDefs };
+}
+
+/** The JSON of a `ServiceDefinition`, as bytes ({@link encodeJSON}). */
+export function serviceToJSON(service: Service): Uint8Array {
+  return encodeJSON(serviceJSONValue(service));
+}
+
+/** The JSON of `ServiceDefinition`s, as bytes ({@link encodeJSON}). */
+export function servicesToJSON(services: ReadonlyArray<Service>): Uint8Array {
+  return encodeJSON(services.map(serviceJSONValue));
 }

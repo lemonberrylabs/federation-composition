@@ -9,34 +9,40 @@ use std::sync::LazyLock;
 /// `KnownTypeNamesRule(context)`.
 /// Visitor callbacks: `NamedType(node, _1, parent, _2, ancestors)`.
 /// Fields: the locals of the TS factory.
-pub struct KnownTypeNamesRule {
-    type_names: IndexSet<String>,
+pub struct KnownTypeNamesRule<'a> {
+    type_names: IndexSet<&'a str>,
 }
 
-impl<'a> SubgraphRule<'a> for KnownTypeNamesRule {
+impl<'a> SubgraphRule<'a> for KnownTypeNamesRule<'a> {
     const NAME: &'static str = "KnownTypeNamesRule";
 
     fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
         let definitions = &context.get_document().definitions;
 
-        let type_names: IndexSet<String> = definitions
+        let type_names: IndexSet<&'a str> = definitions
             .iter()
             .filter(|def| is_type_definition_or_extension_node(def.as_node_ref()))
-            .filter_map(|def| def.name().map(|name| name.value.clone()))
+            .filter_map(|def| def.name().map(|name| name.value.as_str()))
             .collect();
 
         KnownTypeNamesRule { type_names }
     }
 }
 
-impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for KnownTypeNamesRule {
+impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for KnownTypeNamesRule<'a> {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter(&[Kind::NamedType])
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
         let NodeRef::NamedType(node) = node else {
             return VisitAction::Continue;
         };
 
         let type_name = &node.name.value;
-        if !self.type_names.contains(type_name) {
+        if !self.type_names.contains(type_name.as_str()) {
             let definition_node = info.ancestors.get(2).copied().or(info.parent);
             let is_sdl = definition_node.is_some_and(is_sdl_node);
             if is_sdl && STANDARD_TYPE_NAMES.contains(type_name) {

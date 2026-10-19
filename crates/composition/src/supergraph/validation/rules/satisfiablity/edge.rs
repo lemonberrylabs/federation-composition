@@ -18,7 +18,7 @@ use super::errors::{OneOrMany, SatisfiabilityError};
 use super::graph::Graph;
 use super::helpers::{Lazy, OverrideLabels};
 use super::moves::{FieldMoveOverride, Move};
-use super::node::NodeId;
+use super::node::{GraphNameId, NodeId};
 use crate::utils::js::{JsError, JsResult};
 
 /// Index of an edge in its graph's edge arena.
@@ -47,7 +47,7 @@ pub struct Edge<'s> {
     pub head: NodeId,
     pub r#move: Move,
     pub tail: NodeId,
-    resolvable: RefCell<Vec<(Vec<String>, OverrideLabels, EdgeResolvabilityResult<'s>)>>,
+    resolvable: RefCell<Vec<(Vec<GraphNameId>, OverrideLabels, EdgeResolvabilityResult<'s>)>>,
     ignored: bool,
 }
 
@@ -139,12 +139,21 @@ impl<'s> Edge<'s> {
     }
 
     /// `getResolvability(graphNames, labelValues)`.
-    pub fn get_resolvability(&self, graph_names: &[String], label_values: &OverrideLabels) -> Option<EdgeResolvabilityResult<'s>> {
+    /// PERF: the caller's `graphNames` is `concatIfNotExistsString(visitedGraphs, graphName)`;
+    /// it is passed as its two parts so that the list is not built for every lookup.
+    pub fn get_resolvability(
+        &self,
+        visited_graphs: &[GraphNameId],
+        graph_name: GraphNameId,
+        label_values: &OverrideLabels,
+    ) -> Option<EdgeResolvabilityResult<'s>> {
         self.resolvable
             .borrow()
             .iter()
             .find(|(checked_graph_names, checked_label_values, _)| {
-                checked_graph_names.iter().all(|name| graph_names.contains(name))
+                checked_graph_names
+                    .iter()
+                    .all(|name| *name == graph_name || visited_graphs.contains(name))
                     && checked_label_values.matches(label_values)
             })
             .map(|(_, _, result)| result.clone())
@@ -155,7 +164,7 @@ impl<'s> Edge<'s> {
     pub fn set_resolvable(
         &self,
         success: bool,
-        graph_names: Vec<String>,
+        graph_names: Vec<GraphNameId>,
         label_values: OverrideLabels,
         error: Option<LazySatisfiabilityError<'s>>,
     ) -> EdgeResolvabilityResult<'s> {

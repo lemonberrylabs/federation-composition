@@ -13,6 +13,7 @@ pub struct UniqueArgumentDefinitionNamesRule {}
 
 impl<'a> SimpleRule<'a> for UniqueArgumentDefinitionNamesRule {
     const NAME: &'static str = "UniqueArgumentDefinitionNamesRule";
+    type Visitor = Self;
 
     fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueArgumentDefinitionNamesRule {}
@@ -27,14 +28,15 @@ impl UniqueArgumentDefinitionNamesRule {
             let field_name = &field_def.name.value;
             let argument_nodes = &field_def.arguments;
 
-            self.check_arg_uniqueness(context, &format!("{type_name}.{field_name}"), argument_nodes);
+            self.check_arg_uniqueness(context, format_args!("{type_name}.{field_name}"), argument_nodes);
         }
     }
 
     fn check_arg_uniqueness(
         &mut self,
         context: &mut SimpleValidationContext<'_>,
-        parent_name: &str,
+        // PERF: formatted only for an error message, instead of a `String` built per field.
+        parent_name: std::fmt::Arguments<'_>,
         argument_nodes: &[InputValueDefinition],
     ) {
         let mut visited_argument_names: IndexSet<&str> = IndexSet::default();
@@ -53,12 +55,18 @@ impl UniqueArgumentDefinitionNamesRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueArgumentDefinitionNamesRule {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::InterfaceTypeDefinition, Kind::InterfaceTypeExtension, Kind::ObjectTypeDefinition, Kind::ObjectTypeExtension])
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::DirectiveDefinition(directive_node) => {
                 let argument_nodes = &directive_node.arguments;
 
-                self.check_arg_uniqueness(cx, &format!("@{}", directive_node.name.value), argument_nodes);
+                self.check_arg_uniqueness(cx, format_args!("@{}", directive_node.name.value), argument_nodes);
                 VisitAction::Continue
             }
             NodeRef::InterfaceTypeDefinition(n) => {

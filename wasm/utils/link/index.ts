@@ -1,6 +1,6 @@
 // Shim of src/utils/link/index.ts.
 import type { DocumentNode } from "graphql";
-import { call, parseJSON, toJSON } from "../../runtime.js";
+import { call, encodeJSON, parseJSON } from "../../runtime.js";
 import { FederatedLink, type LinkJSON } from "./link.js";
 
 export const FEDERATION_V1 = Symbol("Federation_V1");
@@ -33,7 +33,7 @@ export function extractLinkImplementations(typeDefs: DocumentNode): {
   resolveImportName: (identity: string, name: string) => string;
   matchesImplementation: (identity: string, version: LinkVersion) => boolean;
 } {
-  const linksJSON = call("extract_link_implementations", toJSON(typeDefs));
+  const linksJSON = call("extract_link_implementations", encodeJSON(typeDefs));
   const links = parseJSON<LinkJSON[]>(linksJSON).map(
     FederatedLink.fromJSONValue,
   );

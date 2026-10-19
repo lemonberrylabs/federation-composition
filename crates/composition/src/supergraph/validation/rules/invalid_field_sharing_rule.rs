@@ -14,13 +14,40 @@ use crate::utils::js::JsResult;
 /// Visitor callbacks: `ObjectTypeField`, `InterfaceTypeField`.
 pub struct InvalidFieldSharingRule<'s> {
     supergraph: &'s SupergraphState,
+    /// PERF: not in the TS. The result of the "is it the Subscription type" check for the last
+    /// object type seen. The check depends only on the object type, and the TS repeats it for
+    /// every field (a lookup per subgraph of the type).
+    last_subscription_check: Option<(&'s ObjectTypeState, bool)>,
 }
 
 impl<'s> SupergraphRule<'s> for InvalidFieldSharingRule<'s> {
     const NAME: &'static str = "InvalidFieldSharingRule";
 
     fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        Ok(InvalidFieldSharingRule { supergraph })
+        Ok(InvalidFieldSharingRule {
+            supergraph,
+            last_subscription_check: None,
+        })
+    }
+}
+
+impl<'s> InvalidFieldSharingRule<'s> {
+    /// `objectTypeState.byGraph.keys().some(graph => subgraph(graph).schema.subscriptionType === name)`,
+    /// memoized for consecutive fields of the same object type.
+    fn is_subscription_type(&mut self, cx: &SupergraphValidationContext, object_type_state: &'s ObjectTypeState) -> bool {
+        if let Some((last, is_subscription)) = self.last_subscription_check {
+            if std::ptr::eq(last, object_type_state) {
+                return is_subscription;
+            }
+        }
+        let is_subscription = object_type_state.by_graph.keys().any(|graph| {
+            cx.subgraph_states
+                .get(graph)
+                .and_then(|s| s.schema.subscription_type())
+                == Some(object_type_state.name.as_str())
+        });
+        self.last_subscription_check = Some((object_type_state, is_subscription));
+        is_subscription
     }
 }
 
@@ -49,12 +76,7 @@ impl<'s> SupergraphVisitor<'s> for InvalidFieldSharingRule<'s> {
         field_state: &'s ObjectTypeFieldState,
     ) -> JsResult<()> {
         // check if it's Subscription
-        if object_type_state.by_graph.keys().any(|graph| {
-            cx.subgraph_states
-                .get(graph)
-                .and_then(|s| s.schema.subscription_type())
-                == Some(object_type_state.name.as_str())
-        }) {
+        if self.is_subscription_type(cx, object_type_state) {
             if field_state.by_graph.len() > 1 {
                 cx.report_error(GraphQLError::with_code(
                     "Fields on root level subscription object cannot be marked as shareable",

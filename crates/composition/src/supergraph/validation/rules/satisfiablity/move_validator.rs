@@ -5,11 +5,11 @@ use std::rc::Rc;
 
 use super::edge::{is_abstract_edge, is_entity_edge, EdgeId, EdgeResolvabilityResult};
 use super::errors::{LazyErrors, OneOrMany, SatisfiabilityError};
-use super::finder::{concat_if_not_exists_fields, concat_if_not_exists_string, PathFinder, PathFinderResult};
+use super::finder::{concat_edge, concat_if_not_exists_fields, concat_if_not_exists_string, PathFinder, PathFinderResult};
 use super::graph::Graph;
 use super::helpers::{lazy, OverrideLabels};
 use super::moves::Move;
-use super::node::NodeTypeState;
+use super::node::{GraphNameId, NodeTypeState};
 use super::operation_path::OperationPath;
 use super::selection::{Field, Selection, SelectionNode};
 use crate::specifications::federation::FederationVersion;
@@ -17,28 +17,31 @@ use crate::utils::js::{JsError, JsResult};
 use crate::utils::logger::Logger;
 
 /// `MoveRequirement<T = SelectionNode>`.
+/// PERF: borrows the selection from the resolved `Selection` (which outlives the check) and
+/// shares the paths between the requirements created together, instead of copying both into
+/// every requirement. Neither is mutated.
 #[derive(Clone, Debug)]
-pub struct MoveRequirement {
-    pub paths: Vec<OperationPath>,
-    pub selection: SelectionNode,
+pub struct MoveRequirement<'a> {
+    pub paths: Rc<Vec<OperationPath>>,
+    pub selection: &'a SelectionNode,
 }
 
-fn is_fragment_requirement(requirement: &MoveRequirement) -> bool {
+fn is_fragment_requirement(requirement: &MoveRequirement<'_>) -> bool {
     matches!(requirement.selection, SelectionNode::Fragment(_))
 }
 
-fn is_field_requirement(requirement: &MoveRequirement) -> bool {
+fn is_field_requirement(requirement: &MoveRequirement<'_>) -> bool {
     matches!(requirement.selection, SelectionNode::Field(_))
 }
 
 /// `RequirementResult`.
 #[derive(Clone, Debug)]
-pub enum RequirementResult<'s> {
-    Success { requirements: Vec<MoveRequirement> },
+pub enum RequirementResult<'s, 'a> {
+    Success { requirements: Vec<MoveRequirement<'a>> },
     Failure { errors: LazyErrors<'s, SatisfiabilityError> },
 }
 
-impl RequirementResult<'_> {
+impl RequirementResult<'_, '_> {
     pub fn success(&self) -> bool {
         matches!(self, RequirementResult::Success { .. })
     }
@@ -46,7 +49,7 @@ impl RequirementResult<'_> {
 
 /// The result of `canResolveSelectionSet`: `{ success: true }` (an empty `Success`) or the
 /// failing requirement's result.
-pub type CanResolveSelectionSetResult<'s> = RequirementResult<'s>;
+pub type CanResolveSelectionSetResult<'s> = RequirementResult<'s, 'static>;
 
 /// `MoveValidator`. Holds the merged graph (named `supergraph` in TS). Cheap to clone; its
 /// `PathFinder` is created on demand (`path_finder()`), since the TS one points back at it.
@@ -80,17 +83,18 @@ impl<'s> MoveValidator<'s> {
         selection_set: &[SelectionNode],
         path: &OperationPath,
         visited_edges: &[EdgeId],
-        visited_graphs: &[String],
+        visited_graphs: &[GraphNameId],
         visited_fields: &[Rc<Selection>],
         label_values: &OverrideLabels,
     ) -> JsResult<CanResolveSelectionSetResult<'s>> {
         // `requirements.unshift(..)` is `push_front`, `requirements.pop()` is `pop_back`.
-        let mut requirements: VecDeque<MoveRequirement> = VecDeque::new();
+        let mut requirements: VecDeque<MoveRequirement<'_>> = VecDeque::new();
 
+        let paths = Rc::new(vec![path.clone_path()]);
         for selection in selection_set {
             requirements.push_front(MoveRequirement {
-                selection: selection.clone(),
-                paths: vec![path.clone_path()],
+                selection,
+                paths: paths.clone(),
             });
         }
 
@@ -99,7 +103,7 @@ impl<'s> MoveValidator<'s> {
             let result = self.validate_requirement(&requirement, visited_edges, visited_graphs, visited_fields, label_values)?;
 
             match result {
-                RequirementResult::Failure { .. } => return Ok(result),
+                RequirementResult::Failure { errors } => return Ok(RequirementResult::Failure { errors }),
                 RequirementResult::Success { requirements: inner } => {
                     for inner_requirement in inner {
                         requirements.push_front(inner_requirement);
@@ -112,15 +116,15 @@ impl<'s> MoveValidator<'s> {
     }
 
     /// `requirement.selection` is a `Fragment`.
-    fn validate_fragment_requirement(
+    fn validate_fragment_requirement<'a>(
         &self,
-        requirement: &MoveRequirement,
+        requirement: &MoveRequirement<'a>,
         visited_edges: &[EdgeId],
-        visited_graphs: &[String],
+        visited_graphs: &[GraphNameId],
         visited_fields: &[Rc<Selection>],
         label_values: &OverrideLabels,
-    ) -> JsResult<RequirementResult<'s>> {
-        let SelectionNode::Fragment(selection) = &requirement.selection else {
+    ) -> JsResult<RequirementResult<'s, 'a>> {
+        let SelectionNode::Fragment(selection) = requirement.selection else {
             return Err(JsError::error("Expected a fragment requirement"));
         };
         let graph = &*self.supergraph;
@@ -141,7 +145,7 @@ impl<'s> MoveValidator<'s> {
                     .selection_set
                     .iter()
                     .map(|s| MoveRequirement {
-                        selection: s.clone(),
+                        selection: s,
                         paths: requirement.paths.clone(),
                     })
                     .collect(),
@@ -150,7 +154,7 @@ impl<'s> MoveValidator<'s> {
 
         let path_finder = self.path_finder();
 
-        for path in &requirement.paths {
+        for path in requirement.paths.iter() {
             let direct_paths_result =
                 path_finder.find_direct_paths(path, &selection.type_name, None, visited_edges, label_values)?;
             match direct_paths_result {
@@ -164,14 +168,14 @@ impl<'s> MoveValidator<'s> {
                     next_paths.extend(paths);
                 }
                 PathFinderResult::Failure { errors: e } => {
-                    errors.add_all(&e);
+                    errors.add_all(e);
                 }
             }
         }
 
         // // we could add these as lazy
         // try indirect paths
-        for path in &requirement.paths {
+        for path in requirement.paths.iter() {
             let indirect_paths_result = path_finder.find_indirect_paths(
                 path,
                 &selection.type_name,
@@ -193,7 +197,7 @@ impl<'s> MoveValidator<'s> {
                     next_paths.extend(paths);
                 }
                 PathFinderResult::Failure { errors: e } => {
-                    errors.add_all(&e);
+                    errors.add_all(e);
                 }
             }
         }
@@ -201,7 +205,7 @@ impl<'s> MoveValidator<'s> {
         if next_paths.is_empty() {
             if self.logger.is_enabled {
                 self.logger.log("Could not resolve from:");
-                for path in &requirement.paths {
+                for path in requirement.paths.iter() {
                     self.logger.log(|| format!(" {}", path.to_string(graph)));
                 }
             }
@@ -215,12 +219,13 @@ impl<'s> MoveValidator<'s> {
             return Ok(RequirementResult::Success { requirements: Vec::new() });
         }
 
+        let next_paths = Rc::new(next_paths);
         Ok(RequirementResult::Success {
             requirements: selection
                 .selection_set
                 .iter()
                 .map(|s| MoveRequirement {
-                    selection: s.clone(),
+                    selection: s,
                     paths: next_paths.clone(),
                 })
                 .collect(),
@@ -228,15 +233,15 @@ impl<'s> MoveValidator<'s> {
     }
 
     /// `requirement.selection` is a `Field`.
-    fn validate_field_requirement(
+    fn validate_field_requirement<'a>(
         &self,
-        requirement: &MoveRequirement,
+        requirement: &MoveRequirement<'a>,
         visited_edges: &[EdgeId],
-        visited_graphs: &[String],
+        visited_graphs: &[GraphNameId],
         visited_fields: &[Rc<Selection>],
         label_values: &OverrideLabels,
-    ) -> JsResult<RequirementResult<'s>> {
-        let SelectionNode::Field(selection) = &requirement.selection else {
+    ) -> JsResult<RequirementResult<'s, 'a>> {
+        let SelectionNode::Field(selection) = requirement.selection else {
             return Err(JsError::error("Expected a field requirement"));
         };
         let graph = &*self.supergraph;
@@ -249,7 +254,7 @@ impl<'s> MoveValidator<'s> {
         let mut errors = LazyErrors::new();
         let path_finder = self.path_finder();
 
-        for path in &requirement.paths {
+        for path in requirement.paths.iter() {
             let direct_paths_result =
                 path_finder.find_direct_paths(path, type_name, Some(field_name), visited_edges, label_values)?;
             match direct_paths_result {
@@ -263,13 +268,13 @@ impl<'s> MoveValidator<'s> {
                     next_paths.extend(paths);
                 }
                 PathFinderResult::Failure { errors: e } => {
-                    errors.add_all(&e);
+                    errors.add_all(e);
                 }
             }
         }
 
         // we could add make it lazy
-        for path in &requirement.paths {
+        for path in requirement.paths.iter() {
             let indirect_paths_result = path_finder.find_indirect_paths(
                 path,
                 type_name,
@@ -291,7 +296,7 @@ impl<'s> MoveValidator<'s> {
                     next_paths.extend(paths);
                 }
                 PathFinderResult::Failure { errors: e } => {
-                    errors.add_all(&e);
+                    errors.add_all(e);
                 }
             }
         }
@@ -299,7 +304,7 @@ impl<'s> MoveValidator<'s> {
         if next_paths.is_empty() {
             self.logger.log(|| format!("Failed to resolve field {type_name}.{field_name} from:"));
             if self.logger.is_enabled {
-                for path in &requirement.paths {
+                for path in requirement.paths.iter() {
                     self.logger.log(|| format!(" {}", path.to_string(graph)));
                 }
             }
@@ -309,28 +314,31 @@ impl<'s> MoveValidator<'s> {
         }
 
         match &selection.selection_set {
-            Some(selection_set) if !selection_set.is_empty() => Ok(RequirementResult::Success {
-                requirements: selection_set
-                    .iter()
-                    .map(|s| MoveRequirement {
-                        selection: s.clone(),
-                        paths: next_paths.clone(),
-                    })
-                    .collect(),
-            }),
+            Some(selection_set) if !selection_set.is_empty() => {
+                let next_paths = Rc::new(next_paths);
+                Ok(RequirementResult::Success {
+                    requirements: selection_set
+                        .iter()
+                        .map(|s| MoveRequirement {
+                            selection: s,
+                            paths: next_paths.clone(),
+                        })
+                        .collect(),
+                })
+            }
             // we reached the end of the path
             _ => Ok(RequirementResult::Success { requirements: Vec::new() }),
         }
     }
 
-    fn validate_requirement(
+    fn validate_requirement<'a>(
         &self,
-        requirement: &MoveRequirement,
+        requirement: &MoveRequirement<'a>,
         visited_edges: &[EdgeId],
-        visited_graphs: &[String],
+        visited_graphs: &[GraphNameId],
         visited_fields: &[Rc<Selection>],
         label_values: &OverrideLabels,
-    ) -> JsResult<RequirementResult<'s>> {
+    ) -> JsResult<RequirementResult<'s, 'a>> {
         if is_fragment_requirement(requirement) {
             return self.validate_fragment_requirement(requirement, visited_edges, visited_graphs, visited_fields, label_values);
         }
@@ -426,7 +434,7 @@ impl<'s> MoveValidator<'s> {
         edge: EdgeId,
         path: &OperationPath,
         visited_edges: &[EdgeId],
-        visited_graphs: &[String],
+        visited_graphs: &[GraphNameId],
         visited_fields: &[Rc<Selection>],
         label_values: &OverrideLabels,
     ) -> JsResult<EdgeResolvabilityResult<'s>> {
@@ -435,7 +443,7 @@ impl<'s> MoveValidator<'s> {
         let head = graph.node(e.head);
         let tail = graph.node(e.tail);
         self.logger.group(|| format!("Checking resolvability of {}", graph.edge_to_string(edge)));
-        self.logger.log(|| format!("Visited graphs: {}", visited_graphs.join(",")));
+        self.logger.log(|| format!("Visited graphs: {}", graph.graph_names.join(visited_graphs, ",")));
 
         // Access guards always run and are never cached.
         // Keep this order so override/external errors are reported before context errors.
@@ -477,7 +485,7 @@ impl<'s> MoveValidator<'s> {
             }
         }
 
-        let resolvability = e.get_resolvability(&concat_if_not_exists_string(visited_graphs, &tail.graph_name), label_values);
+        let resolvability = e.get_resolvability(visited_graphs, tail.graph_name_id, label_values);
 
         if let Some(resolvability) = resolvability {
             self.logger.group_end(|| {
@@ -496,14 +504,13 @@ impl<'s> MoveValidator<'s> {
                 self.logger.log("Detected @requires");
 
                 let new_visited_graphs = if graph.is_cross_graph_edge(edge) {
-                    concat_if_not_exists_string(visited_graphs, &tail.graph_name)
+                    concat_if_not_exists_string(visited_graphs, &tail.graph_name_id)
                 } else {
                     visited_graphs.to_vec()
                 };
                 let new_visited_fields = concat_if_not_exists_fields(visited_fields, requires);
-                self.logger.log(|| format!("Visited graphs: {}", new_visited_graphs.join(",")));
-                let mut new_visited_edges = visited_edges.to_vec();
-                new_visited_edges.push(edge);
+                self.logger.log(|| format!("Visited graphs: {}", graph.graph_names.join(&new_visited_graphs, ",")));
+                let new_visited_edges = concat_edge(visited_edges, edge);
                 if self
                     .can_resolve_selection_set(
                         &requires.selection_set,
@@ -550,13 +557,12 @@ impl<'s> MoveValidator<'s> {
             return Ok(e.set_resolvable(true, visited_graphs.to_vec(), label_values.clone_labels(), None));
         };
 
-        let new_visited_graphs = concat_if_not_exists_string(visited_graphs, &tail.graph_name);
+        let new_visited_graphs = concat_if_not_exists_string(visited_graphs, &tail.graph_name_id);
         let new_visited_fields = concat_if_not_exists_fields(visited_fields, &key_fields);
 
         self.logger.log("Detected @key");
-        self.logger.log(|| format!("Visited graphs: {}", new_visited_graphs.join(",")));
-        let mut new_visited_edges = visited_edges.to_vec();
-        new_visited_edges.push(edge);
+        self.logger.log(|| format!("Visited graphs: {}", graph.graph_names.join(&new_visited_graphs, ",")));
+        let new_visited_edges = concat_edge(visited_edges, edge);
         let resolvable = self
             .can_resolve_selection_set(
                 &key_fields.selection_set,

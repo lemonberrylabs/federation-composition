@@ -4,7 +4,7 @@ use graphql_js::Definition;
 use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::ast::{create_enum_type_node, CostAst, EnumTypeAst, EnumValueAst, JoinAst, JoinEnumValueAst, JoinTypeAst};
-use super::common::{convert_to_const, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
+use super::common::{convert_to_const, get_or_insert_with, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
 use crate::utils::auth::merge_scope_policies;
 use crate::utils::helpers::{ensure_value, math_max};
 use crate::specifications::federation::FederationVersion;
@@ -159,7 +159,7 @@ impl TypeBuilder<EnumType, EnumTypeState> for EnumTypeBuilder {
             None => None,
         };
 
-        Ok(Definition::EnumTypeDefinition(create_enum_type_node(&EnumTypeAst {
+        Ok(Definition::EnumTypeDefinition(create_enum_type_node(EnumTypeAst {
             name: enum_type.name.clone(),
             cost,
             values: values
@@ -289,41 +289,36 @@ pub struct EnumValueStateInGraph {
 }
 
 fn get_or_create_enum_type<'s>(state: &'s mut IndexMap<String, EnumTypeState>, type_name: &str) -> &'s mut EnumTypeState {
-    state
-        .entry(type_name.to_string())
-        .or_insert_with(|| EnumTypeState {
-            name: type_name.to_string(),
-            values: IndexMap::default(),
-            tags: IndexSet::default(),
-            has_definition: false,
-            inaccessible: false,
-            authenticated: false,
-            policies: vec![],
-            scopes: vec![],
-            cost: None,
-            description: None,
-            referenced_by_input_type: false,
-            referenced_by_output_type: false,
-            input_type_references: IndexSet::default(),
-            output_type_references: IndexSet::default(),
-            by_graph: IndexMap::default(),
-            ast: Ast { directives: vec![] },
-        })
+    get_or_insert_with(state, type_name, || EnumTypeState {
+        name: type_name.to_string(),
+        values: IndexMap::default(),
+        tags: IndexSet::default(),
+        has_definition: false,
+        inaccessible: false,
+        authenticated: false,
+        policies: vec![],
+        scopes: vec![],
+        cost: None,
+        description: None,
+        referenced_by_input_type: false,
+        referenced_by_output_type: false,
+        input_type_references: IndexSet::default(),
+        output_type_references: IndexSet::default(),
+        by_graph: IndexMap::default(),
+        ast: Ast { directives: vec![] },
+    })
 }
 
 fn get_or_create_enum_value<'s>(enum_type_state: &'s mut EnumTypeState, enum_value_name: &str) -> &'s mut EnumValueState {
-    enum_type_state
-        .values
-        .entry(enum_value_name.to_string())
-        .or_insert_with(|| EnumValueState {
-            name: enum_value_name.to_string(),
-            tags: IndexSet::default(),
-            inaccessible: false,
-            deprecated: None,
-            description: None,
-            by_graph: IndexMap::default(),
-            ast: Ast { directives: vec![] },
-        })
+    get_or_insert_with(&mut enum_type_state.values, enum_value_name, || EnumValueState {
+        name: enum_value_name.to_string(),
+        tags: IndexSet::default(),
+        inaccessible: false,
+        deprecated: None,
+        description: None,
+        by_graph: IndexMap::default(),
+        ast: Ast { directives: vec![] },
+    })
 }
 
 #[cfg(test)]
