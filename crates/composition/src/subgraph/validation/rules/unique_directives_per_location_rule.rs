@@ -1,23 +1,108 @@
 //! Port of `src/subgraph/validation/rules/unique-directives-per-location-rule.ts`.
 
-use graphql_js::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
+use graphql_js::{Definition, Directive, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
+use indexmap::{IndexMap, IndexSet};
+
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 
 /// `UniqueDirectivesPerLocationRule(context)`.
 /// Visitor callbacks: generic `enter(node)`.
 /// Fields: the locals of the TS factory.
-pub struct UniqueDirectivesPerLocationRule {}
+pub struct UniqueDirectivesPerLocationRule {
+    unique_directive_map: IndexMap<String, bool>,
+    schema_directives: IndexSet<String>,
+    type_directives_map: IndexMap<String, IndexSet<String>>,
+}
 
 impl<'a> SimpleRule<'a> for UniqueDirectivesPerLocationRule {
     const NAME: &'static str = "UniqueDirectivesPerLocationRule";
 
     fn new(context: &mut SimpleValidationContext<'a>) -> Self {
-        todo!()
+        let mut unique_directive_map: IndexMap<String, bool> = IndexMap::new();
+
+        let ast_definitions = &context.get_document().definitions;
+        for def in ast_definitions {
+            if let Definition::DirectiveDefinition(def) = def {
+                unique_directive_map.insert(def.name.value.clone(), !def.repeatable);
+            }
+        }
+
+        UniqueDirectivesPerLocationRule {
+            unique_directive_map,
+            schema_directives: IndexSet::new(),
+            type_directives_map: IndexMap::new(),
+        }
     }
 }
 
+/// `node.directives` for every node kind that has a `directives` field.
+fn node_directives(node: NodeRef<'_>) -> Option<&[Directive]> {
+    Some(match node {
+        NodeRef::OperationDefinition(n) => &n.directives,
+        NodeRef::VariableDefinition(n) => &n.directives,
+        NodeRef::Field(n) => &n.directives,
+        NodeRef::FragmentSpread(n) => &n.directives,
+        NodeRef::InlineFragment(n) => &n.directives,
+        NodeRef::FragmentDefinition(n) => &n.directives,
+        NodeRef::SchemaDefinition(n) => &n.directives,
+        NodeRef::ScalarTypeDefinition(n) => &n.directives,
+        NodeRef::ObjectTypeDefinition(n) => &n.directives,
+        NodeRef::FieldDefinition(n) => &n.directives,
+        NodeRef::InputValueDefinition(n) => &n.directives,
+        NodeRef::InterfaceTypeDefinition(n) => &n.directives,
+        NodeRef::UnionTypeDefinition(n) => &n.directives,
+        NodeRef::EnumTypeDefinition(n) => &n.directives,
+        NodeRef::EnumValueDefinition(n) => &n.directives,
+        NodeRef::InputObjectTypeDefinition(n) => &n.directives,
+        NodeRef::DirectiveDefinition(n) => &n.directives,
+        NodeRef::SchemaExtension(n) => &n.directives,
+        NodeRef::DirectiveExtension(n) => &n.directives,
+        NodeRef::ScalarTypeExtension(n) => &n.directives,
+        NodeRef::ObjectTypeExtension(n) => &n.directives,
+        NodeRef::InterfaceTypeExtension(n) => &n.directives,
+        NodeRef::UnionTypeExtension(n) => &n.directives,
+        NodeRef::EnumTypeExtension(n) => &n.directives,
+        NodeRef::InputObjectTypeExtension(n) => &n.directives,
+        _ => return None,
+    })
+}
+
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueDirectivesPerLocationRule {
+    // Many different AST nodes may contain directives. Rather than listing
+    // them all, just listen for entering any node, and check to see if it
+    // defines any directives.
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
-        todo!()
+        // NOTE(port): an absent `directives` and an empty list behave the same here.
+        let Some(directives) = node_directives(node) else {
+            return VisitAction::Continue;
+        };
+
+        let mut local_seen: IndexSet<String> = IndexSet::new();
+        let seen_directives: &mut IndexSet<String> =
+            if matches!(node, NodeRef::SchemaDefinition(_) | NodeRef::SchemaExtension(_)) {
+                &mut self.schema_directives
+            } else if graphql_js::is_type_definition_node(node) || graphql_js::is_type_extension_node(node) {
+                let type_name = node.name().map(|n| n.value.clone()).unwrap_or_default();
+                self.type_directives_map.entry(type_name).or_default()
+            } else {
+                &mut local_seen
+            };
+
+        for directive in directives {
+            let directive_name = &directive.name.value;
+
+            if self.unique_directive_map.get(directive_name).copied().unwrap_or(false) {
+                if seen_directives.contains(directive_name) {
+                    cx.report_error(GraphQLError::with_code(
+                        format!("The directive \"@{directive_name}\" can only be used once at this location."),
+                        "INVALID_GRAPHQL",
+                    ));
+                } else {
+                    seen_directives.insert(directive.name.value.clone());
+                }
+            }
+        }
+
+        VisitAction::Continue
     }
 }
