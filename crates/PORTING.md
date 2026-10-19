@@ -111,6 +111,39 @@ Use `crates/graphql` for everything the TS imports from `"graphql"`: AST types,
 `src/graphql/printer.ts` is the library's own printer (used for supergraph output);
 port it in `crates/composition`, do not substitute graphql-js `print` for it.
 
+### `graphql_js` crate API in brief
+
+- AST structs are named like graphql-js node kinds without the `Node` suffix
+  (`FieldDefinition`, `StringValue`, `ObjectTypeExtension`). Union enums: `Definition`,
+  `Selection`, `Value`, `Type`, `TypeDefinition`, `TypeExtension`. `Node` is the owned
+  union of every kind, `NodeRef<'a>` the borrowed one. `Kind` and `OperationType` enums
+  have `as_str()`. `ConstValue`/`ConstDirective`/`ConstArgument` alias the plain types.
+- Optional lists (`directives?`, `fields?`, `arguments?`) are plain `Vec`s; empty means
+  `undefined`. Optional nodes are `Option`. The `type` field is spelled `ty`;
+  `ListType`/`NonNullType` hold `Box<Type>`.
+- Every node implements `Default`: `FieldDefinition { name: Name::new("id"), ty: Type::named("ID"), ..Default::default() }`.
+  Helpers: `Value::string`, `Directive::new`, `Type::non_null`, `NamedType::new`;
+  `node.name()` on `NodeRef` returns the name of any node that has one.
+- `parse`, `parse_value`, `parse_const_value`, `parse_type` return `Result<_, GraphQLError>`
+  with graphql-js's exact messages. `print(impl Into<NodeRef>)` is graphql-js `print`.
+  `strip_ignored_characters`, `concat_ast`, predicates (`is_type_definition_node`...).
+- `GraphQLError { message, extensions: IndexMap<String, serde_json::Value> }` with
+  `new`, `with_code`, `code()`.
+- Read-only visit: `visit(root, &mut v, &mut cx) -> bool`, where
+  `trait Visitor<'a, C> { fn enter/leave(&mut self, node: NodeRef<'a>, cx: &mut C, info: &VisitInfo<'a, '_>) -> VisitAction }`,
+  `VisitAction::{Continue, Skip, Break}`, `VisitInfo` has graphql-js `key`, `parent`,
+  `path`, `ancestors`. `visit_in_parallel(Vec<Box<dyn Visitor<'a, C>>>)`. A TS visitor
+  object becomes a `match node { NodeRef::FieldDefinition(f) => ..., _ => {} }`.
+  Visitors may keep `&'a` references into the document (see `TypeNodeInfo` in
+  `crates/graphql/tests/visitor.rs`).
+- Editing visit (graphql-js `visit` with returned replacements):
+  `visit_edit(root, &mut impl EditVisitor) -> EditResult` and `visit_in_parallel_edit`,
+  `EditAction::{Replace(Node), Delete, Skip, Break, Continue}`; `.into_document()`.
+- `specified_directives()`, `specified_scalar_types()`, `INTROSPECTION_TYPE_NAMES`,
+  `is_specified_directive`, `is_specified_scalar_type`, `is_introspection_type`.
+- JSON (serde) matches graphql-js's JSON for parsed documents; deserialization accepts
+  missing/`null`/`[]` optional fields and ignores `loc`.
+
 `buildASTSchema`/`getNamedType`/`isObjectType` from graphql-js are used only in
 `src/contracts/reachable-type-filter.ts`; port the needed subset of schema building
 inside that module (including any error `buildASTSchema` would throw for the inputs
@@ -127,7 +160,7 @@ the tests use).
 
 | Area | TS lines | Status |
 |---|---:|---|
-| graphql crate (graphql-js port) | — | in progress |
+| graphql crate (graphql-js port) | — | done: differential tests vs graphql-js pass (regenerate `crates/graphql/tests/corpus.json` with `node crates/graphql/tests/gen-corpus.mjs`) |
 | `utils/`, `specifications/`, `graphql/`, `types`, `subgraph/context` | 3,606 | not started |
 | `subgraph/state`, `subgraph/helpers` | 3,582 | not started |
 | `subgraph/validation/` | 7,307 | not started |
