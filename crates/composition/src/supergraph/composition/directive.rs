@@ -4,7 +4,7 @@ use graphql_js::Definition;
 use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::ast::{create_directive_node, DirectiveAst, FieldArgumentAst};
-use super::common::{convert_to_const, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
+use super::common::{convert_to_const, get_or_insert_with, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
 use crate::specifications::federation::FederationVersion;
 use crate::subgraph::state::{Ast, ArgumentKind, Directive};
 use crate::supergraph::state::SubgraphStates;
@@ -107,7 +107,7 @@ impl TypeBuilder<Directive, DirectiveState> for DirectiveBuilder {
         _graphs: &SubgraphStates,
         _helpers: ComposeHelpers<'_>,
     ) -> JsResult<Definition> {
-        Ok(Definition::DirectiveDefinition(create_directive_node(&DirectiveAst {
+        Ok(Definition::DirectiveDefinition(create_directive_node(DirectiveAst {
             name: directive.name.clone(),
             locations: directive.locations.iter().cloned().collect(),
             repeatable: directive.repeatable,
@@ -174,17 +174,15 @@ pub struct ArgStateInGraph {
 }
 
 fn get_or_create_directive<'s>(state: &'s mut IndexMap<String, DirectiveState>, directive_name: &str) -> &'s mut DirectiveState {
-    state
-        .entry(directive_name.to_string())
-        .or_insert_with(|| DirectiveState {
-            name: directive_name.to_string(),
-            locations: IndexSet::default(),
-            by_graph: IndexMap::default(),
-            args: IndexMap::default(),
-            repeatable: false,
-            is_executable: false,
-            composed: false,
-        })
+    get_or_insert_with(state, directive_name, || DirectiveState {
+        name: directive_name.to_string(),
+        locations: IndexSet::default(),
+        by_graph: IndexMap::default(),
+        args: IndexMap::default(),
+        repeatable: false,
+        is_executable: false,
+        composed: false,
+    })
 }
 
 fn get_or_create_arg<'s>(
@@ -193,19 +191,16 @@ fn get_or_create_arg<'s>(
     arg_type: &str,
     arg_kind: ArgumentKind,
 ) -> &'s mut DirectiveArgState {
-    directive_state
-        .args
-        .entry(arg_name.to_string())
-        .or_insert_with(|| DirectiveArgState {
-            name: arg_name.to_string(),
-            r#type: arg_type.to_string(),
-            kind: arg_kind,
-            inaccessible: false,
-            tags: IndexSet::default(),
-            default_value: None,
-            by_graph: IndexMap::default(),
-            ast: Ast { directives: vec![] },
-        })
+    get_or_insert_with(&mut directive_state.args, arg_name, || DirectiveArgState {
+        name: arg_name.to_string(),
+        r#type: arg_type.to_string(),
+        kind: arg_kind,
+        inaccessible: false,
+        tags: IndexSet::default(),
+        default_value: None,
+        by_graph: IndexMap::default(),
+        ast: Ast { directives: vec![] },
+    })
 }
 
 /// `isArgumentTypeIdenticalInEverySubgraph(directiveArgState, totalSubgraphSize)`.

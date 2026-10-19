@@ -7,7 +7,7 @@ use super::ast::{
     create_interface_type_node, CostAst, FieldArgumentAst, FieldAst, InterfaceTypeAst, JoinAst, JoinFieldAst,
     JoinImplementsAst, JoinTypeAst, ListSizeAst,
 };
-use super::common::{convert_to_const, ComposeHelpers, Graph, Key, MapByGraph, TypeBuilder};
+use super::common::{convert_to_const, get_or_insert_with, ComposeHelpers, Graph, Key, MapByGraph, TypeBuilder};
 use super::object_type::ObjectTypeState;
 use crate::specifications::federation::FederationVersion;
 use crate::subgraph::state::{Ast, ArgumentKind, Deprecated, Description, FromContext, InterfaceType, ListSize};
@@ -128,6 +128,11 @@ impl TypeBuilder<InterfaceType, InterfaceTypeState> for InterfaceTypeBuilder {
                 version: graph.version,
             },
         );
+
+        // PERF: a new type state gets room for the fields up front (only the capacity changes).
+        if interface_type_state.fields.is_empty() {
+            interface_type_state.fields.reserve(ty.fields.len());
+        }
 
         for field in ty.fields.values() {
             let field_state = get_or_create_interface_field(interface_type_state, &field.name, &field.r#type);
@@ -411,7 +416,7 @@ impl TypeBuilder<InterfaceType, InterfaceTypeState> for InterfaceTypeBuilder {
             }
         }
 
-        Ok(Definition::InterfaceTypeDefinition(create_interface_type_node(&InterfaceTypeAst {
+        Ok(Definition::InterfaceTypeDefinition(create_interface_type_node(InterfaceTypeAst {
             name: interface_type.name.clone(),
             fields,
             tags: interface_type.tags.iter().cloned().collect(),
@@ -580,26 +585,24 @@ fn get_or_create_interface_type<'s>(
     state: &'s mut IndexMap<String, InterfaceTypeState>,
     type_name: &str,
 ) -> &'s mut InterfaceTypeState {
-    state
-        .entry(type_name.to_string())
-        .or_insert_with(|| InterfaceTypeState {
-            name: type_name.to_string(),
-            tags: IndexSet::default(),
-            inaccessible: false,
-            authenticated: false,
-            policies: Vec::new(),
-            scopes: Vec::new(),
-            contexts: IndexSet::default(),
-            has_definition: false,
-            has_interface_object: false,
-            is_entity: false,
-            by_graph: IndexMap::default(),
-            fields: IndexMap::default(),
-            interfaces: IndexSet::default(),
-            implemented_by: IndexSet::default(),
-            description: None,
-            ast: Ast::default(),
-        })
+    get_or_insert_with(state, type_name, || InterfaceTypeState {
+        name: type_name.to_string(),
+        tags: IndexSet::default(),
+        inaccessible: false,
+        authenticated: false,
+        policies: Vec::new(),
+        scopes: Vec::new(),
+        contexts: IndexSet::default(),
+        has_definition: false,
+        has_interface_object: false,
+        is_entity: false,
+        by_graph: IndexMap::default(),
+        fields: IndexMap::default(),
+        interfaces: IndexSet::default(),
+        implemented_by: IndexSet::default(),
+        description: None,
+        ast: Ast::default(),
+    })
 }
 
 fn get_or_create_interface_field<'s>(
@@ -607,27 +610,24 @@ fn get_or_create_interface_field<'s>(
     field_name: &str,
     field_type: &str,
 ) -> &'s mut InterfaceTypeFieldState {
-    interface_type_state
-        .fields
-        .entry(field_name.to_string())
-        .or_insert_with(|| InterfaceTypeFieldState {
-            name: field_name.to_string(),
-            r#type: field_type.to_string(),
-            is_leaf: false,
-            used_as_key: false,
-            tags: IndexSet::default(),
-            inaccessible: false,
-            authenticated: false,
-            policies: Vec::new(),
-            scopes: Vec::new(),
-            cost: None,
-            list_size: None,
-            deprecated: None,
-            description: None,
-            by_graph: IndexMap::default(),
-            args: IndexMap::default(),
-            ast: Ast::default(),
-        })
+    get_or_insert_with(&mut interface_type_state.fields, field_name, || InterfaceTypeFieldState {
+        name: field_name.to_string(),
+        r#type: field_type.to_string(),
+        is_leaf: false,
+        used_as_key: false,
+        tags: IndexSet::default(),
+        inaccessible: false,
+        authenticated: false,
+        policies: Vec::new(),
+        scopes: Vec::new(),
+        cost: None,
+        list_size: None,
+        deprecated: None,
+        description: None,
+        by_graph: IndexMap::default(),
+        args: IndexMap::default(),
+        ast: Ast::default(),
+    })
 }
 
 fn get_or_create_arg<'s>(
@@ -636,22 +636,19 @@ fn get_or_create_arg<'s>(
     arg_type: &str,
     arg_kind: ArgumentKind,
 ) -> &'s mut InterfaceTypeFieldArgState {
-    field_state
-        .args
-        .entry(arg_name.to_string())
-        .or_insert_with(|| InterfaceTypeFieldArgState {
-            name: arg_name.to_string(),
-            r#type: arg_type.to_string(),
-            kind: arg_kind,
-            tags: IndexSet::default(),
-            default_value: None,
-            from_context: None,
-            cost: None,
-            description: None,
-            deprecated: None,
-            by_graph: IndexMap::default(),
-            ast: Ast::default(),
-        })
+    get_or_insert_with(&mut field_state.args, arg_name, || InterfaceTypeFieldArgState {
+        name: arg_name.to_string(),
+        r#type: arg_type.to_string(),
+        kind: arg_kind,
+        tags: IndexSet::default(),
+        default_value: None,
+        from_context: None,
+        cost: None,
+        description: None,
+        deprecated: None,
+        by_graph: IndexMap::default(),
+        ast: Ast::default(),
+    })
 }
 
 #[cfg(test)]

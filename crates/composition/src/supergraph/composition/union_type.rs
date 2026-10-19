@@ -4,7 +4,7 @@ use graphql_js::Definition;
 use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::ast::{create_union_type_node, JoinAst, JoinTypeAst, JoinUnionMemberAst, UnionTypeAst};
-use super::common::{convert_to_const, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
+use super::common::{convert_to_const, get_or_insert_with, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
 use crate::specifications::federation::FederationVersion;
 use crate::subgraph::state::{Ast, Description, UnionType};
 use crate::supergraph::state::SubgraphStates;
@@ -73,7 +73,7 @@ impl TypeBuilder<UnionType, UnionTypeState> for UnionTypeBuilder {
         _graphs: &SubgraphStates,
         _helpers: ComposeHelpers<'_>,
     ) -> JsResult<Definition> {
-        Ok(Definition::UnionTypeDefinition(create_union_type_node(&UnionTypeAst {
+        Ok(Definition::UnionTypeDefinition(create_union_type_node(UnionTypeAst {
             name: union_type.name.clone(),
             members: union_type.members.iter().cloned().collect(),
             tags: union_type.tags.iter().cloned().collect(),
@@ -132,19 +132,17 @@ pub struct UnionTypeInGraph {
 }
 
 fn get_or_create_union_type<'s>(state: &'s mut IndexMap<String, UnionTypeState>, type_name: &str) -> &'s mut UnionTypeState {
-    state
-        .entry(type_name.to_string())
-        .or_insert_with(|| UnionTypeState {
-            name: type_name.to_string(),
-            members: IndexSet::default(),
-            tags: IndexSet::default(),
-            inaccessible: false,
-            contexts: IndexSet::default(),
-            has_definition: false,
-            description: None,
-            by_graph: IndexMap::default(),
-            ast: Ast { directives: vec![] },
-        })
+    get_or_insert_with(state, type_name, || UnionTypeState {
+        name: type_name.to_string(),
+        members: IndexSet::default(),
+        tags: IndexSet::default(),
+        inaccessible: false,
+        contexts: IndexSet::default(),
+        has_definition: false,
+        description: None,
+        by_graph: IndexMap::default(),
+        ast: Ast { directives: vec![] },
+    })
 }
 
 #[cfg(test)]

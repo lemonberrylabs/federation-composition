@@ -6,7 +6,7 @@ use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
-use crate::utils::state::strip_type_modifiers;
+use super::fields_of_the_same_type_rule::strip_all_modifiers;
 
 /// `ReferencedInaccessibleRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeField`, `ObjectTypeFieldArg`.
@@ -29,11 +29,16 @@ impl<'s> SupergraphVisitor<'s> for ReferencedInaccessibleRule<'s> {
         object_state: &'s ObjectTypeState,
         field_state: &'s ObjectTypeFieldState,
     ) -> JsResult<()> {
+        // PERF: the lookup is pure, so it is skipped when the field is inaccessible anyway, and
+        // the type name borrows from the field type (`strip_all_modifiers` gives the same string).
+        let is_inaccessible = field_state.inaccessible || object_state.inaccessible;
+        if is_inaccessible {
+            return Ok(());
+        }
         // `fieldState.type.replace(/[\[\]\!]+/g, "")`
-        let output_type_name = strip_type_modifiers(&field_state.r#type);
+        let output_type_name = strip_all_modifiers(&field_state.r#type);
         let references_inaccessible =
             find_output_type(self.supergraph, &output_type_name).is_some_and(|t| t.inaccessible);
-        let is_inaccessible = field_state.inaccessible || object_state.inaccessible;
 
         if references_inaccessible && !is_inaccessible {
             cx.report_error(GraphQLError::with_code(
@@ -55,10 +60,14 @@ impl<'s> SupergraphVisitor<'s> for ReferencedInaccessibleRule<'s> {
         field_state: &'s ObjectTypeFieldState,
         arg_state: &'s ObjectTypeFieldArgState,
     ) -> JsResult<()> {
-        let output_type_name = strip_type_modifiers(&arg_state.r#type);
+        // PERF: as in `object_type_field`.
+        let is_inaccessible = arg_state.inaccessible || field_state.inaccessible || object_state.inaccessible;
+        if is_inaccessible {
+            return Ok(());
+        }
+        let output_type_name = strip_all_modifiers(&arg_state.r#type);
         let references_inaccessible =
             find_input_type(self.supergraph, &output_type_name).is_some_and(|t| t.inaccessible);
-        let is_inaccessible = arg_state.inaccessible || field_state.inaccessible || object_state.inaccessible;
 
         if references_inaccessible && !is_inaccessible {
             cx.report_error(GraphQLError::with_code(
