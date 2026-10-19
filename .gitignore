@@ -4,3 +4,8 @@ node_modules
 dist
 *.cpuprofile
 .bob
+bench/raw.jsonl
+bench/corpus.jsonl
+bench/results-*.json
+/target
+crates/graphql/tests/corpus.json

@@ -1,0 +1,20 @@
+{
+  "source": "pnpm bench (benchmark.ts, mitata 1.0.34), 2026-10-19, Apple M4 Pro, Node v24.19.0",
+  "note": "Average time per iteration. Each iteration includes assertCompositionSuccess; mitata runs gc between iterations.",
+  "groups": [
+    { "id": "basic", "subgraphs": 2, "apolloMs": 6.33, "guildMs": 2.12 },
+    { "id": "stars-stuff", "subgraphs": 5, "apolloMs": 16.67, "guildMs": 5.08 },
+    {
+      "id": "dgs (medium)",
+      "subgraphs": 11,
+      "apolloMs": 194.39,
+      "guildMs": 84.27
+    },
+    {
+      "id": "huge-schema",
+      "subgraphs": 191,
+      "apolloMs": 1620,
+      "guildMs": 391.02
+    }
+  ]
+}
