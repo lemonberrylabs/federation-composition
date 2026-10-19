@@ -1,0 +1,18 @@
+[package]
+name = "composition_wasm"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "wasm-bindgen bindings of federation_composition, used by the JS shim in wasm/"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+graphql_js = { package = "graphql", path = "../graphql" }
+# federation_composition is added when the exports are wired to the port.
+# wasm-bindgen must match the wasm-bindgen-cli version exactly (wasm/build.mjs checks).
+wasm-bindgen = "=0.2.129"
+js-sys = "=0.3.106"
+serde = { workspace = true }
+serde_json = { workspace = true }
