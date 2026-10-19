@@ -194,9 +194,40 @@ pub fn parse_link_import(import_string: &str) -> JsResult<Vec<LinkImport>> {
     })
 }
 
+/// The strings of `text` when it is exactly `[]` or `["a", "b", ...]` as graphql-js prints a
+/// list of strings, and no string contains `"`, `\`, a line feed or a carriage return (the
+/// characters a JSON5 double-quoted string treats specially). `None` for anything else.
+fn plain_string_list(text: &str) -> Option<impl Iterator<Item = &str>> {
+    let inner = text.strip_prefix('[')?.strip_suffix(']')?;
+    if inner.is_empty() {
+        return Some(None.into_iter().flatten());
+    }
+    let inner = inner.strip_prefix('"')?.strip_suffix('"')?;
+    if inner.split("\", \"").any(|s| s.contains(['"', '\\', '\n', '\r'])) {
+        return None;
+    }
+    Some(Some(inner.split("\", \"")).into_iter().flatten())
+}
+
 /// The body of the `try` in `parseLinkImport`.
 fn parse_link_import_bindings(import_string: &str) -> JsResult<Vec<LinkImport>> {
     use json5::Json5Value;
+
+    // PERF: the common `["@key", "@shareable"]` read without the JSON5 parser. JSON5 reads such
+    // a list as exactly these strings; the bindings below turn each string into the same import.
+    if let Some(names) = plain_string_list(import_string) {
+        return Ok(names
+            .map(|name| LinkImport {
+                kind: if name.starts_with('@') {
+                    LinkImportKind::Directive
+                } else {
+                    LinkImportKind::Type
+                },
+                name: name.to_string(),
+                alias: None,
+            })
+            .collect());
+    }
 
     let bindings = json5::parse(import_string)?;
 

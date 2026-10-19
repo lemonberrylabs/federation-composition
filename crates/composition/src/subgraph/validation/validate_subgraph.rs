@@ -9,6 +9,8 @@
 //! A visitor that throws records the error in the context (`cx.throw`); after the visit,
 //! `validate_subgraph` returns it as `Err`.
 
+use std::sync::LazyLock;
+
 use graphql_js::{Definition, Document, GraphQLError, OperationType};
 use crate::utils::collections::{IndexMap, IndexSet};
 
@@ -58,7 +60,7 @@ use super::validation_context::{
     SubgraphRef, SubgraphRule, SubgraphValidationContext,
 };
 use crate::graphql::type_node_info::visit_with_type_node_info;
-use crate::specifications::federation::{create_spec_schema, DetectedFederation};
+use crate::specifications::federation::{known_spec_schema, DetectedFederation};
 use crate::specifications::link::{parse_link_directive, Link};
 use crate::subgraph::state::SubgraphStateBuilder;
 use crate::utils::js::{JsError, JsResult};
@@ -135,9 +137,9 @@ pub fn validate_subgraph(
     clean_subgraph_type_defs_from_subgraph_spec(subgraph.type_defs);
     let type_defs: &Document = subgraph.type_defs;
 
-    let link_spec_definitions = graphql_js::parse(LINK_SPEC_DEFINITIONS_SDL)
-        .expect("the link spec definitions are valid SDL")
-        .definitions;
+    // PERF: parsed once (`LINK_SPEC_DEFINITIONS`) instead of on every call; the TS parses a
+    // constant string, so every call sees the same definitions.
+    let link_spec_definitions: &'static [Definition] = &LINK_SPEC_DEFINITIONS;
 
     let rules_to_skip: Vec<String> = internal
         .and_then(|i| i.disable_validation_rules.clone())
@@ -193,48 +195,88 @@ pub fn validate_subgraph(
     let federation_definition_replacements = validation_context.collect_federation_definition_replacements().clone();
 
     // Include only link spec definitions that are not already defined in the subgraph
-    let link_spec_definitions_to_include: Vec<Definition> = link_spec_definitions
-        .into_iter()
+    let link_spec_definitions_to_include: Vec<&'static Definition> = link_spec_definitions
+        .iter()
         .filter(|def| match def.name() {
             Some(name) => !validation_context.state_builder.state.types.contains_key(&name.value),
             None => true,
         })
         .collect();
 
-    let available_federation_definitions = Document::new(
-        validation_context
-            .get_available_federation_type_and_directive_definitions()
-            .into_iter()
-            .filter(|def| {
-                // `def.name.value`: every spec definition has a name.
-                !def
-                    .name()
-                    .is_some_and(|name| federation_definition_replacements.contains(&name.value))
-            })
-            .collect(),
-    );
-    let link_spec_document = if validation_context.satisfies_version_range("> v1.0")
+    let available_federation_definitions: Vec<Definition> = validation_context
+        .get_available_federation_type_and_directive_definitions()
+        .into_iter()
+        .filter(|def| {
+            // `def.name.value`: every spec definition has a name.
+            !def
+                .name()
+                .is_some_and(|name| federation_definition_replacements.contains(&name.value))
+        })
+        .collect();
+    let link_spec_document: Option<Vec<&'static Definition>> = if validation_context.satisfies_version_range("> v1.0")
         && !validation_context.state_builder.state.specs.link
     {
         // TODO: If Link v1.0 spec is detected in the subgraph (`schema @link(url: ".../link/v1.0")`)
         // We should validate its directives and types
         // just like we do with Federation directives and types.
         if !link_spec_definitions_to_include.is_empty() {
-            Some(Document::new(link_spec_definitions_to_include))
+            Some(link_spec_definitions_to_include)
         } else {
             None
         }
     } else {
         None
     };
-    let full_type_defs = graphql_js::concat_ast(
-        [Some(&available_federation_definitions), link_spec_document.as_ref(), Some(type_defs)]
-            .into_iter()
-            .flatten(),
+    // PERF: `concatAST([availableFederationDefinitions, linkSpecDocument, typeDefs])` built
+    // directly: the federation definitions are moved instead of cloned twice, and the link spec
+    // definitions are cloned once from the shared parsed copy. The subgraph's own definitions
+    // are added below, after the last use of `validation_context`.
+    let mut full_definitions: Vec<Definition> = Vec::with_capacity(
+        available_federation_definitions.len()
+            + link_spec_document.as_ref().map_or(0, Vec::len)
+            + type_defs.definitions.len(),
     );
+    full_definitions.extend(available_federation_definitions);
+    full_definitions.extend(link_spec_document.into_iter().flatten().cloned());
 
     // validate built subgraph state
     let subgraph_state_errors = validate_subgraph_state(&validation_context.state_builder.state, &validation_context);
+
+    // PERF: the TS runs the graphql rules over `fullTypeDefs` here, before marking fields as
+    // shareable and collecting the context's errors. The rules only read `fullTypeDefs` and
+    // only produce `simpleValidationContext`'s errors, which are appended in the same place
+    // below, so they run after those steps instead. That lets the context's borrow of the
+    // subgraph document end, and the document's definitions are moved into `fullTypeDefs`
+    // for the visit and moved back after it instead of being deep-cloned.
+    for field in validation_context.get_fields_to_mark_as_shareable() {
+        if validation_context.state_builder.is_interface_object(&field.type_name) {
+            continue;
+        }
+
+        validation_context
+            .state_builder
+            .object_type()
+            .field()
+            .set_shareable(&field.type_name, &field.field_name)?;
+    }
+
+    let mut errors = validation_context.collect_reported_errors();
+    errors.extend(validation_context.collect_unused_external().into_iter().map(|coordinate| {
+        enrich_error_with_subgraph_name(
+            GraphQLError::with_code(
+                format!(
+                    "Field \"{coordinate}\" is marked @external but is not used in any federation directive (@key, @provides, @requires) or to satisfy an interface; the field declaration has no use and should be removed (or the field should not be @external)."
+                ),
+                "EXTERNAL_UNUSED",
+            ),
+            subgraph.name,
+        )
+    }));
+    drop(validation_context);
+
+    let subgraph_definitions_start = full_definitions.len();
+    full_definitions.append(&mut subgraph.type_defs.definitions);
+    let full_type_defs = Document::new(full_definitions);
 
     let mut simple_validation_context = create_simple_validation_context(&full_type_defs);
 
@@ -261,31 +303,11 @@ pub fn validate_subgraph(
         graphql_js::visit(&full_type_defs, &mut visitor, &mut simple_validation_context);
     }
 
-    for field in validation_context.get_fields_to_mark_as_shareable() {
-        if validation_context.state_builder.is_interface_object(&field.type_name) {
-            continue;
-        }
-
-        validation_context
-            .state_builder
-            .object_type()
-            .field()
-            .set_shareable(&field.type_name, &field.field_name)?;
-    }
-
-    let mut errors = validation_context.collect_reported_errors();
-    errors.extend(validation_context.collect_unused_external().into_iter().map(|coordinate| {
-        enrich_error_with_subgraph_name(
-            GraphQLError::with_code(
-                format!(
-                    "Field \"{coordinate}\" is marked @external but is not used in any federation directive (@key, @provides, @requires) or to satisfy an interface; the field declaration has no use and should be removed (or the field should not be @external)."
-                ),
-                "EXTERNAL_UNUSED",
-            ),
-            subgraph.name,
-        )
-    }));
     errors.extend(simple_validation_context.collect_reported_errors());
+    drop(simple_validation_context);
+    let mut full_definitions = full_type_defs.definitions;
+    subgraph.type_defs.definitions = full_definitions.split_off(subgraph_definitions_start);
+
     errors.extend(subgraph_state_errors);
 
     Ok(errors
@@ -323,10 +345,21 @@ const LINK_SPEC_DEFINITIONS_SDL: &str = r#"
     }
   "#;
 
+/// `linkSpecDefinitions`: [`LINK_SPEC_DEFINITIONS_SDL`] parsed.
+static LINK_SPEC_DEFINITIONS: LazyLock<Vec<Definition>> = LazyLock::new(|| {
+    graphql_js::parse(LINK_SPEC_DEFINITIONS_SDL)
+        .expect("the link spec definitions are valid SDL")
+        .definitions
+});
+
 /// The `{}` visitor used for a disabled rule.
 struct EmptyVisitor;
 
-impl<'a, C: ?Sized> graphql_js::Visitor<'a, C> for EmptyVisitor {}
+impl<'a, C: ?Sized> graphql_js::Visitor<'a, C> for EmptyVisitor {
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        graphql_js::VisitKinds::enter(&[])
+    }
+}
 
 /// Boxes a federation rule, or an empty visitor when the rule is disabled.
 /// `federationRules.map((rule) => rulesToSkip.includes(rule.name) ? {} : rule(validationContext))`.
@@ -543,7 +576,8 @@ fn extract_links(subgraph: SubgraphCoreInput<'_>) -> ExtractedLinks {
                         return Ok(());
                     }
 
-                    let spec = create_spec_schema(version, None)?;
+                    // PERF: the shared copy of `createSpecSchema(version)`; only read here.
+                    let spec = known_spec_schema(version)?;
                     let available_elements: IndexSet<&str> = spec
                         .directives
                         .iter()

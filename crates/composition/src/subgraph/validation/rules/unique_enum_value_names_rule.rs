@@ -9,41 +9,51 @@ use graphql_js::EnumValueDefinition;
 /// `UniqueEnumValueNamesRule(context)`.
 /// Visitor callbacks: `EnumTypeDefinition`/`EnumTypeExtension: checkValueUniqueness`.
 /// Fields: the locals of the TS factory.
-pub struct UniqueEnumValueNamesRule {
-    known_value_names: IndexMap<String, IndexSet<String>>,
+pub struct UniqueEnumValueNamesRule;
+
+/// The visitor [`UniqueEnumValueNamesRule`] returns.
+pub struct UniqueEnumValueNamesVisitor<'a> {
+    known_value_names: IndexMap<&'a str, IndexSet<&'a str>>,
 }
 
 impl<'a> SimpleRule<'a> for UniqueEnumValueNamesRule {
     const NAME: &'static str = "UniqueEnumValueNamesRule";
+    type Visitor = UniqueEnumValueNamesVisitor<'a>;
 
-    fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
-        UniqueEnumValueNamesRule {
+    fn new(_context: &mut SimpleValidationContext<'a>) -> UniqueEnumValueNamesVisitor<'a> {
+        UniqueEnumValueNamesVisitor {
             known_value_names: IndexMap::default(),
         }
     }
 }
 
-impl UniqueEnumValueNamesRule {
+impl<'a> UniqueEnumValueNamesVisitor<'a> {
     /// `checkValueUniqueness(node)` for an enum definition or extension (its `name` and `values`).
-    fn check_value_uniqueness(&mut self, context: &mut SimpleValidationContext<'_>, type_name: &str, values: &[EnumValueDefinition]) {
-        let value_names = self.known_value_names.entry(type_name.to_string()).or_default();
+    fn check_value_uniqueness(&mut self, context: &mut SimpleValidationContext<'_>, type_name: &'a str, values: &'a [EnumValueDefinition]) {
+        let value_names = self.known_value_names.entry(type_name).or_default();
 
         for value_def in values {
             let value_name = &value_def.name.value;
 
-            if value_names.contains(value_name) {
+            if value_names.contains(value_name.as_str()) {
                 context.report_error(GraphQLError::with_code(
                     format!("Enum value \"{type_name}.{value_name}\" can only be defined once."),
                     "INVALID_GRAPHQL",
                 ));
             } else {
-                value_names.insert(value_name.clone());
+                value_names.insert(value_name);
             }
         }
     }
 }
 
-impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueEnumValueNamesRule {
+impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueEnumValueNamesVisitor<'a> {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter(&[Kind::EnumTypeDefinition, Kind::EnumTypeExtension])
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::EnumTypeDefinition(n) => self.check_value_uniqueness(cx, &n.name.value, &n.values),

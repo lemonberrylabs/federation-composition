@@ -17,6 +17,7 @@ pub struct OnlyInterfaceImplementationRule {
 
 impl<'a> SimpleRule<'a> for OnlyInterfaceImplementationRule {
     const NAME: &'static str = "OnlyInterfaceImplementationRule";
+    type Visitor = Self;
 
     fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         OnlyInterfaceImplementationRule {
@@ -81,6 +82,12 @@ impl OnlyInterfaceImplementationRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for OnlyInterfaceImplementationRule {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter(&[Kind::ObjectTypeDefinition, Kind::ObjectTypeExtension])
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::ObjectTypeDefinition(node) => self.check(cx, &node.interfaces),

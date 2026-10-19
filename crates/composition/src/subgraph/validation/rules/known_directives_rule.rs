@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/known-directives-rule.ts`.
 
-use graphql_js::{Definition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_js::{Definition, GraphQLError, Name, NodeRef, VisitAction, VisitInfo, Visitor};
+use crate::utils::collections::IndexMap;
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_js::{Ancestor, DirectiveLocation, OperationType};
@@ -9,48 +9,55 @@ use graphql_js::{Ancestor, DirectiveLocation, OperationType};
 /// `KnownDirectivesRule(context)`.
 /// Visitor callbacks: `Directive(node, _key, _parent, _path, ancestors)`.
 /// Fields: the locals of the TS factory.
-pub struct KnownDirectivesRule {
-    locations_map: IndexMap<String, IndexSet<String>>,
+pub struct KnownDirectivesRule;
+
+/// The visitor [`KnownDirectivesRule`] returns.
+pub struct KnownDirectivesVisitor<'a> {
+    /// PERF: `Map<string, Set<string>>` in TS; here the names borrow from the document and each
+    /// value is the definition's `locations` list. Only `.has(location)` is asked of a value,
+    /// which a scan of the list answers the same way.
+    locations_map: IndexMap<&'a str, &'a [Name]>,
 }
 
 impl<'a> SimpleRule<'a> for KnownDirectivesRule {
     const NAME: &'static str = "KnownDirectivesRule";
+    type Visitor = KnownDirectivesVisitor<'a>;
 
-    fn new(context: &mut SimpleValidationContext<'a>) -> Self {
-        let mut locations_map: IndexMap<String, IndexSet<String>> = IndexMap::default();
+    fn new(context: &mut SimpleValidationContext<'a>) -> KnownDirectivesVisitor<'a> {
+        let mut locations_map: IndexMap<&'a str, &'a [Name]> = IndexMap::default();
 
         let ast_definitions = &context.get_document().definitions;
         for def in ast_definitions {
             if let Definition::DirectiveDefinition(def) = def {
-                locations_map.insert(
-                    def.name.value.clone(),
-                    def.locations.iter().map(|name| name.value.clone()).collect(),
-                );
+                locations_map.insert(&def.name.value, &def.locations);
             }
         }
 
         for specified_directive in graphql_js::specified_directives() {
             // If the directive is already defined by the schema, leave it be.
-            if !locations_map.contains_key(&specified_directive.name.value) {
-                locations_map.insert(
-                    specified_directive.name.value.clone(),
-                    specified_directive.locations.iter().map(|loc| loc.value.clone()).collect(),
-                );
+            if !locations_map.contains_key(specified_directive.name.value.as_str()) {
+                locations_map.insert(&specified_directive.name.value, &specified_directive.locations);
             }
         }
 
-        KnownDirectivesRule { locations_map }
+        KnownDirectivesVisitor { locations_map }
     }
 }
 
-impl<'a> Visitor<'a, SimpleValidationContext<'a>> for KnownDirectivesRule {
+impl<'a> Visitor<'a, SimpleValidationContext<'a>> for KnownDirectivesVisitor<'a> {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter(&[Kind::Directive])
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
         let NodeRef::Directive(node) = node else {
             return VisitAction::Continue;
         };
 
         let name = &node.name.value;
-        let Some(locations) = self.locations_map.get(name) else {
+        let Some(locations) = self.locations_map.get(name.as_str()) else {
             cx.report_error(GraphQLError::with_code(
                 format!("Unknown directive \"@{name}\"."),
                 "INVALID_GRAPHQL",
@@ -60,7 +67,7 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for KnownDirectivesRule {
 
         let candidate_location = get_directive_location_for_ast_path(info.ancestors);
         if let Some(candidate_location) = candidate_location {
-            if !locations.contains(candidate_location.as_str()) {
+            if !locations.iter().any(|location| location.value == candidate_location.as_str()) {
                 cx.report_error(GraphQLError::with_code(
                     format!(
                         "Directive \"@{name}\" may not be used on {}.",

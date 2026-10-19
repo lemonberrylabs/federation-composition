@@ -17,7 +17,7 @@
 //! ports to a `match node { NodeRef::FieldDefinition(node) => .., _ => {} }` in
 //! [`Visitor::enter`] and one on `NodeRef::Directive` in [`Visitor::leave`].
 
-use crate::ast::{AsNodeRef, FromNode, ListRef, Node, NodeRef, SlotRef};
+use crate::ast::{AsNodeRef, FromNode, Kind, ListRef, Node, NodeRef, SlotRef};
 
 /// One entry of graphql-js `path`: a field key or a list index.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -87,8 +87,74 @@ pub enum VisitAction {
     Break,
 }
 
+/// A set of node kinds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KindSet(u64);
+
+const _: () = assert!(Kind::ALL.len() <= 64, "KindSet holds at most 64 kinds");
+
+impl KindSet {
+    pub const ALL: KindSet = KindSet(u64::MAX);
+    pub const NONE: KindSet = KindSet(0);
+
+    /// The set of `kinds`.
+    pub const fn of(kinds: &[Kind]) -> KindSet {
+        let mut bits = 0u64;
+        let mut i = 0;
+        while i < kinds.len() {
+            bits |= 1 << kinds[i] as u32;
+            i += 1;
+        }
+        KindSet(bits)
+    }
+
+    pub const fn contains(self, kind: Kind) -> bool {
+        self.0 & (1 << kind as u32) != 0
+    }
+}
+
+/// The node kinds a visitor's `enter` and `leave` act on (see [`Visitor::kinds`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VisitKinds {
+    pub enter: KindSet,
+    pub leave: KindSet,
+}
+
+impl VisitKinds {
+    /// Every kind, for both callbacks.
+    pub const ALL: VisitKinds = VisitKinds {
+        enter: KindSet::ALL,
+        leave: KindSet::ALL,
+    };
+
+    /// `enter` acts on `kinds`; `leave` on nothing.
+    pub const fn enter(kinds: &[Kind]) -> VisitKinds {
+        VisitKinds {
+            enter: KindSet::of(kinds),
+            leave: KindSet::NONE,
+        }
+    }
+
+    /// `enter` acts on `enter`, `leave` on `leave`.
+    pub const fn enter_leave(enter: &[Kind], leave: &[Kind]) -> VisitKinds {
+        VisitKinds {
+            enter: KindSet::of(enter),
+            leave: KindSet::of(leave),
+        }
+    }
+}
+
 /// A read-only visitor; see the module docs.
 pub trait Visitor<'a, C: ?Sized = ()> {
+    /// The node kinds `enter` and `leave` do anything for. For a node of any other kind the
+    /// callback must return `Continue` and have no effect, so [`visit_in_parallel`] may skip
+    /// the call. This is the port of graphql-js `visitInParallel` looking up, per node, only the
+    /// functions a visitor object defines for the node's kind (`getEnterLeaveForKind`).
+    /// [`visit`] itself calls every callback regardless.
+    fn kinds(&self) -> VisitKinds {
+        VisitKinds::ALL
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut C, info: &VisitInfo<'a, '_>) -> VisitAction {
         let _ = (node, cx, info);
         VisitAction::Continue
@@ -101,6 +167,9 @@ pub trait Visitor<'a, C: ?Sized = ()> {
 }
 
 impl<'a, C: ?Sized, V: Visitor<'a, C> + ?Sized> Visitor<'a, C> for &mut V {
+    fn kinds(&self) -> VisitKinds {
+        (**self).kinds()
+    }
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut C, info: &VisitInfo<'a, '_>) -> VisitAction {
         (**self).enter(node, cx, info)
     }
@@ -110,6 +179,9 @@ impl<'a, C: ?Sized, V: Visitor<'a, C> + ?Sized> Visitor<'a, C> for &mut V {
 }
 
 impl<'a, C: ?Sized, V: Visitor<'a, C> + ?Sized> Visitor<'a, C> for Box<V> {
+    fn kinds(&self) -> VisitKinds {
+        (**self).kinds()
+    }
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut C, info: &VisitInfo<'a, '_>) -> VisitAction {
         (**self).enter(node, cx, info)
     }
@@ -223,25 +295,77 @@ enum SkipState {
 pub struct ParallelVisitor<'a, 'v, C: ?Sized> {
     visitors: Vec<Box<dyn Visitor<'a, C> + 'v>>,
     skipping: Vec<SkipState>,
+    /// How many entries of `skipping` are `Skipping`.
+    skipping_count: usize,
+    /// Per kind, the indexes of the visitors whose `enter` acts on it, in visitor order.
+    enter_by_kind: VisitorsByKind,
+    /// Same as `enter_by_kind`, for `leave`.
+    leave_by_kind: VisitorsByKind,
+}
+
+/// For each node kind, the indexes of the visitors to call, in visitor order: the indexes for
+/// kind `k` are `indexes[start[k]..start[k + 1]]`.
+struct VisitorsByKind {
+    start: [u32; KIND_COUNT + 1],
+    indexes: Vec<u32>,
+}
+
+const KIND_COUNT: usize = Kind::ALL.len();
+
+impl VisitorsByKind {
+    fn new(sets: impl Iterator<Item = KindSet> + Clone) -> Self {
+        let mut start = [0u32; KIND_COUNT + 1];
+        let mut indexes = Vec::new();
+        for (k, &kind) in Kind::ALL.iter().enumerate() {
+            debug_assert_eq!(kind as usize, k);
+            for (i, set) in sets.clone().enumerate() {
+                if set.contains(kind) {
+                    indexes.push(i as u32);
+                }
+            }
+            start[k + 1] = indexes.len() as u32;
+        }
+        VisitorsByKind { start, indexes }
+    }
+
+    fn of(&self, kind: Kind) -> &[u32] {
+        let k = kind as usize;
+        &self.indexes[self.start[k] as usize..self.start[k + 1] as usize]
+    }
 }
 
 /// graphql-js `visitInParallel`: runs the visitors in one traversal. A visitor
 /// that skips a node is not called again until that node is left; a visitor
 /// that breaks is not called again. The merged visitor never breaks.
+/// A visitor is called only for the kinds in its [`Visitor::kinds`].
 pub fn visit_in_parallel<'a, 'v, C: ?Sized>(
     visitors: Vec<Box<dyn Visitor<'a, C> + 'v>>,
 ) -> ParallelVisitor<'a, 'v, C> {
     let skipping = vec![SkipState::Active; visitors.len()];
-    ParallelVisitor { visitors, skipping }
+    let kinds: Vec<VisitKinds> = visitors.iter().map(|v| v.kinds()).collect();
+    ParallelVisitor {
+        visitors,
+        skipping,
+        skipping_count: 0,
+        enter_by_kind: VisitorsByKind::new(kinds.iter().map(|k| k.enter)),
+        leave_by_kind: VisitorsByKind::new(kinds.iter().map(|k| k.leave)),
+    }
 }
 
 impl<'a, C: ?Sized> Visitor<'a, C> for ParallelVisitor<'a, '_, C> {
+    // PERF: graphql-js loops over every visitor for every node; here only the visitors whose
+    // `kinds` include the node's kind are visited (in the same order). The others would
+    // return `Continue` without effect.
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut C, info: &VisitInfo<'a, '_>) -> VisitAction {
-        for (visitor, state) in self.visitors.iter_mut().zip(self.skipping.iter_mut()) {
-            if *state == SkipState::Active {
-                match visitor.enter(node, cx, info) {
-                    VisitAction::Skip => *state = SkipState::Skipping(info.node_id),
-                    VisitAction::Break => *state = SkipState::Broken,
+        for &i in self.enter_by_kind.of(node.kind()) {
+            let i = i as usize;
+            if self.skipping[i] == SkipState::Active {
+                match self.visitors[i].enter(node, cx, info) {
+                    VisitAction::Skip => {
+                        self.skipping[i] = SkipState::Skipping(info.node_id);
+                        self.skipping_count += 1;
+                    }
+                    VisitAction::Break => self.skipping[i] = SkipState::Broken,
                     VisitAction::Continue => {}
                 }
             }
@@ -250,15 +374,23 @@ impl<'a, C: ?Sized> Visitor<'a, C> for ParallelVisitor<'a, '_, C> {
     }
 
     fn leave(&mut self, node: NodeRef<'a>, cx: &mut C, info: &VisitInfo<'a, '_>) -> VisitAction {
-        for (visitor, state) in self.visitors.iter_mut().zip(self.skipping.iter_mut()) {
-            match *state {
-                SkipState::Active => {
-                    if visitor.leave(node, cx, info) == VisitAction::Break {
-                        *state = SkipState::Broken;
-                    }
+        for &i in self.leave_by_kind.of(node.kind()) {
+            let i = i as usize;
+            if self.skipping[i] == SkipState::Active
+                && self.visitors[i].leave(node, cx, info) == VisitAction::Break
+            {
+                self.skipping[i] = SkipState::Broken;
+            }
+        }
+        // A visitor that skipped this node is active again after it, without its `leave`
+        // being called for it. Reactivating after the calls above is the same as doing it in
+        // visitor order: reactivation affects only the reactivated visitor.
+        if self.skipping_count > 0 {
+            for state in self.skipping.iter_mut() {
+                if *state == SkipState::Skipping(info.node_id) {
+                    *state = SkipState::Active;
+                    self.skipping_count -= 1;
                 }
-                SkipState::Skipping(id) if id == info.node_id => *state = SkipState::Active,
-                _ => {}
             }
         }
         VisitAction::Continue
@@ -676,5 +808,67 @@ impl EditVisitor for ParallelEditVisitor<'_> {
 impl<'a, T: AsNodeRef> From<&'a Box<T>> for NodeRef<'a> {
     fn from(x: &'a Box<T>) -> NodeRef<'a> {
         x.as_node_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::parse;
+
+    /// Logs every call, skips the object type `A`, and declares `kinds`.
+    struct Filtered {
+        id: &'static str,
+        kinds: VisitKinds,
+    }
+
+    impl<'a> Visitor<'a, Vec<String>> for Filtered {
+        fn kinds(&self) -> VisitKinds {
+            self.kinds
+        }
+        fn enter(&mut self, node: NodeRef<'a>, log: &mut Vec<String>, _: &VisitInfo<'a, '_>) -> VisitAction {
+            log.push(format!("{} enter {}", self.id, node.name().map_or("", |n| n.value.as_str())));
+            if matches!(node, NodeRef::ObjectTypeDefinition(t) if t.name.value == "A") {
+                VisitAction::Skip
+            } else {
+                VisitAction::Continue
+            }
+        }
+        fn leave(&mut self, node: NodeRef<'a>, log: &mut Vec<String>, _: &VisitInfo<'a, '_>) -> VisitAction {
+            log.push(format!("{} leave {}", self.id, node.name().map_or("", |n| n.value.as_str())));
+            VisitAction::Continue
+        }
+    }
+
+    #[test]
+    fn parallel_visitor_calls_only_declared_kinds_and_resumes_after_skip() {
+        let doc = parse("type A { a: Int } type B { b: Int }").unwrap();
+        let mut log = Vec::new();
+        let mut parallel = visit_in_parallel::<Vec<String>>(vec![
+            Box::new(Filtered {
+                id: "X",
+                kinds: VisitKinds::enter_leave(
+                    &[Kind::ObjectTypeDefinition, Kind::FieldDefinition],
+                    &[Kind::FieldDefinition],
+                ),
+            }),
+            Box::new(Filtered {
+                id: "Y",
+                kinds: VisitKinds::enter(&[Kind::ObjectTypeDefinition]),
+            }),
+        ]);
+        visit(&doc, &mut parallel, &mut log);
+        assert_eq!(
+            log,
+            [
+                // Both skip `A`: neither sees its fields, and neither leaves it.
+                "X enter A",
+                "Y enter A",
+                "X enter B",
+                "Y enter B",
+                "X enter b",
+                "X leave b",
+            ]
+        );
     }
 }

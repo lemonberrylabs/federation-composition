@@ -557,12 +557,25 @@ pub fn is_directive_definition_node(node: graphql_js::NodeRef<'_>) -> bool {
 }
 
 /// `printOutputType(type)`: `[A!]!` style type string.
+/// PERF: writes into one string instead of formatting a new one per wrapper type.
 pub fn print_output_type(ty: &Type) -> String {
-    match ty {
-        Type::Named(n) => n.name.value.clone(),
-        Type::List(l) => format!("[{}]", print_output_type(&l.ty)),
-        Type::NonNull(n) => format!("{}!", print_output_type(&n.ty)),
+    fn write(ty: &Type, out: &mut String) {
+        match ty {
+            Type::Named(n) => out.push_str(&n.name.value),
+            Type::List(l) => {
+                out.push('[');
+                write(&l.ty, out);
+                out.push(']');
+            }
+            Type::NonNull(n) => {
+                write(&n.ty, out);
+                out.push('!');
+            }
+        }
     }
+    let mut out = String::new();
+    write(ty, &mut out);
+    out
 }
 
 fn is_non_null_type_node(node: &Type) -> bool {

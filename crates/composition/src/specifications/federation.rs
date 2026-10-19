@@ -4,6 +4,8 @@ use graphql_js::{
     is_specified_directive, is_specified_scalar_type, parse, Definition, Directive, DirectiveDefinition, Document,
     GraphQLError, Name, Type, TypeDefinition, Value,
 };
+use std::sync::OnceLock;
+
 use crate::utils::collections::IndexSet;
 
 use super::link::{parse_link, Link, LinkImport};
@@ -126,6 +128,21 @@ pub fn create_spec_schema(version: &str, imports: Option<&[LinkImport]>) -> JsRe
     Ok(spec)
 }
 
+/// `createSpecSchema(version)` (no imports), computed once per version. Same `Err` as
+/// `createSpecSchema` for an unknown version.
+/// PERF: callers that only read the result share one copy instead of building it per subgraph;
+/// without imports the result depends only on the version.
+pub fn known_spec_schema(version: &str) -> JsResult<&'static SpecSchema> {
+    static CACHE: [OnceLock<SpecSchema>; FederationVersion::ALL.len()] =
+        [const { OnceLock::new() }; FederationVersion::ALL.len()];
+    let Some(known_version) = FederationVersion::from_str(version) else {
+        return create_spec_schema(version, None).map(|_| unreachable!("the version is unknown"));
+    };
+    Ok(CACHE[known_version as usize].get_or_init(|| {
+        create_spec_schema(version, None).expect("createSpecSchema accepts every FederationVersion")
+    }))
+}
+
 /// `federationSpecFactory[version](prefix, imports)`.
 fn federation_spec_factory(
     version: FederationVersion,
@@ -134,7 +151,7 @@ fn federation_spec_factory(
 ) -> SpecSchema {
     // The v1.0 factory takes no imports.
     let imports = if version == FederationVersion::V1_0 { None } else { imports };
-    create_type_definitions(federation_spec_sdl(version), prefix, imports)
+    create_type_definitions(version, prefix, imports)
 }
 
 /// The SDL behind `federationSpecFactory[version]`.
@@ -445,16 +462,49 @@ pub fn get_latest_federation_version() -> FederationVersion {
     FederationVersion::from_str(keys.last().expect("non-empty")).expect("known version")
 }
 
-/// `createTypeDefinitions(doc, prefix, imports?)`.
-fn create_type_definitions(doc: &str, prefix: &str, imports: Option<&[LinkImport]>) -> SpecSchema {
+/// The spec SDL of `version` parsed, with `prefix` applied to every definition: the
+/// `directives` and `types` arrays of `createTypeDefinitions` before filtering.
+/// PERF: `createTypeDefinitions` parses the spec SDL on every call (twice per subgraph). Parsing
+/// and `applyPrefix` depend only on the version and the prefix, so the result is computed once
+/// per `(version, prefix)` and cloned. Only `""` and `"federation__"` are used as prefixes.
+fn prefixed_spec_definitions(version: FederationVersion, prefix: &str) -> &'static SpecSchema {
+    static CACHE: [[OnceLock<SpecSchema>; 2]; FederationVersion::ALL.len()] =
+        [const { [const { OnceLock::new() }, const { OnceLock::new() }] }; FederationVersion::ALL.len()];
+    let slot = match prefix {
+        "" => 0,
+        "federation__" => 1,
+        _ => unreachable!("createTypeDefinitions is called with the prefixes \"\" and \"federation__\" only"),
+    };
+    CACHE[version as usize][slot].get_or_init(|| {
+        let doc_ast = parse(federation_spec_sdl(version)).expect("valid federation spec SDL");
+
+        let mut directives: Vec<DirectiveDefinition> = Vec::new();
+        let mut types: Vec<TypeDefinition> = Vec::new();
+
+        for node in doc_ast.definitions {
+            match node {
+                Definition::DirectiveDefinition(node) => directives.push(apply_prefix_to_directive(node, prefix)),
+                other => {
+                    // NOTE(port): the spec SDLs contain only directive and scalar definitions.
+                    if let Ok(node) = TypeDefinition::try_from(other) {
+                        types.push(apply_prefix_to_type(node, prefix));
+                    }
+                }
+            }
+        }
+
+        SpecSchema { directives, types }
+    })
+}
+
+/// `createTypeDefinitions(doc, prefix, imports?)`; `doc` is the spec SDL of `version`.
+fn create_type_definitions(version: FederationVersion, prefix: &str, imports: Option<&[LinkImport]>) -> SpecSchema {
     let should_filter = imports.is_some();
     let mut to_include: IndexSet<String> = imports
         .unwrap_or_default()
         .iter()
         .map(|i| i.name.strip_prefix('@').unwrap_or(&i.name).to_string())
         .collect();
-    let doc_ast = parse(doc).expect("valid federation spec SDL");
-
     // TODO: this is a hack to make sure we include FieldSet if we include any of the other directives
     // we do it differently, but only in next iterations.
     if imports.is_none_or(|i| i.is_empty())
@@ -474,29 +524,17 @@ fn create_type_definitions(doc: &str, prefix: &str, imports: Option<&[LinkImport
         to_include.insert("federation__Policy".to_string());
     }
 
-    let mut directives: Vec<DirectiveDefinition> = Vec::new();
-    let mut types: Vec<TypeDefinition> = Vec::new();
-
-    for node in doc_ast.definitions {
-        match node {
-            Definition::DirectiveDefinition(node) => directives.push(apply_prefix_to_directive(node, prefix)),
-            other => {
-                // NOTE(port): the spec SDLs contain only directive and scalar definitions.
-                if let Ok(node) = TypeDefinition::try_from(other) {
-                    types.push(apply_prefix_to_type(node, prefix));
-                }
-            }
-        }
-    }
+    let SpecSchema { directives, types } = prefixed_spec_definitions(version, prefix);
 
     SpecSchema {
         directives: directives
-            .into_iter()
+            .iter()
             .filter(|d| {
                 !is_specified_directive(&d.name.value) && (!should_filter || to_include.contains(&d.name.value))
             })
+            .cloned()
             .collect(),
-        types: types.into_iter().filter(|t| to_include.contains(&t.name().value)).collect(),
+        types: types.iter().filter(|t| to_include.contains(&t.name().value)).cloned().collect(),
     }
 }
 

@@ -13,6 +13,7 @@ pub struct UniqueArgumentNamesRule {}
 
 impl<'a> SimpleRule<'a> for UniqueArgumentNamesRule {
     const NAME: &'static str = "UniqueArgumentNamesRule";
+    type Visitor = Self;
 
     fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueArgumentNamesRule {}
@@ -41,6 +42,12 @@ impl UniqueArgumentNamesRule {
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueArgumentNamesRule {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter(&[Kind::Field, Kind::Directive])
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
         match node {
             NodeRef::Field(n) => self.check_arg_uniqueness(cx, &n.arguments),

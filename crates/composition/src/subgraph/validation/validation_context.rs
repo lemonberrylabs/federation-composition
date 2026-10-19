@@ -186,7 +186,7 @@ pub struct SubgraphValidationContext<'a> {
     /// place (aliases), and later readers see the renamed nodes; keep that.
     available_spec: SpecSchema,
     /// Directives and types available in the spec (some parts may not be available to a subgraph).
-    known_spec: SpecSchema,
+    known_spec: &'static SpecSchema,
     /// Object and interface types defined in a subgraph (merged definitions and extensions).
     known_object_and_interface_subgraph_entities: IndexMap<String, Rc<ObjectOrInterface>>,
     known_union_types_members: IndexMap<String, IndexSet<String>>,
@@ -223,7 +223,8 @@ pub fn create_subgraph_validation_context<'a>(
     let available_spec = crate::specifications::federation::create_spec_schema(version.as_str(), Some(imports))
         .expect("createSpecSchema accepts every FederationVersion");
     // Directives and types available in the spec (some parts may not be available to a subgraph)
-    let known_spec = crate::specifications::federation::create_spec_schema(version.as_str(), None)
+    // PERF: shared, read-only copy (see `known_spec_schema`).
+    let known_spec = crate::specifications::federation::known_spec_schema(version.as_str())
         .expect("createSpecSchema accepts every FederationVersion");
     // Object and interface types defined in a subgraph
     let mut known_object_and_interface_subgraph_entities: IndexMap<String, ObjectOrInterface> = IndexMap::default();
@@ -751,7 +752,11 @@ pub trait SubgraphRule<'a>: graphql_js::Visitor<'a, SubgraphValidationContext<'a
 }
 
 /// A graphql-js-style rule run with the [`SimpleValidationContext`]; see [`SubgraphRule`].
-pub trait SimpleRule<'a>: graphql_js::Visitor<'a, SimpleValidationContext<'a>> + Sized + 'a {
+/// `new` is the TS rule function and returns its visitor object: `Self` for a rule whose
+/// visitor keeps nothing borrowed from the document, a separate type for one that does (so
+/// the rule type itself implements `SimpleRule<'a>` for every `'a`).
+pub trait SimpleRule<'a> {
     const NAME: &'static str;
-    fn new(context: &mut SimpleValidationContext<'a>) -> Self;
+    type Visitor: graphql_js::Visitor<'a, SimpleValidationContext<'a>> + 'a;
+    fn new(context: &mut SimpleValidationContext<'a>) -> Self::Visitor;
 }

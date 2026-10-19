@@ -22,6 +22,12 @@ impl<'a> SubgraphRule<'a> for TagRules {
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for TagRules {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
+    }
+
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "tag", cx),

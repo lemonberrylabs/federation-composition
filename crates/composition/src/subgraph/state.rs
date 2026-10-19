@@ -521,17 +521,18 @@ pub struct RootTypeNames {
 impl RootTypeNames {
     /// `renameObjectType(typeName)`: maps the schema's root type names to
     /// `Query`/`Mutation`/`Subscription`.
-    pub fn rename_object_type(&self, type_name: &str) -> String {
+    /// PERF: returns a borrowed name instead of a new string.
+    pub fn rename_object_type<'n>(&self, type_name: &'n str) -> &'n str {
         if type_name == self.query {
-            return "Query".to_string();
+            return "Query";
         }
         if type_name == self.mutation {
-            return "Mutation".to_string();
+            return "Mutation";
         }
         if type_name == self.subscription {
-            return "Subscription".to_string();
+            return "Subscription";
         }
-        type_name.to_string()
+        type_name
     }
 }
 
@@ -797,6 +798,12 @@ pub struct SubgraphStateVisitor {
 }
 
 impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for SubgraphStateVisitor {
+    /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
+    fn kinds(&self) -> graphql_js::VisitKinds {
+        use graphql_js::{Kind, VisitKinds};
+        VisitKinds::enter(&[Kind::FieldDefinition, Kind::InputValueDefinition, Kind::ObjectTypeDefinition, Kind::ObjectTypeExtension, Kind::InterfaceTypeDefinition, Kind::InterfaceTypeExtension, Kind::UnionTypeDefinition, Kind::UnionTypeExtension, Kind::EnumTypeDefinition, Kind::EnumValueDefinition, Kind::InputObjectTypeDefinition, Kind::ScalarTypeDefinition, Kind::ScalarTypeExtension, Kind::Directive, Kind::DirectiveDefinition, Kind::StringValue])
+    }
+
     /// The callbacks `FieldDefinition`, `InputValueDefinition`, `ObjectTypeDefinition`,
     /// `ObjectTypeExtension`, `InterfaceTypeDefinition`, `InterfaceTypeExtension`,
     /// `UnionTypeDefinition`, `UnionTypeExtension`, `EnumTypeDefinition`,
@@ -907,8 +914,8 @@ impl SubgraphStateVisitor {
         let field_name = node.name.value.as_str();
 
         let output_type_name = resolve_type_name(&node.ty);
-        let is_leaf = b.leaf_type_names.contains(&output_type_name);
-        let references_enum_type = self.enum_types_by_name.contains(&output_type_name);
+        let is_leaf = b.leaf_type_names.contains(output_type_name);
+        let references_enum_type = self.enum_types_by_name.contains(output_type_name);
 
         if references_enum_type {
             b.enum_type().set_referenced_by_output_type(
@@ -991,14 +998,14 @@ impl SubgraphStateVisitor {
         let name = node.name.value.as_str();
 
         let output_type_name = resolve_type_name(&node.ty);
-        let references_enum_type = self.enum_types_by_name.contains(&output_type_name);
+        let references_enum_type = self.enum_types_by_name.contains(output_type_name);
 
         if is_input_object_type {
             b.input_object_type()
                 .field()
                 .set_type(type_name, name, &print_output_type(&node.ty))?;
 
-            let kind = b.resolve_argument_kind(&output_type_name);
+            let kind = b.resolve_argument_kind(output_type_name);
             b.input_object_type().field().set_kind(type_name, name, kind)?;
 
             if references_enum_type {
@@ -1026,7 +1033,7 @@ impl SubgraphStateVisitor {
                     &print_output_type(&node.ty),
                 )?;
 
-                let kind = b.resolve_argument_kind(&output_type_name);
+                let kind = b.resolve_argument_kind(output_type_name);
                 b.object_type()
                     .field()
                     .arg()
@@ -1061,7 +1068,7 @@ impl SubgraphStateVisitor {
                     &print_output_type(&node.ty),
                 )?;
 
-                let kind = b.resolve_argument_kind(&output_type_name);
+                let kind = b.resolve_argument_kind(output_type_name);
                 b.interface_type()
                     .field()
                     .arg()
@@ -1088,13 +1095,13 @@ fn set_schema_root_type(b: &mut SubgraphStateBuilder, type_name: &str) {
     // Set query, mutation or subscription types as found in the schema
     if type_name == b.root_type_names.query {
         let renamed = b.root_type_names.rename_object_type(type_name);
-        b.state.schema.set(RootTypeKind::QueryType, renamed);
+        b.state.schema.set(RootTypeKind::QueryType, renamed.to_string());
     } else if type_name == b.root_type_names.mutation {
         let renamed = b.root_type_names.rename_object_type(type_name);
-        b.state.schema.set(RootTypeKind::MutationType, renamed);
+        b.state.schema.set(RootTypeKind::MutationType, renamed.to_string());
     } else if type_name == b.root_type_names.subscription {
         let renamed = b.root_type_names.rename_object_type(type_name);
-        b.state.schema.set(RootTypeKind::SubscriptionType, renamed);
+        b.state.schema.set(RootTypeKind::SubscriptionType, renamed.to_string());
     }
 }
 
@@ -1423,7 +1430,7 @@ fn directive_definition(node: &DirectiveDefinition, b: &mut SubgraphStateBuilder
 
         let output_type_name = resolve_type_name(&arg.ty);
 
-        let kind = b.resolve_argument_kind(&output_type_name);
+        let kind = b.resolve_argument_kind(output_type_name);
         b.directive()
             .arg()
             .set_kind(directive_name, &arg.name.value, kind)?;
@@ -2841,14 +2848,20 @@ fn get_or_create_type<'s, T>(
     as_kind: impl FnOnce(&'s mut SubgraphType) -> Option<&'s mut T>,
     message: impl FnOnce() -> String,
 ) -> JsResult<&'s mut T> {
-    if !state.types.contains_key(type_name) {
-        state.types.insert(type_name.to_string(), create());
-    }
-    let existing = state
-        .types
-        .get_mut(type_name)
-        .expect("the type was just looked up or inserted");
+    let existing = get_or_insert_with(&mut state.types, type_name, create);
     as_kind(existing).ok_or_else(|| JsError::error(message()))
+}
+
+/// `map.get(key)`, inserting `create()` under `key` first when it is missing.
+/// PERF: the TS `if (!map.has(key)) map.set(key, ...); map.get(key)`, and the port's
+/// `entry(key.to_string()).or_insert_with(..)`, done with one lookup when the key is present
+/// and without allocating the key then. Insertion order is the same.
+fn get_or_insert_with<'m, V>(map: &'m mut IndexMap<String, V>, key: &str, create: impl FnOnce() -> V) -> &'m mut V {
+    let index = match map.get_index_of(key) {
+        Some(index) => index,
+        None => map.insert_full(key.to_string(), create()).0,
+    };
+    &mut map[index]
 }
 
 fn get_or_create_directive<'s>(state: &'s mut SubgraphState, directive_name: &str) -> JsResult<&'s mut Directive> {
@@ -2928,10 +2941,7 @@ fn get_or_create_directive_arg<'s>(
 ) -> JsResult<&'s mut Argument> {
     let directive = get_or_create_directive(state, directive_name)?;
 
-    Ok(directive
-        .args
-        .entry(arg_name.to_string())
-        .or_insert_with(|| new_argument(arg_name)))
+    Ok(get_or_insert_with(&mut directive.args, arg_name, || new_argument(arg_name)))
 }
 
 fn get_or_create_scalar_type<'s>(state: &'s mut SubgraphState, type_name: &str) -> JsResult<&'s mut ScalarType> {
@@ -2967,7 +2977,6 @@ fn get_or_create_object_type<'s>(
     type_name: &str,
 ) -> JsResult<&'s mut ObjectType> {
     let type_name = rename_object.rename_object_type(type_name);
-    let type_name = type_name.as_str();
     get_or_create_type(
         state,
         type_name,
@@ -3124,10 +3133,7 @@ fn get_or_create_object_field<'s>(
 ) -> JsResult<&'s mut Field> {
     let object_type = get_or_create_object_type(state, rename_object, type_name)?;
 
-    Ok(object_type
-        .fields
-        .entry(field_name.to_string())
-        .or_insert_with(|| new_field(field_name)))
+    Ok(get_or_insert_with(&mut object_type.fields, field_name, || new_field(field_name)))
 }
 
 fn get_or_create_interface_field<'s>(
@@ -3137,10 +3143,7 @@ fn get_or_create_interface_field<'s>(
 ) -> JsResult<&'s mut Field> {
     let interface_type = get_or_create_interface_type(state, type_name)?;
 
-    Ok(interface_type
-        .fields
-        .entry(field_name.to_string())
-        .or_insert_with(|| new_field(field_name)))
+    Ok(get_or_insert_with(&mut interface_type.fields, field_name, || new_field(field_name)))
 }
 
 fn get_or_create_input_object_field<'s>(
@@ -3150,10 +3153,7 @@ fn get_or_create_input_object_field<'s>(
 ) -> JsResult<&'s mut InputField> {
     let input_object_type = get_or_create_input_object_type(state, type_name)?;
 
-    Ok(input_object_type
-        .fields
-        .entry(field_name.to_string())
-        .or_insert_with(|| InputField {
+    Ok(get_or_insert_with(&mut input_object_type.fields, field_name, || InputField {
             name: field_name.to_string(),
             r#type: MISSING.to_string(),
             kind: ArgumentKind::Scalar,
@@ -3174,10 +3174,7 @@ fn get_or_create_enum_value<'s>(
 ) -> JsResult<&'s mut EnumValue> {
     let enum_type = get_or_create_enum_type(state, type_name)?;
 
-    Ok(enum_type
-        .values
-        .entry(enum_value_name.to_string())
-        .or_insert_with(|| EnumValue {
+    Ok(get_or_insert_with(&mut enum_type.values, enum_value_name, || EnumValue {
             name: enum_value_name.to_string(),
             inaccessible: false,
             tags: IndexSet::default(),
@@ -3196,10 +3193,7 @@ fn get_or_create_object_field_argument<'s>(
 ) -> JsResult<&'s mut Argument> {
     let field_state = get_or_create_object_field(state, rename_object, type_name, field_name)?;
 
-    Ok(field_state
-        .args
-        .entry(arg_name.to_string())
-        .or_insert_with(|| new_argument(arg_name)))
+    Ok(get_or_insert_with(&mut field_state.args, arg_name, || new_argument(arg_name)))
 }
 
 fn get_or_create_interface_field_argument<'s>(
@@ -3210,10 +3204,7 @@ fn get_or_create_interface_field_argument<'s>(
 ) -> JsResult<&'s mut Argument> {
     let field_state = get_or_create_interface_field(state, type_name, field_name)?;
 
-    Ok(field_state
-        .args
-        .entry(arg_name.to_string())
-        .or_insert_with(|| new_argument(arg_name)))
+    Ok(get_or_insert_with(&mut field_state.args, arg_name, || new_argument(arg_name)))
 }
 
 fn is_schema_definition(node: &graphql_js::Definition) -> Option<&SchemaDefinition> {
@@ -3224,9 +3215,10 @@ fn is_schema_definition(node: &graphql_js::Definition) -> Option<&SchemaDefiniti
 }
 
 /// `resolveTypeName(node)`: the named type inside list/non-null wrappers.
-fn resolve_type_name(node: &Type) -> String {
+/// PERF: borrows the name instead of copying it.
+fn resolve_type_name(node: &Type) -> &str {
     match node {
-        Type::Named(n) => n.name.value.clone(),
+        Type::Named(n) => &n.name.value,
         Type::List(l) => resolve_type_name(&l.ty),
         Type::NonNull(n) => resolve_type_name(&n.ty),
     }

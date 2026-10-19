@@ -34,5 +34,5 @@ pub use specified::{
 pub use utilities::{concat_ast, strip_ignored_characters};
 pub use visitor::{
     visit, visit_edit, visit_in_parallel, visit_in_parallel_edit, Ancestor, EditAction, EditResult,
-    EditVisitor, PathKey, VisitAction, VisitInfo, Visitor,
+    EditVisitor, KindSet, PathKey, VisitAction, VisitInfo, VisitKinds, Visitor,
 };
