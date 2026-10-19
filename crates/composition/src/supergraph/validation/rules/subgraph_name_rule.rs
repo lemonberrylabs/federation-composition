@@ -8,7 +8,6 @@ use crate::utils::js::JsResult;
 
 /// `SubgraphNameRule(context, supergraph)`. Its body runs in `new` (the TS returns `{}`).
 /// Visitor callbacks: none.
-/// Fields: the locals of the TS factory (and `supergraph` if the callbacks read it).
 pub struct SubgraphNameRule<'s> {
     supergraph: &'s SupergraphState,
 }
@@ -17,9 +16,22 @@ impl<'s> SupergraphRule<'s> for SubgraphNameRule<'s> {
     const NAME: &'static str = "SubgraphNameRule";
 
     fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        todo!()
+        let mut errors = Vec::new();
+        for subgraph in context.subgraph_states.values() {
+            let id = &subgraph.graph.id;
+            if id.starts_with("__") {
+                errors.push(GraphQLError::with_code(
+                    format!("Name \"{id}\" must not begin with \"__\", which is reserved by GraphQL introspection."),
+                    "INVALID_GRAPHQL",
+                ));
+            }
+        }
+        for error in errors {
+            context.report_error(error);
+        }
+
+        Ok(SubgraphNameRule { supergraph })
     }
 }
 
-impl<'s> SupergraphVisitor<'s> for SubgraphNameRule<'s> {
-}
+impl<'s> SupergraphVisitor<'s> for SubgraphNameRule<'s> {}

@@ -105,6 +105,13 @@ impl SupergraphStateBuilder {
         &self.state
     }
 
+    /// NOTE(port): not in the TS, where `getSupergraphState()` hands out the mutable object.
+    /// `validate_supergraph` uses it to apply the writes the validation rules make to the
+    /// state while visiting it (see `SupergraphValidationContext::pending_state_updates`).
+    pub fn get_supergraph_state_mut(&mut self) -> &mut SupergraphState {
+        &mut self.state
+    }
+
     pub fn get_subgraph_state(&self, graph_id: &str) -> Option<&Rc<SubgraphState>> {
         self.subgraph_states.get(graph_id)
     }
