@@ -15,6 +15,11 @@ against the WebAssembly build and must pass unchanged.
 | `crates/composition-wasm` | wasm-bindgen bindings used by the JS shim. |
 | `wasm/` | TypeScript shim exposing the same modules and exports as `src/`, backed by the WebAssembly build. Tests are pointed at it by a Vitest alias. |
 
+**Never edit a test to make it pass.** The tests in `__tests__/` and `src/**/*.spec.ts`
+are the oracle: a failing test means the Rust (or the bindings) is wrong, and the fix goes
+there. Only the routing (`vitest.wasm.config.js`, the `wasm/` shim) may change. If a test
+cannot run against the WebAssembly build at all, stop and ask the owner.
+
 The long-term product is the pure Rust library. The WebAssembly build exists so current
 JS users can migrate and so the existing TypeScript tests can verify the port unchanged.
 Keep everything JS-specific (JSON/JS object conversion, rebuilding JS `GraphQLError`s,
@@ -156,11 +161,110 @@ the tests use).
 - `// NOTE(port):` comments for every place where a JS semantic needed thought.
 - No `todo!()`/`unimplemented!()` left behind.
 
+## Design decisions
+
+The skeleton (`crates/composition`, every TS declaration with `todo!()` bodies) fixes these
+representations. Porters fill bodies in their own files; if a signature has to change, change
+it and fix the call sites (a mechanical edit in another file is fine), and say so in the
+commit message.
+
+**Thrown values.** `crate::utils::js::JsError` is a JS throw: `JsError::Error { name, message }`
+(`new Error`, or a runtime `TypeError`) or `JsError::GraphQL(GraphQLError)`. Every function
+whose TS can throw (directly, via `ensureValue`, `parseFields`, the `getOrCreate*` kind checks,
+`graphIdToName`, ...) returns `JsResult<T>`; a `catch` maps to matching on the `Err`.
+`to_js_string()` is `String(error)` (`"Error: msg"`), `into_graphql_error()` is
+`error instanceof GraphQLError ? error : new GraphQLError(String(error))`. The public functions
+(`compose_services`, `validate`, ...) return `JsResult` too. Also in `utils::js`: `parse_int`,
+`parse_float` (JS semantics), next to `locale_compare` and `number_to_string`.
+
+**Numbers.** JS `number` values (cost weights, list sizes) are `f64`, printed with
+`number_to_string`; `number | null` is `Option<f64>`.
+
+**Subgraph state.** `SubgraphState` owns everything (`types: IndexMap<String, SubgraphType>`,
+`SubgraphType` an enum of the seven kinds). AST nodes kept in state (`ast.directives`) are
+owned clones (`subgraph::state::Ast`, reused by the supergraph states). `schema` keeps its key
+insertion order (the TS iterates it with `for..in`). `createSubgraphStateBuilder` returns the
+struct `SubgraphStateBuilder`, which owns `state` and the closure locals. Each factory of
+closures (`objectTypeFactory(state, ...)`) is a short-lived borrowing struct:
+`builder.object_type().field().arg().set_type(..)` is `builder.objectType.field.arg.setType(..)`.
+Every setter returns `JsResult<()>` (the `getOrCreate*` helpers throw on a kind clash). After
+validation, `validate.rs` moves each state out (`into_state`), cleans it, and shares it as
+`Rc<SubgraphState>` (`supergraph::state::SubgraphStates`): states are read-only from then on and
+are held by the supergraph validation context, the supergraph state and its builder.
+
+**Subgraph validation (graphql_js visitors).** `SubgraphValidationContext<'a>` and
+`SimpleValidationContext<'a>` are structs (fields = the closure locals, methods = the
+closures) and are the `cx` of `graphql_js::Visitor<'a, C>`; `'a` is the lifetime of the visited
+document, and the subgraph context holds `state_builder: &'a mut SubgraphStateBuilder` and owns
+`type_node_info: TypeNodeInfo<'a>` (references into the document). A rule
+`Rule(context): ASTVisitor` is a struct implementing `SubgraphRule<'a>` / `SimpleRule<'a>`
+(`NAME` = the TS function name for `disableValidationRules`, `new(&mut cx)` = the factory body
+before `return { ... }`) and `Visitor<'a, Ctx<'a>>` (`enter`/`leave` = the returned object, as a
+`match node`). Struct fields are the factory's locals; add a lifetime parameter if a rule keeps
+`&'a` nodes. The state builder's visitor is `SubgraphStateVisitor` (from
+`builder.visitor()`); it reads the builder and `TypeNodeInfo` through `cx`.
+`visit_with_type_node_info(visitor)` wraps the parallel visitor and maintains
+`cx.type_node_info` (trait `HasTypeNodeInfo`). A `throw` inside a visitor callback becomes
+`return cx.throw(err)`: the error is recorded, the wrapper stops the traversal for all visitors,
+and `validate_subgraph` returns it. `isAvailableFederationDirective(name, node)` takes the
+directive's name (`&node.name.value`). The merged object/interface definitions of
+`getSubgraphObjectOrInterfaceTypes()` are owned `ObjectOrInterface` structs behind `Rc`, so
+`visit_fields` can hold one while the interceptors mutate the context. `visitFields`'
+interceptor closures are a `VisitFieldsInterceptor` trait object (a rule-local struct holding
+the shared locals such as `isValid`), plus an `Intercepts` set saying which ones were passed
+(the TS tests their presence and forwards only some of them when recursing).
+`getAvailableFederationTypeAndDirectiveDefinitions` takes `&mut self` because the TS renames the
+spec nodes in place.
+
+**Supergraph state and composition.** `SupergraphStateBuilder` owns `SupergraphState`, the type
+builders, `subgraph_states` and `graph_name_to_id_map`. Builders implement
+`composition::common::TypeBuilder<T, S>` (`visit_subgraph_state`, `compose_supergraph_node`);
+only `ObjectTypeBuilder` has state (the lazy `@requires` usage index). `composeSupergraphState`
+mutates one type state while reading other maps of the same `SupergraphState`, so the two
+builders that have it take exactly the map they read (`interface_types` for objects,
+`object_types` for interfaces). `composeSupergraphNode` gets `ComposeHelpers { supergraph_state,
+graph_name_to_id_map }` by shared reference. `build()` must keep the TS interleaving: each object
+type is transformed (`createFieldsTransformer`) right before it is composed, and the object
+builder's index is built on the first compose. The parameter objects of `ast.ts`
+(`ObjectTypeAST`, ...) are the `*Ast` structs (optional arrays as `Vec`, optional flags as
+`bool`).
+
+**Supergraph validation.** `SupergraphValidationContext` owns the `Rc` subgraph states and the
+error list. A pre-supergraph rule is `fn(&mut SupergraphValidationContext)` (see
+`PRE_SUPERGRAPH_RULES`). A post rule `(context, supergraph) => SupergraphVisitorMap` is a struct
+implementing `SupergraphRule<'s>` (`NAME`, `new(&mut cx, &'s SupergraphState) -> JsResult`) and
+`composition::visitor::SupergraphVisitor<'s>` (callbacks get `cx` and `&'s` states and return
+`JsResult`; `has_directive_field_arg` mirrors the TS presence check). Skipped rules are an empty
+visitor. Rule constructors run in list order, as the TS `rules.map(...)` does.
+
+**Satisfiability.** Arena graphs: `Graph<'s>` owns `nodes: Vec<Node>` (`NodeId` = the TS
+`node.index`, one node per `nodesByTypeIndex` slot) and `edges: Vec<Edge>` (`EdgeId`; identity
+comparisons compare ids); the head/tail indexes hold `EdgeId`s. Nodes refer to type states with
+`NodeTypeState<'s>` (references into the `SupergraphState`). `addSubgraph` moves a subgraph
+graph's nodes and edges into the merged graph, remapping ids. A graph is built with `&mut self`,
+then shared as `Rc<Graph>`; what the walk mutates (edge resolvability cache, visited graph
+combos, `typeChildrenCache`, the warn flag) is `RefCell`/`Cell`. `OperationPath` holds ids and
+takes the graph it belongs to when it needs edges (`WalkTracker::super_path` belongs to the
+supergraph graph, `paths` to the merged graph). `MoveValidator` and `PathFinder` are cheap
+`Clone` structs over `Rc<Graph>` (the TS cycle MoveValidator -> PathFinder -> MoveValidator is
+broken by creating the finder on demand). `lazy(() => ..)` is `helpers::Lazy<'s, T>`, shared as
+`Rc<Lazy>`; lazy errors may capture `Rc` clones of graphs. `Contexts` bigint masks are
+`ContextMask` (growable bit set; `Eq`/`Hash` match bigint equality); `Contexts` assigns bits
+lazily through a `RefCell` and is shared as `Rc<Contexts>`. The TS `Symbol` graph ids are
+`GraphId::{Supergraph, MergedGraph}`. `toString` caches (nodes, edges, moves, paths) feed only
+the no-op logger; compute them on demand.
+
+**Results.** `CompositionResult` is an enum; `CompositionSuccess` caches `supergraphSdl`,
+`publicDocumentNode`, `publicSdl` in `OnceCell`s (the getters that can throw return `JsResult`).
+`apply_tag_filter_on_subgraphs` works on `ServiceDefinition`s; the TS spreads extra properties
+onto the returned objects, which only the bindings may need to reproduce.
+
 ## Status
 
 | Area | TS lines | Status |
 |---|---:|---|
 | graphql crate (graphql-js port) | — | done: differential tests vs graphql-js pass (regenerate `crates/graphql/tests/corpus.json` with `node crates/graphql/tests/gen-corpus.mjs`) |
+| composition crate skeleton (types, signatures, constants) | — | done |
 | `utils/`, `specifications/`, `graphql/`, `types`, `subgraph/context` | 3,606 | not started |
 | `subgraph/state`, `subgraph/helpers` | 3,582 | not started |
 | `subgraph/validation/` | 7,307 | not started |
