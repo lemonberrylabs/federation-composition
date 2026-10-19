@@ -136,7 +136,14 @@ pub(crate) type JsResult<T> = Result<T, JsValue>;
 /// Parses a JSON argument sent by the shim, either a string (`json.as_bytes()`) or the UTF-8
 /// bytes of one (`encodeJSON` in the shim, for documents).
 pub(crate) fn from_json<T: serde::de::DeserializeOwned>(what: &str, json: &[u8]) -> JsResult<T> {
-    serde_json::from_slice(json).map_err(|e| {
+    // Checking the whole input once and parsing a `&str` is faster than `from_slice`, which
+    // checks every string it reads (~5% of a large document's parse). Invalid UTF-8 (which
+    // `TextEncoder` never produces) still goes through `from_slice`, which reports where it is.
+    let parsed = match std::str::from_utf8(json) {
+        Ok(json) => serde_json::from_str(json),
+        Err(_) => serde_json::from_slice(json),
+    };
+    parsed.map_err(|e| {
         ThrownError::error(format!("composition-wasm: invalid {what} argument: {e}")).into()
     })
 }
