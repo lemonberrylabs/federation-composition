@@ -1,0 +1,31 @@
+//! Ports of `__tests__/supergraph/errors/*.spec.ts`.
+
+mod default_value_uses_inaccessible;
+mod empty_merged_enum_type;
+mod empty_merged_input_type;
+mod enum_value_mismatch;
+mod extension_with_no_base;
+mod external_argument_missing;
+mod external_missing_on_base;
+mod external_type_mismatch;
+mod field_argument_default_mismatch;
+mod field_argument_type_mismatch;
+mod field_type_mismatch;
+mod implemented_by_inaccessible;
+mod input_field_default_mismatch;
+mod interface_field_no_implem;
+mod interface_key_missing_implementation_type;
+mod interface_object_usage_error;
+mod invalid_field_sharing;
+mod invalid_graphql;
+mod no_queries;
+mod only_inaccessible_children;
+mod override_collision_with_another_directive;
+mod override_collision_with_another_directive_progressive_requires;
+mod override_source_has_override;
+mod referenced_inaccessible;
+mod required_argument_missing_in_some_subgraph;
+mod required_inaccessible;
+mod required_input_field_missing_in_some_subgraph;
+mod satisfiability_error;
+mod type_kind_mismatch;

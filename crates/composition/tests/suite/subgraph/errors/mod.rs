@@ -1,0 +1,35 @@
+//! Ports of `__tests__/subgraph/errors/*.spec.ts`.
+
+mod directive_composition_error;
+mod directive_definition_invalid;
+mod external_unused;
+mod interface_key_not_on_implementation;
+mod invalid_graphql;
+mod invalid_shareable_usage;
+mod invalid_subgraph_name;
+mod key_directive_in_fields_arg;
+mod key_fields_has_args;
+mod key_fields_select_invalid_type;
+mod key_invalid_fields;
+mod key_invalid_fields_type;
+mod key_unsupported_on_interface;
+mod merged_directive_application_on_external;
+mod override_from_self_error;
+mod override_on_interface;
+mod provides_directive_in_fields_arg;
+mod provides_fields_has_args;
+mod provides_fields_missing_external;
+mod provides_invalid_fields;
+mod provides_invalid_fields_type;
+mod provides_on_non_object_field;
+mod provides_unsupported_on_interface;
+mod query_root_type_inaccessible;
+mod requires_directive_in_fields_arg;
+mod requires_fields_missing_external;
+mod requires_invalid_fields;
+mod requires_invalid_fields_type;
+mod requires_unsupported_on_interface;
+mod root_mutation_used;
+mod root_query_used;
+mod root_subscription_used;
+mod type_definition_invalid;

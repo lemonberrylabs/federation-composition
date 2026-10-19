@@ -1410,24 +1410,13 @@ mod tests {
         Some(v.to_string())
     }
 
-    /// `src/specifications/link.spec.ts`.
-    #[test]
-    fn parse_link_url_spec() {
-        let cases: &[(&str, Option<&str>, Option<&str>, &str)] = &[
-            ("https://spec.example.com/a/b/mySchema/v1.0/", Some("mySchema"), Some("v1.0"), "https://spec.example.com/a/b/mySchema"),
-            ("https://spec.example.com/a/b/mySchema/v1.0", Some("mySchema"), Some("v1.0"), "https://spec.example.com/a/b/mySchema"),
-            ("https://spec.example.com", None, None, "https://spec.example.com"),
-            ("https://spec.example.com/mySchema/v0.1?q=v#frag", Some("mySchema"), Some("v0.1"), "https://spec.example.com/mySchema"),
-            ("https://spec.example.com/mySchema/not-a-version", Some("not-a-version"), None, "https://spec.example.com/mySchema/not-a-version"),
-            ("https://spec.example.com/v1.0", None, Some("v1.0"), "https://spec.example.com"),
-            ("https://spec.example.com/vX", Some("vX"), None, "https://spec.example.com/vX"),
-            ("file:///extensions/permissions", Some("permissions"), None, "file:///extensions/permissions"),
-            ("https://specs.apollo.dev/federation/not-a-version", Some("not-a-version"), None, "https://specs.apollo.dev/federation/not-a-version"),
-            ("https://specs.apollo.dev", None, None, "https://specs.apollo.dev"),
-            ("specs.apollo.dev", None, None, "specs.apollo.dev"),
-            ("not-valid.apollo.dev/v1", None, None, "not-valid.apollo.dev/v1"),
-        ];
-        for (url, name, version, identity) in cases {
+    /// `src/specifications/link.spec.ts`, `describe("parseLinkUrl")`: one test per row of the
+    /// `test.each` table, named after the row's `$url` title.
+    mod parse_link_url {
+        use super::*;
+
+        /// `expect(parseLinkUrl(url)).toEqual({ name, version, identity })`.
+        fn check(url: &str, name: Option<&str>, version: Option<&str>, identity: &str) {
             assert_eq!(
                 parse_link_url(url),
                 LinkUrl {
@@ -1437,6 +1426,66 @@ mod tests {
                 },
                 "{url}"
             );
+        }
+
+        #[test]
+        fn https_spec_example_com_a_b_my_schema_v1_0() {
+            check("https://spec.example.com/a/b/mySchema/v1.0/", Some("mySchema"), Some("v1.0"), "https://spec.example.com/a/b/mySchema");
+        }
+
+        #[test]
+        fn https_spec_example_com_a_b_my_schema_v1_0_2() {
+            check("https://spec.example.com/a/b/mySchema/v1.0", Some("mySchema"), Some("v1.0"), "https://spec.example.com/a/b/mySchema");
+        }
+
+        #[test]
+        fn https_spec_example_com() {
+            check("https://spec.example.com", None, None, "https://spec.example.com");
+        }
+
+        #[test]
+        fn https_spec_example_com_my_schema_v0_1_q_v_frag() {
+            check("https://spec.example.com/mySchema/v0.1?q=v#frag", Some("mySchema"), Some("v0.1"), "https://spec.example.com/mySchema");
+        }
+
+        #[test]
+        fn https_spec_example_com_my_schema_not_a_version() {
+            check("https://spec.example.com/mySchema/not-a-version", Some("not-a-version"), None, "https://spec.example.com/mySchema/not-a-version");
+        }
+
+        #[test]
+        fn https_spec_example_com_v1_0() {
+            check("https://spec.example.com/v1.0", None, Some("v1.0"), "https://spec.example.com");
+        }
+
+        #[test]
+        fn https_spec_example_com_v_x() {
+            check("https://spec.example.com/vX", Some("vX"), None, "https://spec.example.com/vX");
+        }
+
+        #[test]
+        fn file_extensions_permissions() {
+            check("file:///extensions/permissions", Some("permissions"), None, "file:///extensions/permissions");
+        }
+
+        #[test]
+        fn https_specs_apollo_dev_federation_not_a_version() {
+            check("https://specs.apollo.dev/federation/not-a-version", Some("not-a-version"), None, "https://specs.apollo.dev/federation/not-a-version");
+        }
+
+        #[test]
+        fn https_specs_apollo_dev() {
+            check("https://specs.apollo.dev", None, None, "https://specs.apollo.dev");
+        }
+
+        #[test]
+        fn specs_apollo_dev() {
+            check("specs.apollo.dev", None, None, "specs.apollo.dev");
+        }
+
+        #[test]
+        fn not_valid_apollo_dev_v1() {
+            check("not-valid.apollo.dev/v1", None, None, "not-valid.apollo.dev/v1");
         }
     }
 
@@ -1448,24 +1497,55 @@ mod tests {
         }
     }
 
-    #[test]
-    fn parse_link_import_spec() {
+    /// `src/specifications/link.spec.ts`, `describe("parseLinkImport")`.
+    mod parse_link_import {
+        use super::*;
         use LinkImportKind::*;
-        assert_eq!(parse_link_import("[\"Type\"]").unwrap(), [import(Type, "Type", None)]);
-        assert_eq!(
-            parse_link_import("[\"Foo\", \"Bar\"]").unwrap(),
-            [import(Type, "Foo", None), import(Type, "Bar", None)]
-        );
-        assert_eq!(
-            parse_link_import("[\"@foo\", \"@bar\"]").unwrap(),
-            [import(Directive, "@foo", None), import(Directive, "@bar", None)]
-        );
-        assert_eq!(
-            parse_link_import("[{ name: \"@foo\", as: \"@bar\" }]").unwrap(),
-            [import(Directive, "@foo", Some("@bar"))]
-        );
-        assert_eq!(parse_link_import("[{ name: \"@foo\" }]").unwrap(), [import(Directive, "@foo", None)]);
-        assert_eq!(parse_link_import("[]").unwrap(), []);
+
+        /// `test('["Type"]')`.
+        #[test]
+        fn r#type() {
+            assert_eq!(parse_link_import("[\"Type\"]").unwrap(), [import(Type, "Type", None)]);
+        }
+
+        /// `test('["Foo", "Bar"]')`.
+        #[test]
+        fn foo_bar() {
+            assert_eq!(
+                parse_link_import("[\"Foo\", \"Bar\"]").unwrap(),
+                [import(Type, "Foo", None), import(Type, "Bar", None)]
+            );
+        }
+
+        /// `test('["@foo", "@bar"]')`.
+        #[test]
+        fn foo_bar_2() {
+            assert_eq!(
+                parse_link_import("[\"@foo\", \"@bar\"]").unwrap(),
+                [import(Directive, "@foo", None), import(Directive, "@bar", None)]
+            );
+        }
+
+        /// `test('[{ name: "@foo", as: "@bar" }]')`.
+        #[test]
+        fn name_foo_as_bar() {
+            assert_eq!(
+                parse_link_import("[{ name: \"@foo\", as: \"@bar\" }]").unwrap(),
+                [import(Directive, "@foo", Some("@bar"))]
+            );
+        }
+
+        /// `test('[{ name: "@foo"]')`.
+        #[test]
+        fn name_foo() {
+            assert_eq!(parse_link_import("[{ name: \"@foo\" }]").unwrap(), [import(Directive, "@foo", None)]);
+        }
+
+        /// `test("[]")`.
+        #[test]
+        fn untitled() {
+            assert_eq!(parse_link_import("[]").unwrap(), []);
+        }
     }
 
     /// Error messages generated with Node (`json5` 2.2.3).

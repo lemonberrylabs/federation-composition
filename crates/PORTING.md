@@ -302,3 +302,78 @@ with the shim in `wasm/`.
 | Rust vs TS on every composition the test suite runs | `pnpm bench:capture`, then `cargo test -p federation_composition --release --test corpus -- --ignored` | every captured composition matches (3567/3567 on 2026-10-19) |
 | The TS test suite against the WebAssembly build | `pnpm wasm:build && pnpm test:wasm --run` | 7,350 passed (the 7,343 TS tests plus 7 bridge checks in `wasm/runtime.spec.ts`), 25 skipped, 8 todo |
 | The TS test suite itself | `pnpm test --run` | 7,343 passed, 25 skipped, 8 todo |
+
+## Rust test suite
+
+The TypeScript tests (`__tests__/**/*.spec.ts`, `src/**/*.spec.ts`) are being ported to Rust,
+so the library is tested without the WebAssembly bridge. Run them with
+`cargo test -p federation_composition --test suite`.
+
+**Layout.** One integration test binary, `crates/composition/tests/suite/main.rs`, whose module
+tree mirrors `__tests__/`: `__tests__/supergraph/errors/FIELD_TYPE_MISMATCH.spec.ts` is
+`suite/supergraph/errors/field_type_mismatch.rs` (lowercase, `-` becomes `_`; `override.spec.ts`
+is `mod r#override`). Every module file and `mod.rs` already exists; a porter only fills in its
+file. `src/specifications/link.spec.ts` is ported by the unit tests in
+`crates/composition/src/specifications/link.rs`. `suite/shared/` is the testkit;
+`suite/supergraph/errors/field_type_mismatch.rs` is the worked example.
+
+**Guild side only.** The TS harness runs most tests for "apollo" and "guild"; port the guild
+side. Take the guild branch of every `api.library` conditional, keep `injectIf("guild", s)` text
+and drop `injectIf("apollo", s)` text, keep `runIf("guild", fn)` bodies and drop
+`runIf("apollo", fn)` bodies; `test.skipIf(api.library === "guild")` is a skipped test. The
+harness's Apollo-gateway check of every Guild supergraph cannot run in Rust and is dropped.
+Tests outside `testVersions`/`testImplementations` are ported as they are.
+
+**Counting.** One `#[test]` per TS test case per federation version, so the Rust counts equal
+the TS guild-side counts. `test.skip` becomes `#[ignore = "skipped in TypeScript: <reason>"]`
+with the ported body; `test.todo` becomes `#[ignore = "todo in TypeScript"]` with an empty body.
+A test registered only for some versions (`if (satisfiesVersionRange(">= v2.7", version)) test(..)`)
+exists only for those versions (see `if` below). Each `test.each` row is its own test.
+
+**Names.** A test fn is the snake_case of the TS title: lowercase, a lowercase letter or digit
+followed by an uppercase letter gets a `_` between them, every run of other characters becomes
+one `_`, leading and trailing `_` are dropped. An empty result is `untitled`, a result starting
+with a digit gets a `t_` prefix, a keyword is a raw identifier (`r#type`). Within one module,
+a repeated name gets `_2`, `_3`, ... in source order. A `describe(title, ..)` block is a nested
+`mod` named the same way (with `use super::*;`). The `testVersions` per-version level is added
+by the macro (`field_type_mismatch::v2_0`).
+
+**Never weaken an assertion.** Every TS assertion on the guild path gets a Rust assertion of at
+least the same strength. Expected strings (messages, SDL, inline snapshots) are copied verbatim,
+as the cooked TS string (`` \` `` is a backtick, `\\` is `\`); use `r#"..."#` literals. If a
+ported test fails, first compare the port with the TS line by line. The same Rust code passes the
+TS test through WebAssembly, so a genuine failure means native and wasm behave differently: fix
+the library, never the expectation, and say so in the commit message.
+
+**Testkit** (`use crate::shared::*;` at the top of every spec module; the macros need no import).
+
+| TypeScript | Rust |
+|---|---|
+| `testVersions((api, version) => { test("T", () => {..}) })` | `test_versions! { fn t(api, version) { .. } }` |
+| `if (satisfiesVersionRange("< v2.7", version)) { test(..) }` | `fn t(api, version) if "< v2.7" { .. }` (`<`, `>=`, `>`) |
+| `if (version === "v2.0") { test(..) }` | `fn t(api, version) if ["v2.0"] { .. }` |
+| `testImplementations((api) => { test("T", ..) })` | `test_implementations! { fn t(api) { .. } }` |
+| `` graphql`...${version}...` `` | `graphql!(r#"...${version}..."#, version)`; `name = expr` for other values |
+| a template literal | `tpl!(r#"..."#, version)` (`String`) |
+| `` normalizeErrorMessage`...` `` | `normalize_error_message!(r#"..."#)` (`strip-indent` + `trim`) |
+| `{ name: "a", typeDefs }` / with `url` | `service("a", type_defs)` / `service_with_url("a", url, type_defs)` |
+| `api.composeServices([..])` / `composeServices([..])` from `src` | `api.compose_services(&[..])` / `compose_services(&[..], None)`; a throw panics |
+| `expect(() => composeServices(..)).toThrow(msg)` | `assert_throws(api.try_compose_services(&[..]), Some(msg))`; `.not.toThrow()` is `assert_does_not_throw` |
+| `assertCompositionSuccess(r)` / `(r, msg)` | `assert_composition_success(&r)` / `assert_composition_success_with_message(&r, Some(msg))`, return `&CompositionSuccess` |
+| `assertCompositionFailure(r)` | `assert_composition_failure(&r)`, returns `&CompositionFailure` |
+| `ensureCompositionSuccess(r)` | `ensure_composition_success(r)` |
+| `result.errors` / `result.supergraphSdl` / `result.publicSdl` | `result.errors()` / `.supergraph_sdl()` / `.public_sdl()` (`CompositionResultExt`, `None` is `undefined`) |
+| `expect(x).toEqualGraphQL(y)` / `.toContainGraphQL(y)` / `.not.toContainGraphQL(y)` | `to_equal_graphql(x, y)` / `to_contain_graphql(x, y)` / `not_to_contain_graphql(x, y)` (strings, `Document`s, `Definition`s, `Option`s of them) |
+| `expect.objectContaining({ message, extensions: expect.objectContaining({ code }) })` | `ErrorMatcher::new().message(m).code(c)`; `.message_containing(s)` for `expect.stringContaining`; `.extensions_exactly_code(c)` for `extensions: { code }` |
+| `expect(r.errors).toContainEqual(m)`, `expect(r).toEqual(expect.objectContaining({ errors: expect.arrayContaining([..]) }))` | `assert_errors_contain(r.errors(), &[m])`, `assert_errors_contain(&r, &[..])` |
+| `expect(r).toEqual(expect.objectContaining({ errors: [..] }))` | `assert_errors_equal(&r, &[..])` |
+| `` expect(v).toMatchInlineSnapshot(`...`) `` | `to_match_inline_snapshot(v, r#"..."#)` for strings, `Option`s, `GraphQLError` lists and `serde_json::Value`; `to_match_inline_snapshot(SortSdlSerializer(s), ..)` in files with the `expect.addSnapshotSerializer` for `specs.apollo.dev` strings |
+| `versions`, `federationVersionToJoinSpecVersion`, `satisfiesVersionRange` | `VERSIONS`, `FEDERATION_VERSION_TO_JOIN_SPEC_VERSION` / `federation_version_to_join_spec_version(v)`, `satisfies_version_range(range, v)` |
+| `createStarsStuff()`, `getSubgraphs()` of `fixtures/dgs`, `fixtures/huge-schema` | `create_stars_stuff()`, `get_subgraphs_of_dgs()`, `get_subgraphs_of_huge_schema()` |
+| `expect(() => buildSchema(sdl)).not.toThrow()` | `assert_build_schema_does_not_throw(sdl)` |
+| `parse`, `print` from `graphql`; `sortSDL` | `parse(..).unwrap()`, `print(&doc)` (graphql-js `print`, not the library printer), `sort_sdl(&doc)` |
+
+`assert_valid_sdl` (the `buildSchema` + `assertValidSchema` that `assertCompositionSuccess` runs
+on `supergraphSdl` and `publicSdl`) and `assert_build_schema_does_not_throw` are empty until
+`buildSchema`/`assertValidSchema` are ported to `crates/graphql`. Anything else (`toBe`,
+`toHaveLength`, `toBeDefined`) is a plain `assert!`/`assert_eq!` on the same value.
