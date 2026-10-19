@@ -43,11 +43,81 @@ impl<'a> TypeNodeInfo<'a> {
     }
 
     pub fn enter(&mut self, node: NodeRef<'a>) {
-        todo!()
+        match node {
+            NodeRef::ObjectTypeDefinition(_)
+            | NodeRef::ObjectTypeExtension(_)
+            | NodeRef::InterfaceTypeDefinition(_)
+            | NodeRef::InterfaceTypeExtension(_)
+            | NodeRef::UnionTypeDefinition(_)
+            | NodeRef::UnionTypeExtension(_)
+            | NodeRef::EnumTypeDefinition(_)
+            | NodeRef::EnumTypeExtension(_)
+            | NodeRef::InputObjectTypeDefinition(_)
+            | NodeRef::InputObjectTypeExtension(_)
+            | NodeRef::ScalarTypeDefinition(_)
+            | NodeRef::ScalarTypeExtension(_)
+            | NodeRef::DirectiveDefinition(_) => {
+                self.type_ = Some(node);
+            }
+
+            NodeRef::EnumValueDefinition(value) => {
+                self.value = Some(value);
+            }
+
+            NodeRef::FieldDefinition(_) => {
+                self.field = Some(node);
+            }
+
+            NodeRef::InputValueDefinition(input_value) => {
+                if self.field.is_some() {
+                    self.arg = Some(input_value);
+                } else {
+                    self.field = Some(node);
+                }
+            }
+
+            // Ignore other nodes
+            _ => {}
+        }
     }
 
     pub fn leave(&mut self, node: NodeRef<'a>) {
-        todo!()
+        match node {
+            NodeRef::ObjectTypeDefinition(_)
+            | NodeRef::ObjectTypeExtension(_)
+            | NodeRef::InterfaceTypeDefinition(_)
+            | NodeRef::InterfaceTypeExtension(_)
+            | NodeRef::UnionTypeDefinition(_)
+            | NodeRef::UnionTypeExtension(_)
+            | NodeRef::EnumTypeDefinition(_)
+            | NodeRef::EnumTypeExtension(_)
+            | NodeRef::InputObjectTypeDefinition(_)
+            | NodeRef::InputObjectTypeExtension(_)
+            | NodeRef::ScalarTypeDefinition(_)
+            | NodeRef::ScalarTypeExtension(_)
+            | NodeRef::DirectiveDefinition(_) => {
+                self.type_ = None;
+            }
+
+            NodeRef::FieldDefinition(_) => {
+                self.field = None;
+            }
+
+            NodeRef::EnumValueDefinition(_) => {
+                self.value = None;
+            }
+
+            NodeRef::InputValueDefinition(_) => {
+                if self.arg.is_some() {
+                    self.arg = None;
+                } else {
+                    self.field = None;
+                }
+            }
+
+            // Ignore other nodes
+            _ => {}
+        }
     }
 }
 
@@ -79,10 +149,25 @@ pub fn visit_with_type_node_info<V>(visitor: V) -> VisitWithTypeNodeInfo<V> {
 
 impl<'a, C: HasTypeNodeInfo<'a>, V: Visitor<'a, C>> Visitor<'a, C> for VisitWithTypeNodeInfo<V> {
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut C, info: &VisitInfo<'a, '_>) -> VisitAction {
-        todo!()
+        cx.type_node_info_mut().enter(node);
+        let result = self.visitor.enter(node, cx, info);
+        if cx.has_thrown() {
+            // The TS exception propagates out of `visit`.
+            return VisitAction::Break;
+        }
+        if result != VisitAction::Continue {
+            // `false` and `BREAK` are not nodes, so `typeInfo.enter(result)` never runs.
+            cx.type_node_info_mut().leave(node);
+        }
+        result
     }
 
     fn leave(&mut self, node: NodeRef<'a>, cx: &mut C, info: &VisitInfo<'a, '_>) -> VisitAction {
-        todo!()
+        let result = self.visitor.leave(node, cx, info);
+        if cx.has_thrown() {
+            return VisitAction::Break;
+        }
+        cx.type_node_info_mut().leave(node);
+        result
     }
 }
