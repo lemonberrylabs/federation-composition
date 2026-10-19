@@ -6,8 +6,9 @@ use graphql_js::OperationType;
 
 use super::constants::GraphId;
 use super::contexts::Contexts;
-use super::graph::Graph;
+use super::graph::{Graph, TypesBySubgraph};
 use super::move_validator::MoveValidator;
+use super::node::GraphNames;
 use super::operation_path::Step;
 use super::selection::SelectionResolver;
 use super::walker::{WalkMethod, WalkTracker, Walker};
@@ -36,6 +37,7 @@ impl<'s> Supergraph<'s> {
         } else {
             None
         };
+        let graph_names = Rc::new(GraphNames::default());
         let mut supergraph = Graph::new(
             &logger,
             GraphId::Supergraph,
@@ -44,6 +46,7 @@ impl<'s> Supergraph<'s> {
             selection_resolver.clone(),
             true,
             None,
+            graph_names.clone(),
         );
         let mut merged_graph = Graph::new(
             &logger,
@@ -53,7 +56,9 @@ impl<'s> Supergraph<'s> {
             selection_resolver.clone(),
             false,
             contexts.clone(),
+            graph_names.clone(),
         );
+        let types_by_subgraph = TypesBySubgraph::new(supergraph_state);
         for (id, subgraph_state) in &supergraph_state.subgraphs {
             let mut graph = Graph::new(
                 &logger,
@@ -63,13 +68,20 @@ impl<'s> Supergraph<'s> {
                 selection_resolver.clone(),
                 false,
                 contexts.clone(),
+                graph_names.clone(),
             );
-            graph.add_from_roots()?.add_from_entities()?.add_unreachable_types()?;
+            let types = types_by_subgraph.of(id);
+            graph
+                .add_from_roots()?
+                .add_from_entities(types)?
+                .add_unreachable_types(types)?;
             merged_graph.add_subgraph(graph);
         }
 
         merged_graph.join_subgraphs()?;
         merged_graph.add_overridden_fields()?;
+        // PERF: the merged graph is complete.
+        merged_graph.enable_edge_caches();
 
         supergraph
             .add_from_roots()?

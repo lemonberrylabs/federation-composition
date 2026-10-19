@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use graphql_js::OperationType;
-use crate::utils::collections::{IndexMap, IndexSet};
+use crate::utils::collections::IndexMap;
 
 use super::contexts::ContextMask;
 use super::edge::{is_abstract_edge, is_field_edge, EdgeId};
@@ -13,7 +13,7 @@ use super::graph::Graph;
 use super::helpers::{is_truthy_str, OverrideLabels};
 use super::move_validator::MoveValidator;
 use super::moves::{FieldMove, Move};
-use super::node::NodeId;
+use super::node::{GraphComboId, NodeId};
 use super::operation_path::{OperationPath, Step};
 use crate::utils::js::{JsError, JsResult};
 use crate::utils::logger::Logger;
@@ -70,7 +70,7 @@ impl<'s> WalkTracker<'s> {
         self.errors = LazyErrors::new();
     }
 
-    pub fn add_error(&mut self, errors: &LazyErrors<'s, SatisfiabilityError>) {
+    pub fn add_error(&mut self, errors: LazyErrors<'s, SatisfiabilityError>) {
         self.errors.add_all(errors);
     }
 
@@ -294,11 +294,12 @@ impl<'s> Walker<'s> {
         let supergraph = &*self.supergraph;
         let merged_graph = &*self.merged_graph;
 
-        let mut graphs_leading_to_node: IndexSet<String> = IndexSet::default();
+        // PERF: a `Set` of interned strings (`GraphComboIds`); a `Vec` keeps the same insertion
+        // order and the paths are few.
+        let mut graphs_leading_to_node: Vec<GraphComboId> = Vec::new();
         for p in &state.paths {
             let edge = p.edge();
             let tail = p.tail_or_root(merged_graph);
-            let tail_graph_name = &merged_graph.node(tail).graph_name;
 
             // To prevent a scenario where multiple paths converge on the same Node,
             // differing fundamentally – some with the "@provides" directive and others without – we must differentiate them
@@ -312,13 +313,6 @@ impl<'s> Walker<'s> {
             // The same reasoning applies to contexts set by the ancestors of the Node.
             // Two paths can lead to the same Node from the same graphs,
             // but only one of them may provide a context required by a `@fromContext` argument.
-            // The context key is empty when the supergraph has no `@context`.
-            let contexts_key = if p.contexts().is_zero() {
-                String::new()
-            } else {
-                format!("#contexts:{}", p.contexts())
-            };
-
             let has_provides = edge.is_some_and(|edge| {
                 matches!(
                     &merged_graph.edge(edge).r#move,
@@ -326,13 +320,12 @@ impl<'s> Walker<'s> {
                 )
             });
 
-            if has_provides {
-                graphs_leading_to_node.insert(format!("{tail_graph_name}#provides{contexts_key}"));
-            } else {
-                graphs_leading_to_node.insert(format!("{tail_graph_name}{contexts_key}"));
+            // `${tailGraphName}#provides${contextsKey}` or `${tailGraphName}${contextsKey}`
+            let id = supergraph.graph_combo_ids.id(merged_graph, tail, has_provides, p.contexts());
+            if !graphs_leading_to_node.contains(&id) {
+                graphs_leading_to_node.push(id);
             }
         }
-        let graphs_leading_to_node: Vec<String> = graphs_leading_to_node.into_iter().collect();
 
         let super_tail_node = supergraph.node(super_tail);
         if super_tail_node.is_graph_combo_visited(&graphs_leading_to_node, &state.label_values) {
@@ -406,7 +399,7 @@ impl<'s> Walker<'s> {
 
                 let direct_success = matches!(direct_paths_result, PathFinderResult::Success { .. });
 
-                match &direct_paths_result {
+                match direct_paths_result {
                     // Special case when it's an abstract type and there are no direct paths
                     PathFinderResult::Success { paths } if paths.is_empty() => {
                         self.logger.group_end("Abstract type");
@@ -438,7 +431,7 @@ impl<'s> Walker<'s> {
 
                 let indirect_success = matches!(indirect_paths_result, PathFinderResult::Success { .. });
 
-                match &indirect_paths_result {
+                match indirect_paths_result {
                     PathFinderResult::Success { paths } => {
                         set_shortest_path(merged_graph, &mut shortest_path_per_tail, paths);
                     }
@@ -455,9 +448,10 @@ impl<'s> Walker<'s> {
                 });
             }
 
-            for paths_by_contexts in shortest_path_per_tail.values() {
-                for shortest_path in paths_by_contexts.values() {
-                    next_state.add_path(shortest_path.clone());
+            // PERF: the map is not used afterwards, so its paths move into the state.
+            for paths_by_contexts in shortest_path_per_tail.into_values() {
+                for shortest_path in paths_by_contexts.into_values() {
+                    next_state.add_path(shortest_path);
                 }
             }
             next(next_state, super_edge)?;
@@ -583,7 +577,8 @@ impl<'s> Walker<'s> {
 
 /// `setShortestPath(shortestPathPerTail, paths)`. Paths reaching the same node are
 /// interchangeable, so only the shortest is kept, per contexts set by their ancestors.
-fn set_shortest_path(merged_graph: &Graph<'_>, shortest_path_per_tail: &mut ShortestPaths, paths: &[OperationPath]) {
+/// PERF: takes the paths, so the kept ones move into the map.
+fn set_shortest_path(merged_graph: &Graph<'_>, shortest_path_per_tail: &mut ShortestPaths, paths: Vec<OperationPath>) {
     for path in paths {
         let tail = path.tail_or_root(merged_graph);
         let paths_by_contexts = shortest_path_per_tail.entry(tail).or_default();
@@ -594,7 +589,7 @@ fn set_shortest_path(merged_graph: &Graph<'_>, shortest_path_per_tail: &mut Shor
         };
 
         if replace {
-            paths_by_contexts.insert(path.contexts().clone(), path.clone());
+            paths_by_contexts.insert(path.contexts().clone(), path);
         }
     }
 }

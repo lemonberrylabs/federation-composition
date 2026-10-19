@@ -93,6 +93,12 @@ fn js_object_key_order<'a>(keys: impl IntoIterator<Item = &'a String>) -> Vec<&'
 impl<'s> SatisfiabilityRule<'s> {
     /// `check(typeName, fieldName?)`: reports the unreachable paths recorded for the coordinate.
     fn check(&mut self, cx: &mut SupergraphValidationContext, type_name: &str, field_name: Option<&str>) -> JsResult<()> {
+        // PERF: runs for every type and field; when nothing is unreachable the lookup below
+        // always misses, so skip building the coordinate.
+        if self.error_by_coordinate.is_empty() {
+            return Ok(());
+        }
+
         let coordinate = match field_name {
             Some(field_name) if !field_name.is_empty() => format!("{type_name}.{field_name}"),
             _ => type_name.to_string(),
