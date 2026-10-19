@@ -194,6 +194,13 @@ pub struct FieldAst {
     pub arguments: Vec<FieldArgumentAst>,
     pub join: JoinAst,
     pub inaccessible: bool,
+    /// NOTE(port): not in the TS `createFieldNode` parameter type, but the object and interface
+    /// builders pass `authenticated`, `policies` and `scopes` on every field object and
+    /// `applyDirectives(field)` reads them at runtime (emitting `@authenticated`, `@policy`,
+    /// `@requiresScopes` on fields), so they are part of the field AST here.
+    pub authenticated: bool,
+    pub policies: Vec<Vec<String>>,
+    pub scopes: Vec<Vec<String>>,
     pub cost: Option<CostAst>,
     pub list_size: Option<ListSizeAst>,
     pub tags: Vec<String>,
