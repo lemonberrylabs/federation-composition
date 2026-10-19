@@ -9,3 +9,4 @@ bench/corpus.jsonl
 bench/results-*.json
 /target
 crates/graphql/tests/corpus.json
+wasm/pkg

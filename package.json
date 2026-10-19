@@ -58,7 +58,9 @@
     "format": "prettier --write .",
     "release": "pnpm build && changeset publish",
     "test": "vitest --config ./vitest.config.js",
-    "typecheck": "tsc --noEmit --project tsconfig.build.json"
+    "test:wasm": "vitest --config ./vitest.wasm.config.js",
+    "typecheck": "tsc --noEmit --project tsconfig.build.json",
+    "wasm:build": "node wasm/build.mjs"
   },
   "peerDependencies": {
     "graphql": "^16.0.0 || ^17.0.0"

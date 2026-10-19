@@ -39,6 +39,14 @@ export PATH="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$PATH"
 
 `cargo build -p federation_composition`, and before calling a module done,
 `cargo build --release --target wasm32-unknown-unknown -p federation_composition`.
+Linking a wasm32 `cdylib` (the bindings) runs rustup's `rust-lld`, which on macOS
+finds `libLLVM.dylib` only with
+`DYLD_FALLBACK_LIBRARY_PATH=$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/lib`
+(`pnpm wasm:build` sets it). Building an `rlib` does not link and does not need it.
+
+`pnpm wasm:build` builds `crates/composition-wasm` into `wasm/pkg` (needs
+`cargo install wasm-bindgen-cli --version '=0.2.129' --locked`); `pnpm test:wasm`
+runs the test suite against it.
 No `unsafe`. No dependencies that need `getrandom` (wasm32).
 
 ## JavaScript semantics that must be preserved
@@ -169,4 +177,4 @@ the tests use).
 | `supergraph/validation/rules/satisfiablity/` | 4,891 | not started |
 | `contracts/` | 977 | not started |
 | `compose`, `validate`, `index` | 558 | not started |
-| WebAssembly bindings + JS shim | — | not started |
+| WebAssembly bindings + JS shim | — | infrastructure done (exports, shim, `pnpm test:wasm`); exports return "Not wired yet" until connected to `federation_composition` |
