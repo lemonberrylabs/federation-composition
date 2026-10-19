@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/override-source-has-override.ts`.
 
 use graphql_js::GraphQLError;
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use crate::supergraph::composition::object_type::{FieldStateInGraph, ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
@@ -41,7 +41,7 @@ impl<'s> SupergraphVisitor<'s> for OverrideSourceHasOverrideRule {
 
         for (graph, field_state_in_graph) in &graphs_with_override {
             // find any circular references
-            let mut visited_graphs: IndexSet<String> = IndexSet::new();
+            let mut visited_graphs: IndexSet<String> = IndexSet::default();
             let override_name = field_state_in_graph
                 .r#override
                 .as_deref()

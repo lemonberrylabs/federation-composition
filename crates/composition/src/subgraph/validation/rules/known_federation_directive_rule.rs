@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/known-federation-directive-rule.ts`.
 
 use graphql_js::{Definition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 
@@ -17,8 +17,8 @@ impl<'a> SubgraphRule<'a> for KnownFederationDirectivesRule {
     const NAME: &'static str = "KnownFederationDirectivesRule";
 
     fn new(context: &mut SubgraphValidationContext<'a>) -> Self {
-        let mut available_directives_set: IndexSet<String> = IndexSet::new();
-        let mut known_directives_set: IndexSet<String> = IndexSet::new();
+        let mut available_directives_set: IndexSet<String> = IndexSet::default();
+        let mut known_directives_set: IndexSet<String> = IndexSet::default();
 
         let known_directives = context.get_known_federation_directives();
         for directive in known_directives {

@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use graphql_js::{is_specified_scalar_type, print, specified_scalar_types, GraphQLError, ObjectField, Value};
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use super::satisfiablity::edge::is_field_edge;
 use super::satisfiablity::errors::SatisfiabilityError;
@@ -41,7 +41,7 @@ impl<'s> SupergraphRule<'s> for SatisfiabilityRule<'s> {
 
         // NOTE(port): a plain object in TS. Lookups of inherited keys (a type named `constructor`
         // or `toString`) would hit `Object.prototype` there; such type names are not handled.
-        let mut error_by_coordinate: IndexMap<String, Vec<WalkTracker<'s>>> = IndexMap::new();
+        let mut error_by_coordinate: IndexMap<String, Vec<WalkTracker<'s>>> = IndexMap::default();
 
         for unreachable in unreachables {
             let Some(edge) = unreachable.super_path.edge() else {
@@ -129,7 +129,7 @@ impl<'s> SatisfiabilityRule<'s> {
             }
 
             // A plain object in TS (`Record<string, SatisfiabilityError[]>`) iterated with `for..in`.
-            let mut errors_by_source_graph: IndexMap<String, Vec<SatisfiabilityError>> = IndexMap::new();
+            let mut errors_by_source_graph: IndexMap<String, Vec<SatisfiabilityError>> = IndexMap::default();
             let mut reasons: Vec<(String, Vec<String>)> = Vec::new();
 
             for error in unreachable.list_errors(&self.supergraph_graph)? {
@@ -464,7 +464,7 @@ mod tests {
     mod fixture {
         use std::rc::Rc;
 
-        use indexmap::{IndexMap, IndexSet};
+        use crate::utils::collections::{IndexMap, IndexSet};
 
         use crate::specifications::federation::FederationVersion;
         use crate::subgraph::state::{SubgraphFederation, SubgraphGraph, SubgraphSchema, SubgraphSpecs, SubgraphState};
@@ -500,7 +500,7 @@ mod tests {
             ObjectTypeFieldState {
                 name: name.to_string(),
                 r#type: ty.to_string(),
-                tags: IndexSet::new(),
+                tags: IndexSet::default(),
                 inaccessible: false,
                 is_leaf: false,
                 authenticated: false,
@@ -512,7 +512,7 @@ mod tests {
                 r#override: None,
                 override_label: None,
                 by_graph: graphs.iter().map(|g| (g.to_string(), field_in_graph(ty))).collect(),
-                args: IndexMap::new(),
+                args: IndexMap::default(),
                 description: None,
                 deprecated: None,
                 ast: Default::default(),
@@ -530,7 +530,7 @@ mod tests {
                 policies: vec![],
                 scopes: vec![],
                 keys: vec![],
-                interfaces: IndexSet::new(),
+                interfaces: IndexSet::default(),
                 inaccessible: false,
                 shareable: false,
                 version: FederationVersion::V2_3,
@@ -540,16 +540,16 @@ mod tests {
         fn object(name: &str, graphs: &[&str], fields: Vec<ObjectTypeFieldState>) -> ObjectTypeState {
             ObjectTypeState {
                 name: name.to_string(),
-                tags: IndexSet::new(),
+                tags: IndexSet::default(),
                 inaccessible: false,
                 authenticated: false,
                 policies: vec![],
                 scopes: vec![],
-                contexts: IndexSet::new(),
+                contexts: IndexSet::default(),
                 cost: None,
                 has_definition: true,
                 by_graph: graphs.iter().map(|g| (g.to_string(), type_in_graph())).collect(),
-                interfaces: IndexSet::new(),
+                interfaces: IndexSet::default(),
                 fields: fields.into_iter().map(|f| (f.name.clone(), f)).collect(),
                 is_entity: false,
                 description: None,
@@ -565,7 +565,7 @@ mod tests {
                     version: FederationVersion::V2_3,
                     url: None,
                 },
-                types: IndexMap::new(),
+                types: IndexMap::default(),
                 schema: SubgraphSchema::default(),
                 links: vec![],
                 specs: SubgraphSpecs::default(),

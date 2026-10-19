@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/provided-required-arguments-on-directives-rule.ts`.
 
 use graphql_js::{Definition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::graphql::printer::print;
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
@@ -21,13 +21,13 @@ impl<'a> SimpleRule<'a> for ProvidedRequiredArgumentsOnDirectivesRule<'a> {
     const NAME: &'static str = "ProvidedRequiredArgumentsOnDirectivesRule";
 
     fn new(context: &mut SimpleValidationContext<'a>) -> Self {
-        let mut required_args_map: IndexMap<String, IndexMap<String, &'a InputValueDefinition>> = IndexMap::new();
+        let mut required_args_map: IndexMap<String, IndexMap<String, &'a InputValueDefinition>> = IndexMap::default();
 
         let ast_definitions = &context.get_document().definitions;
         for def in ast_definitions {
             if let Definition::DirectiveDefinition(def) = def {
                 let required_args = def.arguments.iter().filter(|arg| is_required_argument_node(arg));
-                let mut args: IndexMap<String, &'a InputValueDefinition> = IndexMap::new();
+                let mut args: IndexMap<String, &'a InputValueDefinition> = IndexMap::default();
 
                 for required_arg in required_args {
                     args.insert(required_arg.name.value.clone(), required_arg);

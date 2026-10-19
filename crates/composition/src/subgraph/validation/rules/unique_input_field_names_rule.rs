@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-input-field-names-rule.ts`.
 
 use graphql_js::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 
@@ -19,7 +19,7 @@ impl<'a> SimpleRule<'a> for UniqueInputFieldNamesRule {
     fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueInputFieldNamesRule {
             known_name_stack: Vec::new(),
-            known_names: IndexSet::new(),
+            known_names: IndexSet::default(),
         }
     }
 }

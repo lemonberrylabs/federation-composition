@@ -1,6 +1,7 @@
 //! Port of `src/utils/`.
 
 pub mod auth;
+pub mod collections;
 pub mod dependency_graph;
 pub mod format;
 pub mod graphql;

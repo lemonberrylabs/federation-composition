@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/only-interface-implementation-rule.ts`.
 
 use graphql_js::{Definition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_js::NamedType;
@@ -21,7 +21,7 @@ impl<'a> SimpleRule<'a> for OnlyInterfaceImplementationRule {
     fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         OnlyInterfaceImplementationRule {
             filled: false,
-            type_name_to_kind: IndexMap::new(),
+            type_name_to_kind: IndexMap::default(),
         }
     }
 }

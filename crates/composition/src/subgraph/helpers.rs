@@ -6,7 +6,7 @@ use graphql_js::{
     Argument, Definition, Directive as DirectiveNode, DirectiveDefinition, FieldDefinition, GraphQLError,
     InputValueDefinition, Kind, Name, NamedType, Selection, SelectionSet, StringValue, Type, Value,
 };
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use crate::graphql::printer::print;
 use crate::subgraph::validation::validation_context::{MarkAsUsedReason, SubgraphValidationContext};

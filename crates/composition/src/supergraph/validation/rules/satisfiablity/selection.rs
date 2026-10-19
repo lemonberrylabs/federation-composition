@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::cmp::Ordering;
 
 use graphql_js::{Field as FieldNode, InlineFragment, Selection as SelectionAstNode, SelectionSet};
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use crate::subgraph::helpers::parse_fields;
 use crate::supergraph::state::SupergraphState;
@@ -198,7 +198,7 @@ pub struct SelectionResolver<'s> {
 impl<'s> SelectionResolver<'s> {
     pub fn new(supergraph_state: &'s SupergraphState) -> Self {
         SelectionResolver {
-            cache: RefCell::new(IndexMap::new()),
+            cache: RefCell::new(IndexMap::default()),
             supergraph_state,
         }
     }

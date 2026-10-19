@@ -2,6 +2,11 @@
 //!
 //! `cargo run -p federation_composition --release --example profile_case -- <case-id> <seconds>`
 
+// Opt in with `--features mimalloc`. The library never sets a global allocator; final artifacts do.
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use federation_composition::compose::compose_services;
 use federation_composition::subgraph::validation::validate_subgraph::InternalOptions;
 use federation_composition::types::ServiceDefinition;

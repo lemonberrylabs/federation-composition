@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use graphql_js::OperationType;
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::contexts::ContextMask;
 use super::edge::{is_abstract_edge, is_field_edge, EdgeId};
@@ -294,7 +294,7 @@ impl<'s> Walker<'s> {
         let supergraph = &*self.supergraph;
         let merged_graph = &*self.merged_graph;
 
-        let mut graphs_leading_to_node: IndexSet<String> = IndexSet::new();
+        let mut graphs_leading_to_node: IndexSet<String> = IndexSet::default();
         for p in &state.paths {
             let edge = p.edge();
             let tail = p.tail_or_root(merged_graph);
@@ -385,7 +385,7 @@ impl<'s> Walker<'s> {
             }
 
             let mut next_state = state.r#move(supergraph, super_edge)?;
-            let mut shortest_path_per_tail: ShortestPaths = IndexMap::new();
+            let mut shortest_path_per_tail: ShortestPaths = IndexMap::default();
             let (target_type_name, target_field_name) = match &se.r#move {
                 Move::Field(field_move) => (field_move.type_name.as_str(), Some(field_move.field_name.as_str())),
                 _ => (supergraph.node(se.tail).type_name.as_str(), None),

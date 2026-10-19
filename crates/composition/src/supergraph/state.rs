@@ -9,7 +9,7 @@
 use std::rc::Rc;
 
 use graphql_js::{strip_ignored_characters, Definition, Selection, SelectionSet};
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::composition::ast::{create_join_graph_enum_type_node, JoinGraphAst};
 use super::composition::common::{ComposeHelpers, TypeBuilder};
@@ -86,14 +86,14 @@ pub struct SupergraphStateBuilder {
 pub fn create_supergraph_state_builder() -> SupergraphStateBuilder {
     SupergraphStateBuilder {
         state: SupergraphState {
-            subgraphs: IndexMap::new(),
-            scalar_types: IndexMap::new(),
-            object_types: IndexMap::new(),
-            interface_types: IndexMap::new(),
-            union_types: IndexMap::new(),
-            enum_types: IndexMap::new(),
-            input_object_types: IndexMap::new(),
-            directives: IndexMap::new(),
+            subgraphs: IndexMap::default(),
+            scalar_types: IndexMap::default(),
+            object_types: IndexMap::default(),
+            interface_types: IndexMap::default(),
+            union_types: IndexMap::default(),
+            enum_types: IndexMap::default(),
+            input_object_types: IndexMap::default(),
+            directives: IndexMap::default(),
             links: vec![],
             specs: SupergraphSpecs {
                 tag: false,
@@ -118,8 +118,8 @@ pub fn create_supergraph_state_builder() -> SupergraphStateBuilder {
         interface_type: interface_type_builder(),
         object_type: object_type_builder(),
         union_type: union_type_builder(),
-        subgraph_states: IndexMap::new(),
-        graph_name_to_id_map: IndexMap::new(),
+        subgraph_states: IndexMap::default(),
+        graph_name_to_id_map: IndexMap::default(),
     }
 }
 
@@ -489,7 +489,7 @@ fn visit_selection_set_node(selection_set: &SelectionSet, locations: &mut IndexS
 }
 
 fn create_fields_set(selection_set: &SelectionSet) -> IndexSet<String> {
-    let mut locations = IndexSet::new();
+    let mut locations = IndexSet::default();
     visit_selection_set_node(selection_set, &mut locations, &[]);
     locations
 }
@@ -602,7 +602,7 @@ fn visit_type_state(state: &mut SupergraphState, object_type_name: &str) -> JsRe
                         merge_key_fields_collection(&keys)?
                     } else {
                         // preserve all fields if the referenced type is a definition
-                        IndexSet::new()
+                        IndexSet::default()
                     }
                 } else if let Some(referenced_type) = state.interface_types.get(&referenced_type_name) {
                     let referenced_type_in_graph = referenced_type
@@ -616,7 +616,7 @@ fn visit_type_state(state: &mut SupergraphState, object_type_name: &str) -> JsRe
                         merge_key_fields_collection(&keys)?
                     } else {
                         // preserve all fields if the referenced type is a definition
-                        IndexSet::new()
+                        IndexSet::default()
                     }
                 } else if state.union_types.contains_key(&referenced_type_name) {
                     // Nothing to transform on union types
@@ -730,7 +730,7 @@ mod tests {
                     r#type: arg_type.into(),
                     kind: ArgumentKind::Scalar,
                     inaccessible: false,
-                    tags: IndexSet::new(),
+                    tags: IndexSet::default(),
                     cost: None,
                     default_value: None,
                     from_context: None,
@@ -797,9 +797,9 @@ mod tests {
                 directive("schemaOnly", &["OBJECT"], "Int"),
                 SubgraphType::Union(UnionType {
                     name: "_Entity".into(),
-                    members: IndexSet::new(),
-                    contexts: IndexSet::new(),
-                    tags: IndexSet::new(),
+                    members: IndexSet::default(),
+                    contexts: IndexSet::default(),
+                    tags: IndexSet::default(),
                     inaccessible: false,
                     is_definition: true,
                     description: None,

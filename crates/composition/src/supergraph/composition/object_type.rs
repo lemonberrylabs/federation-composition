@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/composition/object-type.ts`.
 
 use graphql_js::{Definition, Selection, SelectionSet};
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::ast::{
     create_object_type_node, CostAst, FieldArgumentAst, FieldAst, JoinAst, JoinFieldAst, JoinFieldContextArgumentAst,
@@ -80,7 +80,7 @@ impl ObjectTypeBuilder {
             self.requires_usage_index = Some(built);
         }
 
-        Ok(self.requires_usage_index.get_or_insert_with(IndexMap::new))
+        Ok(self.requires_usage_index.get_or_insert_with(IndexMap::default))
     }
 
     /// `composeSupergraphState(objectType, _graphs, { supergraphState })`: merges auth
@@ -438,7 +438,7 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
         };
 
         // a list of fields defined by interfaces (that type implements)
-        let mut interface_field_graphs_by_field_name: IndexMap<String, IndexSet<String>> = IndexMap::new();
+        let mut interface_field_graphs_by_field_name: IndexMap<String, IndexSet<String>> = IndexMap::default();
         let mut resolvable_fields_from_interface_objects: Vec<&InterfaceTypeFieldState> = Vec::new();
 
         for interface_name in &object_type.interfaces {
@@ -486,7 +486,7 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
         // NOTE(port): the TS assigns `field.description` here, mutating the supergraph state.
         // Nothing reads object field descriptions after this call (it is made once per type,
         // from `build()`, after validation), so the corrected descriptions are kept locally.
-        let mut corrected_descriptions: IndexMap<&str, Option<Description>> = IndexMap::new();
+        let mut corrected_descriptions: IndexMap<&str, Option<Description>> = IndexMap::default();
         if object_type.is_entity {
             for field in object_type.fields.values() {
                 // Correct description if needed (REF_1)
@@ -590,7 +590,7 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
                 None
             };
 
-            let mut graph_join_field_state: IndexMap<&str, GraphJoinFieldState> = IndexMap::new();
+            let mut graph_join_field_state: IndexMap<&str, GraphJoinFieldState> = IndexMap::default();
 
             // Precompute per-graph values once
             for (graph_id, meta) in &field_in_graphs {
@@ -616,7 +616,7 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
                 );
             }
 
-            let empty_override_labels: IndexMap<String, String> = IndexMap::new();
+            let empty_override_labels: IndexMap<String, String> = IndexMap::default();
             let override_labels = override_join_field_info
                 .as_ref()
                 .map_or(&empty_override_labels, |info| &info.override_labels);
@@ -1274,8 +1274,8 @@ impl ObjectComposeCx<'_> {
         &self,
         field_in_graphs: &[(&String, &FieldStateInGraph)],
     ) -> OverrideJoinFieldInfo {
-        let mut override_labels: IndexMap<String, String> = IndexMap::new();
-        let mut overridden_graphs: IndexSet<String> = IndexSet::new();
+        let mut override_labels: IndexMap<String, String> = IndexMap::default();
+        let mut overridden_graphs: IndexSet<String> = IndexSet::default();
 
         for (to_graph_id, meta) in field_in_graphs {
             let Some(override_name) = meta.r#override.as_deref().filter(|o| !o.is_empty()) else {
@@ -1507,7 +1507,7 @@ fn should_keep_object_type_join_type_in_graph(input: ShouldKeepObjectTypeJoinTyp
 
 fn collect_overridden_graphs_by_field(field: &ObjectTypeFieldState, helpers: ComposeHelpers<'_>) -> IndexSet<String> {
     // Collect source graphs that are overridden by this field via `@override`
-    let mut overridden_graphs = IndexSet::new();
+    let mut overridden_graphs = IndexSet::default();
 
     for meta in field.by_graph.values() {
         let Some(override_name) = meta.r#override.as_deref().filter(|o| !o.is_empty()) else {
@@ -1525,7 +1525,7 @@ fn collect_overridden_graphs_by_field(field: &ObjectTypeFieldState, helpers: Com
 /// `buildRequiresUsageIndex(supergraphState, graphNameToId)`. `parseFields` can throw.
 fn build_requires_usage_index(helpers: ComposeHelpers<'_>) -> JsResult<RequiresFieldUsageIndex> {
     let supergraph_state = helpers.supergraph_state;
-    let mut index: RequiresFieldUsageIndex = IndexMap::new();
+    let mut index: RequiresFieldUsageIndex = IndexMap::default();
 
     for object_type in supergraph_state.object_types.values() {
         for field in object_type.fields.values() {
@@ -1761,18 +1761,18 @@ fn get_or_create_object_type<'s>(state: &'s mut IndexMap<String, ObjectTypeState
         .entry(type_name.to_string())
         .or_insert_with(|| ObjectTypeState {
             name: type_name.to_string(),
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             has_definition: false,
             is_entity: false,
             inaccessible: false,
             authenticated: false,
             policies: Vec::new(),
             scopes: Vec::new(),
-            contexts: IndexSet::new(),
+            contexts: IndexSet::default(),
             cost: None,
-            interfaces: IndexSet::new(),
-            by_graph: IndexMap::new(),
-            fields: IndexMap::new(),
+            interfaces: IndexSet::default(),
+            by_graph: IndexMap::default(),
+            fields: IndexMap::default(),
             description: None,
             ast: Ast::default(),
         })
@@ -1790,7 +1790,7 @@ fn get_or_create_field<'s>(
             name: field_name.to_string(),
             r#type: field_type.to_string(),
             is_leaf: false,
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             inaccessible: false,
             authenticated: false,
             policies: Vec::new(),
@@ -1800,8 +1800,8 @@ fn get_or_create_field<'s>(
             used_as_key: false,
             r#override: None,
             override_label: None,
-            by_graph: IndexMap::new(),
-            args: IndexMap::new(),
+            by_graph: IndexMap::default(),
+            args: IndexMap::default(),
             description: None,
             deprecated: None,
             ast: Ast::default(),
@@ -1822,12 +1822,12 @@ fn get_or_create_arg<'s>(
             name: arg_name.to_string(),
             r#type: arg_type.to_string(),
             kind: arg_kind,
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             inaccessible: false,
             cost: None,
             default_value: None,
             from_context: None,
-            by_graph: IndexMap::new(),
+            by_graph: IndexMap::default(),
             description: None,
             deprecated: None,
             ast: Ast::default(),
@@ -1848,7 +1848,7 @@ mod tests {
             policies: Vec::new(),
             scopes: Vec::new(),
             keys: Vec::new(),
-            interfaces: IndexSet::new(),
+            interfaces: IndexSet::default(),
             inaccessible: false,
             shareable: false,
             version: FederationVersion::V1_0,
@@ -1888,7 +1888,7 @@ mod tests {
 
     #[test]
     fn requires_usage_marks_and_queries() {
-        let mut index = RequiresFieldUsageIndex::new();
+        let mut index = RequiresFieldUsageIndex::default();
         mark_requires_usage_for_coordinate("User.id", "A", true, &mut index);
         assert!(!is_field_coordinate_effectively_required(&index, "User.id", "A", true));
         assert!(has_only_overridden_requires_dependency(&index, "User.id", "A"));
@@ -1931,7 +1931,7 @@ mod tests {
 
         let selection =
             selection_set("{ id unknown profile { name } pets { ... on Dog { barks } ... on Cat { meows } } ... { id } }");
-        let mut index = RequiresFieldUsageIndex::new();
+        let mut index = RequiresFieldUsageIndex::default();
         let user = ObjectOrInterfaceTypeState::Object(&supergraph_state.object_types["User"]);
         mark_requires_usage_from_selection_set(&supergraph_state, user, &selection, "A", false, &mut index);
 
@@ -1950,7 +1950,7 @@ mod tests {
         add_field(&mut supergraph_state.object_types, "Dog", "barks", "Boolean");
 
         let selection = selection_set("{ ... on Dog { barks } ... on Cat { meows } }");
-        let mut index = RequiresFieldUsageIndex::new();
+        let mut index = RequiresFieldUsageIndex::default();
         let user = ObjectOrInterfaceTypeState::Object(&supergraph_state.object_types["User"]);
         mark_requires_usage_from_selection_set(&supergraph_state, user, &selection, "B", true, &mut index);
 
@@ -2000,7 +2000,7 @@ mod tests {
 
     #[test]
     fn get_or_create_keeps_first_insertion() {
-        let mut state = IndexMap::new();
+        let mut state = IndexMap::default();
         add_field(&mut state, "User", "id", "ID!");
         add_field(&mut state, "User", "id", "ID");
         add_field(&mut state, "Book", "id", "ID");

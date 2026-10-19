@@ -60,8 +60,9 @@ No `unsafe`. No dependencies that need `getrandom` (wasm32).
 
 | TypeScript | Rust |
 |---|---|
-| `Map<K, V>` | `IndexMap<K, V>` |
-| `Set<T>` | `IndexSet<T>` |
+| `Map<K, V>` | `IndexMap<K, V>` from `crate::utils::collections` (in `crates/graphql`: `crate::collections`) |
+| `Set<T>` | `IndexSet<T>` from the same module |
+| `new Map()` / `new Set()` | `IndexMap::default()` (`new()`, `with_capacity(n)` and `from([..])` exist only for indexmap's default hasher: use `default()`, `with_capacity_and_hasher(n, Default::default())`, `from_iter([..])`) |
 | `map.delete(k)` / `set.delete(v)` | `shift_remove` (never `swap_remove`: it reorders) |
 | `map.set(k, v)` on an existing key | `insert` (keeps the original position, same as JS) |
 | plain object used as a dictionary, iterated with `Object.keys/values/entries` or `for..in` | `IndexMap`, but JS orders integer-like keys (`"0"`, `"12"`) first in ascending numeric order, then the rest in insertion order. Only matters if the keys can be integer-like; say so in a `NOTE(port)` if they can. |
@@ -74,6 +75,11 @@ No `unsafe`. No dependencies that need `getrandom` (wasm32).
 | `parseInt`, `parseFloat`, `Number(x)` | port to a helper with JS semantics if inputs can be non-trivial. |
 | `str.length`, `slice`, `substring`, indexes | UTF-16 code units in JS. Inputs here are GraphQL names and SDL, which are ASCII except in descriptions and string values. If a string operation can see non-ASCII text, use char-based logic and note it. |
 | regex | the `regex` crate is fine for the patterns used; check each pattern's semantics (JS `\s`, `\w`, flags). |
+
+The `collections` aliases are indexmap's types with FxHash (`rustc-hash`) instead of
+SipHash with a random seed: faster, and deterministic. The hasher does not change iteration
+order, which is insertion order either way. Never import `indexmap::IndexMap`/`IndexSet`
+directly, and never use std `HashMap`/`HashSet` (unspecified iteration order).
 
 **Truthiness and optional values.** `if (x)` on a string is false for `""`; on a
 number false for `0` and `NaN`; on an array always true. `x ?? y` vs `x || y` differ
@@ -269,6 +275,11 @@ the no-op logger; compute them on demand.
 `apply_tag_filter_on_subgraphs` works on `ServiceDefinition`s; the extra properties the TS
 spreads onto the returned objects come from `apply_tag_filter_on_subgraph_type_defs`, which the
 bindings use.
+
+**Allocators.** The library crates never set a `#[global_allocator]`; final artifacts do. The
+WebAssembly build (`crates/composition-wasm`) uses talc. The native examples use the system
+allocator, or mimalloc with `--features mimalloc` (`pnpm bench:native:mimalloc`,
+`FEATURES=mimalloc bench/profile.sh`).
 
 ## Status
 

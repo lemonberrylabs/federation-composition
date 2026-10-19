@@ -2,15 +2,15 @@
 
 use graphql_js::GraphQLError;
 use crate::supergraph::validation::validation_context::SupergraphValidationContext;
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 use crate::subgraph::state::{SubgraphType, TypeKind};
 
 /// `TypesOfTheSameKindRule(context)`: a pre-supergraph rule (runs before the subgraphs are merged).
 pub fn types_of_the_same_kind_rule(context: &mut SupergraphValidationContext) {
     // Map<typeName, Map<kind, Set<graphName>>>
     let mut type_to_kind_with_graphs: IndexMap<String, IndexMap<TypeKind, Vec<GraphTypeValidationContext>>> =
-        IndexMap::new();
-    let mut types_with_conflict: IndexSet<String> = IndexSet::new();
+        IndexMap::default();
+    let mut types_with_conflict: IndexSet<String> = IndexSet::default();
 
     for (_graph, state) in &context.subgraph_states {
         for ty in state.types.values() {
@@ -44,7 +44,7 @@ pub fn types_of_the_same_kind_rule(context: &mut SupergraphValidationContext) {
                 }
             } else {
                 // We haven't seen this type yet
-                let mut kinds = IndexMap::new();
+                let mut kinds = IndexMap::default();
                 kinds.insert(ty.kind(), vec![graphs_value]);
                 type_to_kind_with_graphs.insert(ty.name().to_string(), kinds);
             }
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn interface_object_conditions_needs_an_interface_object() {
-        let mut kinds = IndexMap::new();
+        let mut kinds = IndexMap::default();
         kinds.insert(
             TypeKind::Object,
             vec![GraphTypeValidationContext {

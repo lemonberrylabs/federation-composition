@@ -11,7 +11,7 @@ use graphql_js::{
     ConstDirective, Definition, Directive as DirectiveNode, Document, EnumValueDefinition, FieldDefinition,
     InputValueDefinition, Name, OperationType, Value,
 };
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::types::ServiceDefinition;
 use crate::utils::js::{JsError, JsResult};
@@ -79,7 +79,7 @@ fn make_types_from_set_inaccessible(
     transform_tag_directives: &TransformTagDirectives,
 ) -> Document {
     // We can only apply `@inaccessible` once on each unique typename, otherwise we get a composition error
-    let mut already_applied_on_type_names: IndexSet<String> = IndexSet::new();
+    let mut already_applied_on_type_names: IndexSet<String> = IndexSet::default();
 
     // `typeHandler` on object, interface, input object and enum definitions and extensions.
     let definitions = document_node
@@ -208,7 +208,7 @@ fn collect_tags_by_schema_coordinate_from_subgraph(
     }
 
     let get_tags_for_node = |directives: &[ConstDirective]| -> Option<IndexSet<String>> {
-        let mut tags = IndexSet::new();
+        let mut tags = IndexSet::default();
         for directive_node in directives {
             let Some(tag_value) = extract_tag(directive_node) else {
                 continue;
@@ -229,7 +229,7 @@ fn collect_tags_by_schema_coordinate_from_subgraph(
         let tag_values = get_tags_for_node(node.directives);
         add_tags_per_schema_coordinate(map, node.name, tag_values);
 
-        let mut sub_coordinates: IndexSet<String> = IndexSet::new();
+        let mut sub_coordinates: IndexSet<String> = IndexSet::default();
 
         // `node.fields?.forEach(...)`, with `"arguments" in fieldNode` for field definitions.
         for field_node in node.field_definitions {
@@ -279,8 +279,8 @@ pub type SubcoordinatesPerType = IndexMap<String, IndexSet<String>>;
 /// `buildSchemaCoordinateTagRegister(documentNodes)`: tags per schema coordinate in all
 /// subgraphs (fields and arguments inherit their type's tags).
 pub fn build_schema_coordinate_tag_register(document_nodes: &[&Document]) -> JsResult<SchemaCoordinateToTagsRegistry> {
-    let mut schema_coordinates_to_tags: SchemaCoordinateToTagsRegistry = IndexMap::new();
-    let mut subcoordinates_per_type: SubcoordinatesPerType = IndexMap::new();
+    let mut schema_coordinates_to_tags: SchemaCoordinateToTagsRegistry = IndexMap::default();
+    let mut subcoordinates_per_type: SubcoordinatesPerType = IndexMap::default();
 
     for document_node in document_nodes {
         collect_tags_by_schema_coordinate_from_subgraph(
@@ -433,14 +433,14 @@ pub fn apply_tag_filter_to_inaccessible_transform_on_subgraph_schema(
     let external_directive_name =
         link_implementations.resolve_import_name("https://specs.apollo.dev/federation", "@external");
 
-    let empty_tags: IndexSet<String> = IndexSet::new();
+    let empty_tags: IndexSet<String> = IndexSet::default();
     let get_tags_for_schema_coordinate =
         |coordinate: &str| -> &IndexSet<String> { tag_register.get(coordinate).unwrap_or(&empty_tags) };
 
     let transform_tag_directives = create_transform_tag_directives(&tag_directive_name, &inaccessible_directive_name);
     let root_query_type_name = get_root_query_type_name_from_document_node(document_node);
 
-    let mut types_with_all_fields_inaccessible_tracker: IndexMap<String, bool> = IndexMap::new();
+    let mut types_with_all_fields_inaccessible_tracker: IndexMap<String, bool> = IndexMap::default();
 
     fn on_all_fields_inaccessible(tracker: &mut IndexMap<String, bool>, name: &str) {
         if !tracker.contains_key(name) {
@@ -488,7 +488,7 @@ pub fn apply_tag_filter_to_inaccessible_transform_on_subgraph_schema(
     // for determining whether the full type, or only some fields are part of the public contract schema
     // (the port keeps indexes into `document_node.definitions`).
     //
-    let mut definitions_by_schema_coordinate: IndexMap<String, Vec<usize>> = IndexMap::new();
+    let mut definitions_by_schema_coordinate: IndexMap<String, Vec<usize>> = IndexMap::default();
     for (index, definition) in document_node.definitions.iter().enumerate() {
         if is_object_like_node(definition) {
             definitions_by_schema_coordinate
@@ -499,9 +499,9 @@ pub fn apply_tag_filter_to_inaccessible_transform_on_subgraph_schema(
     }
 
     // Tracking for which type already has `@inaccessible` applied (can only occur once)
-    let mut types_with_inaccessible_applied: IndexSet<String> = IndexSet::new();
+    let mut types_with_inaccessible_applied: IndexSet<String> = IndexSet::default();
     // These are later used within the visitor to actually replace the nodes (keyed by index).
-    let mut replacement_type_nodes: IndexMap<usize, Definition> = IndexMap::new();
+    let mut replacement_type_nodes: IndexMap<usize, Definition> = IndexMap::default();
 
     for (type_name, nodes) in &definitions_by_schema_coordinate {
         // After processing all nodes implementing a type, we know whether all or only some fields are inaccessible
@@ -765,7 +765,7 @@ pub fn apply_tag_filter_on_subgraph_type_defs(
         filtered_subgraphs.push(((), result));
     }
 
-    let mut intersection_of_types_where_all_fields_are_inaccessible: IndexSet<String> = IndexSet::new();
+    let mut intersection_of_types_where_all_fields_are_inaccessible: IndexSet<String> = IndexSet::default();
     // We need to traverse all subgraphs to find the intersection of types where all fields are inaccessible.
     // If a type is not present in any other subgraph, we can safely mark it as inaccessible.
     for index in 0..filtered_subgraphs.len() {
@@ -894,7 +894,7 @@ mod tests {
     fn set_helpers() {
         let a: IndexSet<String> = ["x", "y"].iter().map(|s| s.to_string()).collect();
         let b: IndexSet<String> = ["y"].iter().map(|s| s.to_string()).collect();
-        let empty: IndexSet<String> = IndexSet::new();
+        let empty: IndexSet<String> = IndexSet::default();
         assert!(has_intersection(&a, &b));
         assert!(!has_intersection(&a, &empty));
         assert_eq!(difference(&a, &b).into_iter().collect::<Vec<_>>(), vec!["x".to_string()]);

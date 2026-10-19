@@ -6,6 +6,7 @@
 
 pub mod ast;
 pub mod block_string;
+pub mod collections;
 pub mod directive_location;
 pub mod error;
 mod js;

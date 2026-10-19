@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/composition/scalar-type.ts`.
 
 use graphql_js::Definition;
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::ast::{create_scalar_type_node, CostAst, JoinAst, JoinTypeAst, ScalarTypeAst};
 use super::common::{convert_to_const, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
@@ -148,13 +148,13 @@ fn get_or_create_scalar_type<'s>(state: &'s mut IndexMap<String, ScalarTypeState
         .entry(type_name.to_string())
         .or_insert_with(|| ScalarTypeState {
             name: type_name.to_string(),
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             inaccessible: false,
             authenticated: false,
             policies: vec![],
             scopes: vec![],
             cost: None,
-            by_graph: IndexMap::new(),
+            by_graph: IndexMap::default(),
             description: None,
             specified_by: None,
             ast: Ast { directives: vec![] },

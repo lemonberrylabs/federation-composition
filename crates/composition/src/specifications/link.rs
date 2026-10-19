@@ -3,7 +3,7 @@
 use graphql_js::{
     Argument, ConstArgument, ConstDirective, Directive, ListValue, Name, ObjectField, ObjectValue, StringValue, Value,
 };
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use crate::graphql::printer::print;
 use crate::utils::js::{parse_float, JsError, JsResult};
@@ -288,7 +288,7 @@ pub fn merge_links<'l>(links: impl IntoIterator<Item = &'l Link>) -> Vec<Link> {
     }
 
     // group by identity
-    let mut group_by_identity: IndexMap<String, Group> = IndexMap::new();
+    let mut group_by_identity: IndexMap<String, Group> = IndexMap::default();
 
     for link in links {
         match group_by_identity.get_mut(&link.identity) {
@@ -451,7 +451,7 @@ pub const SDL: &str = r#"
 /// values, whose object keys are ASCII GraphQL names. A `\u` escape of a lone surrogate becomes
 /// U+FFFD (Rust strings cannot hold it).
 mod json5 {
-    use indexmap::IndexMap;
+    use crate::utils::collections::IndexMap;
 
     use crate::utils::js::{parse_float, JsError, JsResult};
 
@@ -1331,7 +1331,7 @@ mod json5 {
 
         fn push(&mut self, token: Token) {
             let value = match token {
-                Token::Punctuator('{') => Json5Value::Object(IndexMap::new()),
+                Token::Punctuator('{') => Json5Value::Object(IndexMap::default()),
                 Token::Punctuator('[') => Json5Value::Array(Vec::new()),
                 Token::Null => Json5Value::Null,
                 Token::Boolean(b) => Json5Value::Bool(b),

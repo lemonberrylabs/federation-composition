@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/composition/directive.ts`.
 
 use graphql_js::Definition;
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::ast::{create_directive_node, DirectiveAst, FieldArgumentAst};
 use super::common::{convert_to_const, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
@@ -178,9 +178,9 @@ fn get_or_create_directive<'s>(state: &'s mut IndexMap<String, DirectiveState>, 
         .entry(directive_name.to_string())
         .or_insert_with(|| DirectiveState {
             name: directive_name.to_string(),
-            locations: IndexSet::new(),
-            by_graph: IndexMap::new(),
-            args: IndexMap::new(),
+            locations: IndexSet::default(),
+            by_graph: IndexMap::default(),
+            args: IndexMap::default(),
             repeatable: false,
             is_executable: false,
             composed: false,
@@ -201,9 +201,9 @@ fn get_or_create_arg<'s>(
             r#type: arg_type.to_string(),
             kind: arg_kind,
             inaccessible: false,
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             default_value: None,
-            by_graph: IndexMap::new(),
+            by_graph: IndexMap::default(),
             ast: Ast { directives: vec![] },
         })
 }
@@ -240,7 +240,7 @@ mod tests {
             r#type: ty.into(),
             kind: ArgumentKind::Scalar,
             inaccessible: false,
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             cost: None,
             default_value: default_value.map(String::from),
             from_context: None,
@@ -263,7 +263,7 @@ mod tests {
     #[test]
     fn skips_non_executable_non_composed_directives() {
         let mut builder = directive_builder();
-        let mut state = IndexMap::new();
+        let mut state = IndexMap::default();
         builder.visit_subgraph_state(&graph("A"), &mut state, "d", &directive(&["OBJECT"], false, arg("Int", None)));
         assert!(state.is_empty());
     }
@@ -271,7 +271,7 @@ mod tests {
     #[test]
     fn merges_and_composes() {
         let mut builder = directive_builder();
-        let mut state = IndexMap::new();
+        let mut state = IndexMap::default();
         builder.visit_subgraph_state(
             &graph("A"),
             &mut state,
@@ -290,7 +290,7 @@ mod tests {
         assert!(!is_argument_type_identical_in_every_subgraph(&d.args["a"], 2));
 
         let supergraph_state = SupergraphState::default();
-        let map = IndexMap::new();
+        let map = IndexMap::default();
         let node = builder
             .compose_supergraph_node(
                 d,

@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-directives-per-location-rule.ts`.
 
 use graphql_js::{Definition, Directive, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 
@@ -18,7 +18,7 @@ impl<'a> SimpleRule<'a> for UniqueDirectivesPerLocationRule {
     const NAME: &'static str = "UniqueDirectivesPerLocationRule";
 
     fn new(context: &mut SimpleValidationContext<'a>) -> Self {
-        let mut unique_directive_map: IndexMap<String, bool> = IndexMap::new();
+        let mut unique_directive_map: IndexMap<String, bool> = IndexMap::default();
 
         let ast_definitions = &context.get_document().definitions;
         for def in ast_definitions {
@@ -29,8 +29,8 @@ impl<'a> SimpleRule<'a> for UniqueDirectivesPerLocationRule {
 
         UniqueDirectivesPerLocationRule {
             unique_directive_map,
-            schema_directives: IndexSet::new(),
-            type_directives_map: IndexMap::new(),
+            schema_directives: IndexSet::default(),
+            type_directives_map: IndexMap::default(),
         }
     }
 }
@@ -77,7 +77,7 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueDirectivesPerLocatio
             return VisitAction::Continue;
         };
 
-        let mut local_seen: IndexSet<String> = IndexSet::new();
+        let mut local_seen: IndexSet<String> = IndexSet::default();
         let seen_directives: &mut IndexSet<String> =
             if matches!(node, NodeRef::SchemaDefinition(_) | NodeRef::SchemaExtension(_)) {
                 &mut self.schema_directives

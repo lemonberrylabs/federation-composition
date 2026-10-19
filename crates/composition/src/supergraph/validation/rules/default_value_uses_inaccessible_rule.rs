@@ -8,7 +8,7 @@ use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
 use crate::utils::state::strip_type_modifiers;
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 use crate::supergraph::composition::enum_type::EnumTypeState;
 
 /// `DefaultValueUsesInaccessibleRule(context, supergraph)`.

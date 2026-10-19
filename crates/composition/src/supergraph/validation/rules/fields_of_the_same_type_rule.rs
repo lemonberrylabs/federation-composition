@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/fields-of-the-same-type-rule.ts`.
 
 use graphql_js::GraphQLError;
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::subgraph::state::SubgraphType;
 use crate::supergraph::composition::input_object_type::{InputObjectTypeFieldState, InputObjectTypeState};
@@ -64,8 +64,8 @@ impl<'s> SupergraphVisitor<'s> for FieldsOfTheSameTypeRule {
         object_type_state: &'s ObjectTypeState,
         field_state: &'s ObjectTypeFieldState,
     ) -> JsResult<()> {
-        let mut type_to_graphs: IndexMap<String, Vec<String>> = IndexMap::new();
-        let mut type_name_to_possible_type_names: IndexMap<String, IndexSet<String>> = IndexMap::new();
+        let mut type_to_graphs: IndexMap<String, Vec<String>> = IndexMap::default();
+        let mut type_name_to_possible_type_names: IndexMap<String, IndexSet<String>> = IndexMap::default();
 
         for (graph_name, field) in &field_state.by_graph {
             let type_name = strip_all_modifiers(&field.r#type);
@@ -149,7 +149,7 @@ impl<'s> SupergraphVisitor<'s> for FieldsOfTheSameTypeRule {
         input_object_type_state: &'s InputObjectTypeState,
         field_state: &'s InputObjectTypeFieldState,
     ) -> JsResult<()> {
-        let mut type_to_graphs: IndexMap<String, Vec<String>> = IndexMap::new();
+        let mut type_to_graphs: IndexMap<String, Vec<String>> = IndexMap::default();
 
         for (graph_name, field) in &field_state.by_graph {
             // We normalize the type to remove the non-null modifier

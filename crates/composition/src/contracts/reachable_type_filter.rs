@@ -15,7 +15,7 @@ use graphql_js::{
     visit, visit_in_parallel, Ancestor, ConstDirective, Definition, Directive, Document, FieldDefinition,
     InputValueDefinition, Kind, NamedType, NodeRef, Type, VisitAction, VisitInfo, Visitor,
 };
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::utils::js::{JsError, JsResult};
 
@@ -30,9 +30,9 @@ static SPECIFIED_SCALAR_NAMES: LazyLock<IndexSet<String>> = LazyLock::new(|| {
 /// `getReachableTypes(documentNode)`: the names of all types reachable from the root types.
 /// `Err` is the error `buildASTSchema` throws for an invalid SDL document.
 pub fn get_reachable_types(document_node: &Document) -> JsResult<IndexSet<String>> {
-    let mut reachable_type_names: IndexSet<String> = IndexSet::new();
+    let mut reachable_type_names: IndexSet<String> = IndexSet::default();
     let schema = build_ast_schema(document_node)?;
-    let mut did_visit_type: IndexSet<String> = IndexSet::new();
+    let mut did_visit_type: IndexSet<String> = IndexSet::default();
     let mut type_queue: VecDeque<String> = VecDeque::new();
 
     // NOTE(port): `didVisitType` holds type objects; a schema has one object per type name,
@@ -406,7 +406,7 @@ fn build_ast_schema<'a>(document_ast: &'a Document) -> JsResult<AstSchema<'a>> {
     let mut schema_def: Option<&graphql_js::SchemaDefinition> = None;
     let mut schema_extensions: Vec<&graphql_js::SchemaExtension> = Vec::new();
     let mut directive_defs: Vec<&graphql_js::DirectiveDefinition> = Vec::new();
-    let mut types: IndexMap<&str, UserType<'_>> = IndexMap::new();
+    let mut types: IndexMap<&str, UserType<'_>> = IndexMap::default();
     let mut extensions: Vec<&Definition> = Vec::new();
 
     for def in &document_ast.definitions {
@@ -592,7 +592,7 @@ fn node_name(node: NodeRef<'_>) -> &str {
 
 /// graphql-js `groupBy(list, keyFn)` over names, keeping first-seen order.
 fn group_by_name<'n>(names: impl Iterator<Item = &'n str>) -> IndexMap<&'n str, usize> {
-    let mut result: IndexMap<&str, usize> = IndexMap::new();
+    let mut result: IndexMap<&str, usize> = IndexMap::default();
     for name in names {
         *result.entry(name).or_insert(0) += 1;
     }
@@ -852,7 +852,7 @@ struct KnownDirectivesRule {
 
 impl KnownDirectivesRule {
     fn new(document: &Document) -> Self {
-        let mut locations_map: IndexMap<String, Vec<String>> = IndexMap::new();
+        let mut locations_map: IndexMap<String, Vec<String>> = IndexMap::default();
         for directive in graphql_js::specified_directives() {
             locations_map.insert(
                 directive.name.value.clone(),
@@ -957,7 +957,7 @@ struct UniqueDirectivesPerLocationRule {
 
 impl UniqueDirectivesPerLocationRule {
     fn new(document: &Document) -> Self {
-        let mut unique_directive_map: IndexMap<String, bool> = IndexMap::new();
+        let mut unique_directive_map: IndexMap<String, bool> = IndexMap::default();
         for directive in graphql_js::specified_directives() {
             unique_directive_map.insert(directive.name.value.clone(), !directive.repeatable);
         }
@@ -968,9 +968,9 @@ impl UniqueDirectivesPerLocationRule {
         }
         UniqueDirectivesPerLocationRule {
             unique_directive_map,
-            schema_directives: IndexSet::new(),
-            type_directives_map: IndexMap::new(),
-            directive_directives_map: IndexMap::new(),
+            schema_directives: IndexSet::default(),
+            type_directives_map: IndexMap::default(),
+            directive_directives_map: IndexMap::default(),
         }
     }
 }
@@ -980,7 +980,7 @@ impl<'a> Visitor<'a, SdlValidationContext> for UniqueDirectivesPerLocationRule {
         let Some(directives) = node_directives(node) else {
             return VisitAction::Continue;
         };
-        let mut local_seen_directives = IndexSet::new();
+        let mut local_seen_directives = IndexSet::default();
         let seen_directives: &mut IndexSet<String> = if matches!(node.kind(), Kind::SchemaDefinition | Kind::SchemaExtension) {
             &mut self.schema_directives
         } else if is_type_definition_node(node) || is_type_extension_node(node) {
@@ -1015,7 +1015,7 @@ struct PossibleTypeExtensionsRule {
 
 impl PossibleTypeExtensionsRule {
     fn new(document: &Document) -> Self {
-        let mut defined_types = IndexMap::new();
+        let mut defined_types = IndexMap::default();
         for def in &document.definitions {
             if is_type_definition_node(def) {
                 defined_types.insert(node_name(def.as_node_ref()).to_string(), def.kind());
@@ -1082,7 +1082,7 @@ struct KnownArgumentNamesOnDirectivesRule {
 
 impl KnownArgumentNamesOnDirectivesRule {
     fn new(document: &Document) -> Self {
-        let mut directive_args: IndexMap<String, Vec<String>> = IndexMap::new();
+        let mut directive_args: IndexMap<String, Vec<String>> = IndexMap::default();
         for directive in graphql_js::specified_directives() {
             directive_args.insert(
                 directive.name.value.clone(),
@@ -1197,7 +1197,7 @@ impl ProvidedRequiredArgumentsOnDirectivesRule {
                 .map(|arg| (arg.name.value.clone(), graphql_js::print(&arg.ty)))
                 .collect()
         };
-        let mut required_args_map: IndexMap<String, IndexMap<String, String>> = IndexMap::new();
+        let mut required_args_map: IndexMap<String, IndexMap<String, String>> = IndexMap::default();
         for directive in graphql_js::specified_directives() {
             required_args_map.insert(directive.name.value.clone(), required_args(&directive.arguments));
         }
@@ -1242,7 +1242,7 @@ impl<'a> Visitor<'a, SdlValidationContext> for ProvidedRequiredArgumentsOnDirect
 /// NOTE(port): inputs are GraphQL names (ASCII), so UTF-16 code units are bytes here; the code
 /// still works per UTF-16 unit for other strings.
 fn suggestion_list(input: &str, options: &[&str]) -> Vec<String> {
-    let mut options_by_distance: IndexMap<&str, usize> = IndexMap::new();
+    let mut options_by_distance: IndexMap<&str, usize> = IndexMap::default();
     let mut lexical_distance = LexicalDistance::new(input);
     let input_length = input.encode_utf16().count();
     let threshold = (input_length as f64 * 0.4).floor() as usize + 1;

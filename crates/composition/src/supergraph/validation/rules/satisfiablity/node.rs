@@ -6,7 +6,7 @@
 
 use std::cell::RefCell;
 
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use super::contexts::ContextMask;
 use super::helpers::OverrideLabels;
@@ -90,14 +90,14 @@ impl<'s> Node<'s> {
             contexts,
             debug_post_fix: String::new(),
             is_leaf,
-            children_index: IndexMap::new(),
+            children_index: IndexMap::default(),
             visited_graph_combos: RefCell::new(Vec::new()),
         }
     }
 
     /// `withoutState()`: clears the children index and visited combos (used by `addSubgraph`).
     pub fn without_state(mut self) -> Self {
-        self.children_index = IndexMap::new();
+        self.children_index = IndexMap::default();
         self.visited_graph_combos = RefCell::new(Vec::new());
         self
     }

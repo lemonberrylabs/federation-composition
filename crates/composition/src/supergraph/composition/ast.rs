@@ -14,7 +14,7 @@ use graphql_js::{
     ObjectTypeDefinition, OperationType, OperationTypeDefinition, PathKey, ScalarTypeDefinition, SchemaDefinition,
     StringValue, Type, UnionTypeDefinition, VisitInfo,
 };
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use crate::subgraph::state::{ArgumentKind, Deprecated, Description};
 use crate::graphql::printer::print;
@@ -1096,7 +1096,7 @@ impl EditVisitor for HideInaccessibleVisitor<'_> {
 /// It's safe to look for `link__` and `join__` prefixes as Federation v2 does not allow to
 /// define type names that start with these prefixes.
 pub fn strip_federation(supergraph: &Document) -> Document {
-    let mut inaccessible: IndexSet<String> = IndexSet::new();
+    let mut inaccessible: IndexSet<String> = IndexSet::default();
     let document_without_federation = {
         let mut visitor = visit_in_parallel_edit(vec![
             Box::new(StripFederationVisitor),

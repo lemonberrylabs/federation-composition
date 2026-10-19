@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use graphql_js::{Definition, Document, GraphQLError};
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::graphql::helpers::move_schema_and_directive_definitions_to_top;
 use crate::specifications::federation::{detect_federation_version, DetectedFederation, FederationVersion};
@@ -52,9 +52,9 @@ fn build_graph_list(subgraphs: &[SubgraphInputDefinition]) -> JsResult<GraphList
     let mut graphs: Vec<GraphListEntry> = Vec::new();
 
     // Set of visited names
-    let mut names: IndexSet<String> = IndexSet::new();
+    let mut names: IndexSet<String> = IndexSet::default();
     // A map of created IDs and their count
-    let mut id_counter: IndexMap<String, u64> = IndexMap::new();
+    let mut id_counter: IndexMap<String, u64> = IndexMap::default();
 
     for subgraph in subgraphs {
         let name = subgraph.name.clone();
@@ -245,7 +245,7 @@ fn validate_subgraphs(
         return Ok(Err(core_errors));
     }
 
-    let mut detected_federation_spec: IndexMap<String, DetectedFederation> = IndexMap::new();
+    let mut detected_federation_spec: IndexMap<String, DetectedFederation> = IndexMap::default();
     let detected: Vec<DetectedFederation> = graphs
         .iter()
         .map(|graph| detect_federation_version(&graph.type_defs))
@@ -255,7 +255,7 @@ fn validate_subgraphs(
     }
 
     // NOTE(port): `new Map(entries)`: a repeated id keeps its first position and the last value.
-    let mut subgraph_state_builders: IndexMap<String, SubgraphStateBuilder> = IndexMap::new();
+    let mut subgraph_state_builders: IndexMap<String, SubgraphStateBuilder> = IndexMap::default();
     for (i, graph) in graphs.iter().enumerate() {
         let builder = create_subgraph_state_builder(
             &GraphInput {

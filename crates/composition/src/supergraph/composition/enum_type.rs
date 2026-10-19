@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/composition/enum-type.ts`.
 
 use graphql_js::Definition;
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::ast::{create_enum_type_node, CostAst, EnumTypeAst, EnumValueAst, JoinAst, JoinEnumValueAst, JoinTypeAst};
 use super::common::{convert_to_const, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
@@ -293,8 +293,8 @@ fn get_or_create_enum_type<'s>(state: &'s mut IndexMap<String, EnumTypeState>, t
         .entry(type_name.to_string())
         .or_insert_with(|| EnumTypeState {
             name: type_name.to_string(),
-            values: IndexMap::new(),
-            tags: IndexSet::new(),
+            values: IndexMap::default(),
+            tags: IndexSet::default(),
             has_definition: false,
             inaccessible: false,
             authenticated: false,
@@ -304,9 +304,9 @@ fn get_or_create_enum_type<'s>(state: &'s mut IndexMap<String, EnumTypeState>, t
             description: None,
             referenced_by_input_type: false,
             referenced_by_output_type: false,
-            input_type_references: IndexSet::new(),
-            output_type_references: IndexSet::new(),
-            by_graph: IndexMap::new(),
+            input_type_references: IndexSet::default(),
+            output_type_references: IndexSet::default(),
+            by_graph: IndexMap::default(),
             ast: Ast { directives: vec![] },
         })
 }
@@ -317,11 +317,11 @@ fn get_or_create_enum_value<'s>(enum_type_state: &'s mut EnumTypeState, enum_val
         .entry(enum_value_name.to_string())
         .or_insert_with(|| EnumValueState {
             name: enum_value_name.to_string(),
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             inaccessible: false,
             deprecated: None,
             description: None,
-            by_graph: IndexMap::new(),
+            by_graph: IndexMap::default(),
             ast: Ast { directives: vec![] },
         })
 }
@@ -334,7 +334,7 @@ mod tests {
     fn value(name: &str, graphs: &[&str]) -> EnumValueState {
         EnumValueState {
             name: name.into(),
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             inaccessible: false,
             deprecated: None,
             description: None,
@@ -355,7 +355,7 @@ mod tests {
     }
 
     fn enum_state(referenced_by_input_type: bool, referenced_by_output_type: bool) -> EnumTypeState {
-        let mut state = IndexMap::new();
+        let mut state = IndexMap::default();
         let enum_state = get_or_create_enum_type(&mut state, "E");
         enum_state.referenced_by_input_type = referenced_by_input_type;
         enum_state.referenced_by_output_type = referenced_by_output_type;
@@ -374,7 +374,7 @@ mod tests {
     }
 
     fn compose(enum_type: &EnumTypeState, supergraph_state: &SupergraphState) -> JsResult<String> {
-        let map = IndexMap::new();
+        let map = IndexMap::default();
         enum_type_builder()
             .compose_supergraph_node(
                 enum_type,

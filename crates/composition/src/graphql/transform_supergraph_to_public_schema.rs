@@ -6,7 +6,7 @@ use graphql_js::{
     visit_edit, Definition, Directive, Document, EditAction, EditVisitor, Kind, NamedType, Node, NodeRef, Value,
     VisitInfo,
 };
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use super::supergraph_spec::{
     get_supergraph_spec_nodes, EXTRA_FEDERATION_DIRECTIVE_NAMES, EXTRA_FEDERATION_TYPE_NAMES,
@@ -36,7 +36,7 @@ fn schema_definition_directives(document_node: &Document) -> Option<&[Directive]
 fn get_additional_directives_to_strip(document_node: &Document) -> Option<IndexSet<String>> {
     let directives = schema_definition_directives(document_node).filter(|d| !d.is_empty())?;
 
-    let mut additional_directives_to_strip = IndexSet::new();
+    let mut additional_directives_to_strip = IndexSet::default();
     for directive in directives {
         if directive.name.value != "link" {
             continue;
@@ -259,10 +259,10 @@ pub fn transform_supergraph_to_public_schema(document_node: &Document) -> JsResu
         })
         .collect();
 
-    let mut supergraph_directives = IndexSet::new();
-    let mut supergraph_enums = IndexSet::new();
-    let mut supergraph_input_objects = IndexSet::new();
-    let mut supergraph_scalars = IndexSet::new();
+    let mut supergraph_directives = IndexSet::default();
+    let mut supergraph_enums = IndexSet::default();
+    let mut supergraph_input_objects = IndexSet::default();
+    let mut supergraph_scalars = IndexSet::default();
 
     for node in get_supergraph_spec_nodes() {
         match node.kind {
@@ -304,7 +304,7 @@ pub fn transform_supergraph_to_public_schema(document_node: &Document) -> JsResu
         supergraph_scalars,
         definitions_to_remove,
         directives_to_remove,
-        inaccessible_interface_types: IndexSet::new(),
+        inaccessible_interface_types: IndexSet::default(),
     };
 
     let new_document_node = visit_edit(document_node, &mut visitor).into_document();

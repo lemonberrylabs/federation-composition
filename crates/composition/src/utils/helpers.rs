@@ -2,7 +2,7 @@
 
 use std::hash::Hash;
 
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use crate::utils::js::{JsError, JsResult};
 
@@ -46,7 +46,7 @@ pub fn nullable_array_union<T: Hash + Eq + Clone>(left: Option<&[T]>, right: Opt
     if left.is_none() && right.is_none() {
         return None;
     }
-    let mut unique_set: IndexSet<T> = IndexSet::new();
+    let mut unique_set: IndexSet<T> = IndexSet::default();
     for v in left.into_iter().flatten().chain(right.into_iter().flatten()) {
         unique_set.insert(v.clone());
     }

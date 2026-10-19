@@ -4,7 +4,7 @@
 use std::sync::LazyLock;
 
 use graphql_js::{GraphQLError, Value};
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::validation_context::SubgraphValidationContext;
 use crate::subgraph::state::{
@@ -63,7 +63,7 @@ pub fn validate_subgraph_state(state: &SubgraphState, context: &SubgraphValidati
 }
 
 fn validate_root_types(state: &SubgraphState, report_error: ReportErrorFn<'_>) {
-    let mut root_types_map: IndexMap<String, IndexSet<&'static str>> = IndexMap::new();
+    let mut root_types_map: IndexMap<String, IndexSet<&'static str>> = IndexMap::default();
 
     for (root_type_kind, root_type_name) in state.schema.iter() {
         let root_type_kind = root_type_kind.as_str();
@@ -87,7 +87,7 @@ fn validate_root_types(state: &SubgraphState, report_error: ReportErrorFn<'_>) {
             } else if let Some(existing) = root_types_map.get_mut(root_type_name) {
                 existing.insert(root_type_kind);
             } else {
-                root_types_map.insert(root_type_name.to_string(), IndexSet::from([root_type_kind]));
+                root_types_map.insert(root_type_name.to_string(), IndexSet::from_iter([root_type_kind]));
             }
         }
     }
@@ -168,7 +168,7 @@ fn validate_directives(state: &SubgraphState, report_error: ReportErrorFn<'_>, c
 
 fn validate_types(state: &SubgraphState, report_error: ReportErrorFn<'_>) {
     let mut validate_input_object_circular_refs = create_input_object_circular_refs_validator(state);
-    let mut implementations_map: IndexMap<String, IndexSet<String>> = IndexMap::new();
+    let mut implementations_map: IndexMap<String, IndexSet<String>> = IndexMap::default();
 
     for ty in state.types.values() {
         // Store implementations by interface (for interfaces) and by objects (for objects).
@@ -182,7 +182,7 @@ fn validate_types(state: &SubgraphState, report_error: ReportErrorFn<'_>) {
                 if is_interface_type(interface_type) {
                     match implementations_map.get_mut(iface) {
                         None => {
-                            implementations_map.insert(iface.clone(), IndexSet::from([type_name.clone()]));
+                            implementations_map.insert(iface.clone(), IndexSet::from_iter([type_name.clone()]));
                         }
                         Some(implementations) => {
                             implementations.insert(type_name.clone());
@@ -456,7 +456,7 @@ fn validate_union_members(state: &SubgraphState, report_error: ReportErrorFn<'_>
     }
 
     // NOTE(port): `members` is a set, so the "only once" branch never fires; kept as in TS.
-    let mut included_type_names: IndexSet<&str> = IndexSet::new();
+    let mut included_type_names: IndexSet<&str> = IndexSet::default();
     for member_type in member_types {
         if included_type_names.contains(member_type.as_str()) {
             report_error(format!(
@@ -563,7 +563,7 @@ fn validate_interfaces(
     ty: &SubgraphType,
 ) {
     let (type_name, _, interfaces) = object_or_interface_parts(ty);
-    let mut iface_type_names: IndexSet<&str> = IndexSet::new();
+    let mut iface_type_names: IndexSet<&str> = IndexSet::default();
     for iface in interfaces {
         let Some(interface_type) = state.types.get(iface) else {
             // The existence of the type was already validated.
@@ -779,9 +779,9 @@ struct InputObjectCircularRefsValidator<'s> {
 fn create_input_object_circular_refs_validator(state: &SubgraphState) -> InputObjectCircularRefsValidator<'_> {
     InputObjectCircularRefsValidator {
         state,
-        visited_types: IndexSet::new(),
+        visited_types: IndexSet::default(),
         field_path: Vec::new(),
-        field_path_index_by_type_name: IndexMap::new(),
+        field_path_index_by_type_name: IndexMap::default(),
     }
 }
 

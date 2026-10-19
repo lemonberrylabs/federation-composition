@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-enum-value-names-rule.ts`.
 
 use graphql_js::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_js::EnumValueDefinition;
@@ -18,7 +18,7 @@ impl<'a> SimpleRule<'a> for UniqueEnumValueNamesRule {
 
     fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueEnumValueNamesRule {
-            known_value_names: IndexMap::new(),
+            known_value_names: IndexMap::default(),
         }
     }
 }

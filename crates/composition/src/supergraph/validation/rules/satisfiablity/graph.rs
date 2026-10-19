@@ -14,7 +14,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use graphql_js::is_specified_scalar_type;
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::constants::GraphId;
 use super::contexts::{ContextMask, Contexts};
@@ -152,9 +152,9 @@ impl<'s> Graph<'s> {
             edges: Vec::new(),
             edges_by_head_type_index: Vec::new(),
             edges_by_tail_type_index: Vec::new(),
-            type_name_to_node_indexes: IndexMap::new(),
+            type_name_to_node_indexes: IndexMap::default(),
             type_children: Vec::new(),
-            type_children_cache: RefCell::new(IndexMap::new()),
+            type_children_cache: RefCell::new(IndexMap::default()),
             is_subgraph,
             id,
             id_str,
@@ -439,7 +439,7 @@ impl<'s> Graph<'s> {
 
         let mut interface_fields: Vec<SelectionNode> = Vec::new();
 
-        let mut fields_by_type: IndexMap<String, Vec<SelectionNode>> = IndexMap::new();
+        let mut fields_by_type: IndexMap<String, Vec<SelectionNode>> = IndexMap::default();
 
         for provided_field in provided_fields {
             if provided_field.type_name() == head_type_name {
@@ -527,7 +527,7 @@ impl<'s> Graph<'s> {
             _ => return Err(JsError::error("Expected abstract indexes to be defined")),
         };
 
-        let mut fields_by_type: IndexMap<String, Vec<SelectionNode>> = IndexMap::new();
+        let mut fields_by_type: IndexMap<String, Vec<SelectionNode>> = IndexMap::default();
 
         for provided_field in provided_fields {
             let SelectionNode::Fragment(fragment) = provided_field else {
@@ -1626,7 +1626,7 @@ impl<'s> Graph<'s> {
         ));
         self.edges_by_head_type_index.push(Vec::new());
         self.edges_by_tail_type_index.push(Vec::new());
-        self.type_children.push(IndexSet::new());
+        self.type_children.push(IndexSet::default());
 
         self.type_name_to_node_indexes
             .entry(type_name.to_string())
@@ -1645,7 +1645,7 @@ impl<'s> Graph<'s> {
         self.nodes.push(node);
         self.edges_by_head_type_index.push(Vec::new());
         self.edges_by_tail_type_index.push(Vec::new());
-        self.type_children.push(IndexSet::new());
+        self.type_children.push(IndexSet::default());
 
         self.type_name_to_node_indexes.entry(type_name).or_default().push(new_index);
 

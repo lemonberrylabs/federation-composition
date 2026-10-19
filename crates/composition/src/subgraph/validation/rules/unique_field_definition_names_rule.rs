@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-field-definition-names-rule.ts`.
 
 use graphql_js::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_js::Name;
@@ -18,7 +18,7 @@ impl<'a> SimpleRule<'a> for UniqueFieldDefinitionNamesRule {
 
     fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueFieldDefinitionNamesRule {
-            known_field_names: IndexMap::new(),
+            known_field_names: IndexMap::default(),
         }
     }
 }

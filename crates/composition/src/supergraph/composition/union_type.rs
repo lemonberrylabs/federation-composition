@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/composition/union-type.ts`.
 
 use graphql_js::Definition;
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::ast::{create_union_type_node, JoinAst, JoinTypeAst, JoinUnionMemberAst, UnionTypeAst};
 use super::common::{convert_to_const, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
@@ -136,13 +136,13 @@ fn get_or_create_union_type<'s>(state: &'s mut IndexMap<String, UnionTypeState>,
         .entry(type_name.to_string())
         .or_insert_with(|| UnionTypeState {
             name: type_name.to_string(),
-            members: IndexSet::new(),
-            tags: IndexSet::new(),
+            members: IndexSet::default(),
+            tags: IndexSet::default(),
             inaccessible: false,
-            contexts: IndexSet::new(),
+            contexts: IndexSet::default(),
             has_definition: false,
             description: None,
-            by_graph: IndexMap::new(),
+            by_graph: IndexMap::default(),
             ast: Ast { directives: vec![] },
         })
 }
@@ -166,7 +166,7 @@ mod tests {
             name: "U".into(),
             members: members.iter().map(|m| m.to_string()).collect(),
             contexts: contexts.iter().map(|m| m.to_string()).collect(),
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             inaccessible: false,
             is_definition: true,
             description: description.map(|d| Description {
@@ -180,7 +180,7 @@ mod tests {
     #[test]
     fn merges_members_and_emits_join_directives() {
         let mut builder = union_type_builder();
-        let mut state = IndexMap::new();
+        let mut state = IndexMap::default();
         builder.visit_subgraph_state(&graph("a", "A"), &mut state, "U", &union(&["X", "Y"], &["ctx"], None));
         builder.visit_subgraph_state(&graph("b", "B"), &mut state, "U", &union(&["Y", "Z"], &[], Some("second")));
         builder.visit_subgraph_state(&graph("c", "C"), &mut state, "U", &union(&[], &[], Some("third")));
@@ -192,7 +192,7 @@ mod tests {
         assert_eq!(union_state.description.as_ref().unwrap().value, "second");
 
         let supergraph_state = SupergraphState::default();
-        let map = IndexMap::new();
+        let map = IndexMap::default();
         let node = builder
             .compose_supergraph_node(
                 union_state,

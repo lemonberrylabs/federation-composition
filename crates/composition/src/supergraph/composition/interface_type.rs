@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/composition/interface-type.ts`.
 
 use graphql_js::Definition;
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::ast::{
     create_interface_type_node, CostAst, FieldArgumentAst, FieldAst, InterfaceTypeAst, JoinAst, JoinFieldAst,
@@ -584,19 +584,19 @@ fn get_or_create_interface_type<'s>(
         .entry(type_name.to_string())
         .or_insert_with(|| InterfaceTypeState {
             name: type_name.to_string(),
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             inaccessible: false,
             authenticated: false,
             policies: Vec::new(),
             scopes: Vec::new(),
-            contexts: IndexSet::new(),
+            contexts: IndexSet::default(),
             has_definition: false,
             has_interface_object: false,
             is_entity: false,
-            by_graph: IndexMap::new(),
-            fields: IndexMap::new(),
-            interfaces: IndexSet::new(),
-            implemented_by: IndexSet::new(),
+            by_graph: IndexMap::default(),
+            fields: IndexMap::default(),
+            interfaces: IndexSet::default(),
+            implemented_by: IndexSet::default(),
             description: None,
             ast: Ast::default(),
         })
@@ -615,7 +615,7 @@ fn get_or_create_interface_field<'s>(
             r#type: field_type.to_string(),
             is_leaf: false,
             used_as_key: false,
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             inaccessible: false,
             authenticated: false,
             policies: Vec::new(),
@@ -624,8 +624,8 @@ fn get_or_create_interface_field<'s>(
             list_size: None,
             deprecated: None,
             description: None,
-            by_graph: IndexMap::new(),
-            args: IndexMap::new(),
+            by_graph: IndexMap::default(),
+            args: IndexMap::default(),
             ast: Ast::default(),
         })
 }
@@ -643,13 +643,13 @@ fn get_or_create_arg<'s>(
             name: arg_name.to_string(),
             r#type: arg_type.to_string(),
             kind: arg_kind,
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             default_value: None,
             from_context: None,
             cost: None,
             description: None,
             deprecated: None,
-            by_graph: IndexMap::new(),
+            by_graph: IndexMap::default(),
             ast: Ast::default(),
         })
 }

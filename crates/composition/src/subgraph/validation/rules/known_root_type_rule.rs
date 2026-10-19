@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/known-root-type-rule.ts`.
 
 use graphql_js::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 

@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use graphql_js::{Directive, GraphQLError, NodeRef, Value, VisitAction, VisitInfo, Visitor};
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 use crate::graphql::printer::print;
 use crate::subgraph::helpers::{
     get_fields_argument, parse_fields, validate_directive_against_original, visit_fields, InterceptDirectiveInfo,
@@ -219,7 +219,7 @@ fn directive<'a>(directive_node: &'a Directive, context: &mut SubgraphValidation
         type_name,
         printed_fields_value: &printed_fields_value,
         is_valid: true,
-        fields_used_in_key: IndexSet::new(),
+        fields_used_in_key: IndexSet::default(),
     };
 
     visit_fields(

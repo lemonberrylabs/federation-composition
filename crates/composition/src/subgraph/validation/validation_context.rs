@@ -11,7 +11,7 @@ use std::sync::LazyLock;
 use graphql_js::{
     parse, Ancestor, Definition, DirectiveDefinition, Document, GraphQLError, Kind, Name, TypeDefinition,
 };
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::graphql::type_node_info::{HasTypeNodeInfo, TypeNodeInfo};
 use crate::specifications::federation::{DetectedFederation, FederationVersion, SpecSchema};
@@ -75,8 +75,8 @@ pub struct SimpleValidationContext<'a> {
 /// NOTE(port): the TS takes the `TypeNodeInfo` but the returned object never uses it, so it is
 /// not a parameter here.
 pub fn create_simple_validation_context(type_defs: &Document) -> SimpleValidationContext<'_> {
-    let mut directive_definition_map: IndexMap<String, &DirectiveDefinition> = IndexMap::new();
-    let mut type_definition_map: IndexMap<String, KnownTypeDefinition<'_>> = IndexMap::new();
+    let mut directive_definition_map: IndexMap<String, &DirectiveDefinition> = IndexMap::default();
+    let mut type_definition_map: IndexMap<String, KnownTypeDefinition<'_>> = IndexMap::default();
 
     for definition in &type_defs.definitions {
         if let Definition::DirectiveDefinition(d) = definition {
@@ -226,10 +226,10 @@ pub fn create_subgraph_validation_context<'a>(
     let known_spec = crate::specifications::federation::create_spec_schema(version.as_str(), None)
         .expect("createSpecSchema accepts every FederationVersion");
     // Object and interface types defined in a subgraph
-    let mut known_object_and_interface_subgraph_entities: IndexMap<String, ObjectOrInterface> = IndexMap::new();
-    let mut known_union_types_members: IndexMap<String, IndexSet<String>> = IndexMap::new();
+    let mut known_object_and_interface_subgraph_entities: IndexMap<String, ObjectOrInterface> = IndexMap::default();
+    let mut known_union_types_members: IndexMap<String, IndexSet<String>> = IndexMap::default();
 
-    let mut typename_to_kind: IndexMap<String, TypeKind> = IndexMap::new();
+    let mut typename_to_kind: IndexMap<String, TypeKind> = IndexMap::default();
 
     for def in &subgraph.type_defs.definitions {
         if is_union_node(def) {
@@ -321,7 +321,7 @@ pub fn create_subgraph_validation_context<'a>(
     }
 
     // Directive definitions defined in a subgraph
-    let mut known_subgraph_directive_definitions: IndexMap<String, &'a DirectiveDefinition> = IndexMap::new();
+    let mut known_subgraph_directive_definitions: IndexMap<String, &'a DirectiveDefinition> = IndexMap::default();
     for def in &subgraph.type_defs.definitions {
         if let Definition::DirectiveDefinition(d) = def {
             known_subgraph_directive_definitions.insert(d.name.value.clone(), d);
@@ -349,7 +349,7 @@ pub fn create_subgraph_validation_context<'a>(
         }
     }
 
-    let mut overwritten_federation_definition_names: IndexSet<String> = IndexSet::new();
+    let mut overwritten_federation_definition_names: IndexSet<String> = IndexSet::default();
 
     // Build a map where the original name points to alternative names.
     //
@@ -360,14 +360,14 @@ pub fn create_subgraph_validation_context<'a>(
     //
     // Whenever we want to detect or get the @key directive, we use the "normalized" form instead of looking for @federation__key or @key or @whatever.
     // That's why we need this map, to take the normalized name and find the available one.
-    let mut directive_alternative_names_map: IndexMap<String, IndexSet<String>> = IndexMap::new();
+    let mut directive_alternative_names_map: IndexMap<String, IndexSet<String>> = IndexMap::default();
     for spec_directive in &available_spec.directives {
         let spec_name = &spec_directive.name.value;
         if let Some(normalized_name) = spec_name.strip_prefix("federation__") {
             // `name.replace("federation__", "")` on a prefixed name removes the prefix.
             if !directive_alternative_names_map.contains_key(normalized_name) {
                 directive_alternative_names_map
-                    .insert(normalized_name.to_string(), IndexSet::from([spec_name.clone()]));
+                    .insert(normalized_name.to_string(), IndexSet::from_iter([spec_name.clone()]));
             }
         } else {
             // TODO: get rid of `@` prefix in directive names of link.imports
@@ -387,12 +387,12 @@ pub fn create_subgraph_validation_context<'a>(
     }
 
     // Same story as in `directiveAlternativeNamesMap`.
-    let mut type_alternative_names_map: IndexMap<String, IndexSet<String>> = IndexMap::new();
+    let mut type_alternative_names_map: IndexMap<String, IndexSet<String>> = IndexMap::default();
     for spec_type in &available_spec.types {
         let spec_name = &spec_type.name().value;
         if let Some(normalized_name) = spec_name.strip_prefix("federation__") {
             if !type_alternative_names_map.contains_key(normalized_name) {
-                type_alternative_names_map.insert(normalized_name.to_string(), IndexSet::from([spec_name.clone()]));
+                type_alternative_names_map.insert(normalized_name.to_string(), IndexSet::from_iter([spec_name.clone()]));
             }
         } else {
             let alias = imports
@@ -440,9 +440,9 @@ pub fn create_subgraph_validation_context<'a>(
         known_subgraph_directive_definitions,
         leaf_type_names,
         reported_errors: Vec::new(),
-        marked_as_external: IndexSet::new(),
-        marked_as_used: IndexSet::new(),
-        marked_as_key_field: IndexSet::new(),
+        marked_as_external: IndexSet::default(),
+        marked_as_used: IndexSet::default(),
+        marked_as_key_field: IndexSet::default(),
         overwritten_federation_definition_names,
         directive_alternative_names_map,
         type_alternative_names_map,

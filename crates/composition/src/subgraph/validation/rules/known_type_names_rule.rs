@@ -3,7 +3,7 @@
 use graphql_js::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use graphql_js::Ancestor;
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 use std::sync::LazyLock;
 
 /// `KnownTypeNamesRule(context)`.

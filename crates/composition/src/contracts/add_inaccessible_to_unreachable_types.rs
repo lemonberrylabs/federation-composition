@@ -1,6 +1,6 @@
 //! Port of `src/contracts/add-inaccessible-to-unreachable-types.ts`.
 
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use super::reachable_type_filter::{add_directive_on_types, get_reachable_types, AddDirectiveOnTypesArgs};
 use crate::compose::{create_composition_success_read_cache_container, CompositionSuccess};

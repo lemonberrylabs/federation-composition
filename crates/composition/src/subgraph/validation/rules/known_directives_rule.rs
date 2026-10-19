@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/known-directives-rule.ts`.
 
 use graphql_js::{Definition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_js::{Ancestor, DirectiveLocation, OperationType};
@@ -17,7 +17,7 @@ impl<'a> SimpleRule<'a> for KnownDirectivesRule {
     const NAME: &'static str = "KnownDirectivesRule";
 
     fn new(context: &mut SimpleValidationContext<'a>) -> Self {
-        let mut locations_map: IndexMap<String, IndexSet<String>> = IndexMap::new();
+        let mut locations_map: IndexMap<String, IndexSet<String>> = IndexMap::default();
 
         let ast_definitions = &context.get_document().definitions;
         for def in ast_definitions {

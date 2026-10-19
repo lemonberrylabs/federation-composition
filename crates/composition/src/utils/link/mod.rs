@@ -10,7 +10,7 @@ pub use link::FederatedLink;
 pub use link_import::FederatedLinkImport;
 pub use link_url::FederatedLinkUrl;
 
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use crate::utils::js::JsResult;
 use link_url::SupportsVersion;
@@ -33,7 +33,7 @@ pub struct LinkImplementations {
     /// `Object.fromEntries(links.map((l) => [l.identity, l]))`: the last link per identity wins,
     /// at the position of the first.
     /// NOTE(port): plain object; identities are URLs, never integer-like.
-    link_by_identity: indexmap::IndexMap<String, FederatedLink>,
+    link_by_identity: crate::utils::collections::IndexMap<String, FederatedLink>,
     supports_federation_v2: bool,
 }
 
@@ -76,7 +76,7 @@ pub fn extract_link_implementations(type_defs: &Document) -> JsResult<LinkImplem
 impl LinkImplementations {
     /// The rest of `extractLinkImplementations`, given `FederatedLink.fromTypedefs(typeDefs)`.
     pub fn from_links(links: Vec<FederatedLink>) -> LinkImplementations {
-        let mut link_by_identity: IndexMap<String, FederatedLink> = IndexMap::new();
+        let mut link_by_identity: IndexMap<String, FederatedLink> = IndexMap::default();
         for l in &links {
             link_by_identity.insert(l.identity().to_string(), l.clone());
         }

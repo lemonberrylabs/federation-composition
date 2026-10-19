@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/link-import-name-mismatch-rule.ts`.
 
 use graphql_js::GraphQLError;
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use crate::supergraph::validation::validation_context::SupergraphValidationContext;
 use crate::utils::format::and_list;
@@ -9,7 +9,7 @@ use crate::utils::format::and_list;
 /// `LinkImportNameMismatchRule(context)`: a pre-supergraph rule (runs before the subgraphs are merged).
 pub fn link_import_name_mismatch_rule(context: &mut SupergraphValidationContext) {
     // "<originalName>": { "<name>": ["<subgraphName>"] }
-    let mut names_to_subgraphs: IndexMap<String, IndexMap<String, Vec<String>>> = IndexMap::new();
+    let mut names_to_subgraphs: IndexMap<String, IndexMap<String, Vec<String>>> = IndexMap::default();
 
     let names_to_check = ["@cost", "@listSize"];
 

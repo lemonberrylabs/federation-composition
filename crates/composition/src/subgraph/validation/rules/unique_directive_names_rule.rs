@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-directive-names-rule.ts`.
 
 use graphql_js::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 
@@ -17,7 +17,7 @@ impl<'a> SimpleRule<'a> for UniqueDirectiveNamesRule {
 
     fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueDirectiveNamesRule {
-            known_directive_name_nodes: IndexSet::new(),
+            known_directive_name_nodes: IndexSet::default(),
         }
     }
 }

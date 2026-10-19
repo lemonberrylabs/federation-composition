@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/input-field-default-mismatch-rule.ts`.
 
 use graphql_js::GraphQLError;
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use crate::supergraph::composition::input_object_type::{InputObjectTypeFieldState, InputObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
@@ -32,7 +32,7 @@ impl<'s> SupergraphVisitor<'s> for InputFieldDefaultMismatchRule {
             return Ok(());
         }
 
-        let mut default_value_to_graphs: IndexMap<&str, Vec<&String>> = IndexMap::new();
+        let mut default_value_to_graphs: IndexMap<&str, Vec<&String>> = IndexMap::default();
 
         for (graph_name, field) in &field_state.by_graph {
             if let Some(default_value) = &field.default_value {

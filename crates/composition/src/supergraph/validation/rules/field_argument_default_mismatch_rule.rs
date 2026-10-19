@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/field-argument-default-mismatch-rule.ts`.
 
 use graphql_js::GraphQLError;
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use crate::supergraph::composition::object_type::{ObjectTypeFieldArgState, ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
@@ -33,7 +33,7 @@ impl<'s> SupergraphVisitor<'s> for FieldArgumentDefaultMismatchRule {
             return Ok(());
         }
 
-        let mut default_value_to_graphs: IndexMap<&str, Vec<&String>> = IndexMap::new();
+        let mut default_value_to_graphs: IndexMap<&str, Vec<&String>> = IndexMap::default();
 
         for (graph_name, arg) in &arg_state.by_graph {
             if let Some(default_value) = &arg.default_value {

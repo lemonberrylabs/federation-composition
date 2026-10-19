@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-operation-types-rule.ts`.
 
 use graphql_js::{GraphQLError, NodeRef, OperationType, VisitAction, VisitInfo, Visitor};
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_js::OperationTypeDefinition;
@@ -18,7 +18,7 @@ impl<'a> SimpleRule<'a> for UniqueOperationTypesRule {
 
     fn new(_context: &mut SimpleValidationContext<'a>) -> Self {
         UniqueOperationTypesRule {
-            defined_operation_types: IndexSet::new(),
+            defined_operation_types: IndexSet::default(),
         }
     }
 }

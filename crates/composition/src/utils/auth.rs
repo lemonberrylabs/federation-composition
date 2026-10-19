@@ -1,6 +1,6 @@
 //! Port of `src/utils/auth.ts`.
 
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::utils::js::locale_compare;
 
@@ -12,7 +12,7 @@ pub fn merge_scope_policies(policy_a: &[Vec<String>], policy_b: &[Vec<String>]) 
         return if !policy_a.is_empty() { policy_a.to_vec() } else { policy_b.to_vec() };
     }
 
-    let mut group_map: IndexMap<String, Vec<String>> = IndexMap::new();
+    let mut group_map: IndexMap<String, Vec<String>> = IndexMap::default();
 
     for group_a in policy_a {
         for group_b in policy_b {
@@ -55,7 +55,7 @@ fn is_subset(subset: &[String], superset: &[String]) -> bool {
     if subset.len() > superset.len() {
         return false;
     }
-    let superset_set: indexmap::IndexSet<&String> = superset.iter().collect();
+    let superset_set: crate::utils::collections::IndexSet<&String> = superset.iter().collect();
     subset.iter().all(|item| superset_set.contains(item))
 }
 

@@ -10,7 +10,7 @@
 //! `validate_subgraph` returns it as `Err`.
 
 use graphql_js::{Definition, Document, GraphQLError, OperationType};
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::rules::elements::authenticated::AuthenticatedRule;
 use super::rules::elements::compose_directive::ComposeDirectiveRules;
@@ -96,7 +96,7 @@ pub struct ExtractedLinks {
 
 /// `assertUniqueSubgraphNames(subgraphs)`: throws `A subgraph named X already exists`.
 pub fn assert_unique_subgraph_names<'n>(subgraphs: impl IntoIterator<Item = &'n str>) -> JsResult<()> {
-    let mut names: IndexSet<&str> = IndexSet::new();
+    let mut names: IndexSet<&str> = IndexSet::default();
 
     for name in subgraphs {
         if names.contains(name) {
@@ -381,7 +381,7 @@ fn is_truthy(value: &serde_json::Value) -> bool {
 
 /// `availableFeatures`: known versions of non-federation Apollo specs.
 fn available_features() -> IndexMap<&'static str, &'static [&'static str]> {
-    IndexMap::from([
+    IndexMap::from_iter([
         ("link", &["v1.0"][..]),
         ("tag", &["v0.1", "v0.2"][..]),
         ("kotlin_labs", &["v0.1", "v0.2"][..]),
@@ -471,8 +471,8 @@ fn extract_links(subgraph: SubgraphCoreInput<'_>) -> ExtractedLinks {
 
     let mut errors: Vec<GraphQLError> = Vec::new();
     let mut links: Vec<Link> = Vec::new();
-    let mut identities: IndexSet<String> = IndexSet::new();
-    let mut reported_as_duplicate: IndexSet<String> = IndexSet::new();
+    let mut identities: IndexSet<String> = IndexSet::default();
+    let mut reported_as_duplicate: IndexSet<String> = IndexSet::default();
 
     for link_directive in link_directives {
         // The body of the `try` block; `Ok(())` is a `continue` or the end of the iteration.

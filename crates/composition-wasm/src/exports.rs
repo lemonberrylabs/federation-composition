@@ -30,7 +30,7 @@ use fc::utils::link::{LinkImplementations, LinkVersion};
 use fc::{CompositionResult, ServiceDefinition, ValidationResult};
 use federation_composition as fc;
 use graphql_js::{Directive, Document, Value};
-use indexmap::{IndexMap, IndexSet};
+use federation_composition::utils::collections::{IndexMap, IndexSet};
 use serde::Deserialize;
 use serde_json::json;
 use wasm_bindgen::prelude::*;

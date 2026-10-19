@@ -5,7 +5,7 @@
 //! integer-like node names come first in numeric order. `object_keys` reproduces that order
 //! where the TS iterates the keys (`overallOrder`, `entryNodes`).
 
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use crate::utils::js::{JsError, JsResult};
 
@@ -41,7 +41,7 @@ fn create_dfs<'g>(
         edges,
         leaves_only: leaves_only.unwrap_or(false),
         circular,
-        visited: IndexMap::new(),
+        visited: IndexMap::default(),
     }
 }
 
@@ -51,7 +51,7 @@ impl Dfs<'_> {
         if self.visited.get(start).copied().unwrap_or(false) {
             return Ok(());
         }
-        let mut in_current_path: IndexMap<String, bool> = IndexMap::new();
+        let mut in_current_path: IndexMap<String, bool> = IndexMap::default();
         let mut current_path: Vec<String> = Vec::new();
         // used as a stack: (node, processed)
         let mut todo: Vec<(String, bool)> = Vec::new();
@@ -118,9 +118,9 @@ fn node_does_not_exist(name: &str) -> JsError {
 impl<T: Clone> DepGraph<T> {
     pub fn new(opts: Option<Options>) -> Self {
         DepGraph {
-            nodes: IndexMap::new(),
-            outgoing_edges: IndexMap::new(),
-            incoming_edges: IndexMap::new(),
+            nodes: IndexMap::default(),
+            outgoing_edges: IndexMap::default(),
+            incoming_edges: IndexMap::default(),
             circular: opts.and_then(|o| o.circular).unwrap_or(false),
         }
     }

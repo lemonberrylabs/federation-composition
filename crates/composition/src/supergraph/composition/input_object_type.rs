@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/composition/input-object-type.ts`.
 
 use graphql_js::Definition;
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use super::ast::{create_input_object_type_node, CostAst, InputFieldAst, InputObjectTypeAst, JoinAst, JoinFieldAst, JoinTypeAst};
 use super::common::{convert_to_const, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
@@ -249,13 +249,13 @@ fn get_or_create_input_object_type<'s>(
         .entry(type_name.to_string())
         .or_insert_with(|| InputObjectTypeState {
             name: type_name.to_string(),
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             has_definition: false,
             inaccessible: false,
             description: None,
             is_one_of: None,
-            by_graph: IndexMap::new(),
-            fields: IndexMap::new(),
+            by_graph: IndexMap::default(),
+            fields: IndexMap::default(),
             ast: Ast { directives: vec![] },
         })
 }
@@ -273,13 +273,13 @@ fn get_or_create_field<'s>(
             name: field_name.to_string(),
             r#type: field_type.to_string(),
             kind: field_kind,
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             inaccessible: false,
             cost: None,
             default_value: None,
             description: None,
             deprecated: None,
-            by_graph: IndexMap::new(),
+            by_graph: IndexMap::default(),
             ast: Ast { directives: vec![] },
         })
 }
@@ -305,7 +305,7 @@ mod tests {
             r#type: ty.into(),
             kind: ArgumentKind::Scalar,
             inaccessible: false,
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             cost: None,
             default_value: default_value.map(String::from),
             description: None,
@@ -320,7 +320,7 @@ mod tests {
             fields: fields.into_iter().map(|f| (f.name.clone(), f)).collect(),
             extension: false,
             inaccessible: false,
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             is_definition: true,
             description: None,
             ast: Ast::default(),
@@ -331,7 +331,7 @@ mod tests {
     #[test]
     fn keeps_fields_defined_everywhere() {
         let mut builder = input_object_type_builder();
-        let mut state = IndexMap::new();
+        let mut state = IndexMap::default();
         builder.visit_subgraph_state(
             &graph("A"),
             &mut state,
@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(input_state.is_one_of, Some(true));
 
         let supergraph_state = SupergraphState::default();
-        let map = IndexMap::new();
+        let map = IndexMap::default();
         let node = builder
             .compose_supergraph_node(
                 input_state,
@@ -381,14 +381,14 @@ mod tests {
     #[test]
     fn missing_cost_directive_name_throws() {
         let mut builder = input_object_type_builder();
-        let mut state = IndexMap::new();
+        let mut state = IndexMap::default();
         let mut f = field("a", "Int", None);
         f.cost = Some(2.0);
         builder.visit_subgraph_state(&graph("A"), &mut state, "I", &input(vec![f], None));
         assert_eq!(state["I"].fields["a"].cost, Some(2.0));
 
         let supergraph_state = SupergraphState::default();
-        let map = IndexMap::new();
+        let map = IndexMap::default();
         let err = builder
             .compose_supergraph_node(
                 &state["I"],

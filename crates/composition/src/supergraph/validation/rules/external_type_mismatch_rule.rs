@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/external-type-mismatch-rule.ts`.
 
 use graphql_js::GraphQLError;
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use crate::specifications::federation::FederationVersion;
 use crate::supergraph::composition::object_type::{is_federation_extension, ObjectTypeFieldState, ObjectTypeState};
@@ -35,7 +35,7 @@ impl<'s> SupergraphVisitor<'s> for ExternalTypeMismatchRule {
             return Ok(());
         }
 
-        let mut group_by_type: IndexMap<&str, Vec<&String>> = IndexMap::new();
+        let mut group_by_type: IndexMap<&str, Vec<&String>> = IndexMap::default();
         let mut graphs_with_equal_type: Vec<&String> = Vec::new();
 
         for (graph_id, field) in &field_state.by_graph {

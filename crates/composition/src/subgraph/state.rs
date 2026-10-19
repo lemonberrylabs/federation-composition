@@ -19,7 +19,7 @@ use graphql_js::{
     ObjectTypeExtension, OperationType, ScalarTypeDefinition, SchemaDefinition, StringValue, Type,
     UnionTypeDefinition, UnionTypeExtension, Value, VisitAction, VisitInfo, Visitor,
 };
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::graphql::printer::print;
 use crate::graphql::type_node_info::TypeNodeInfo;
@@ -592,7 +592,7 @@ pub fn create_subgraph_state_builder(
             version,
             url: graph.url.clone(),
         },
-        types: IndexMap::new(),
+        types: IndexMap::default(),
         schema: SubgraphSchema::default(),
         links: links_with_directive,
         specs: SubgraphSpecs {
@@ -622,8 +622,8 @@ pub fn create_subgraph_state_builder(
     let schema_def = type_defs.definitions.iter().find_map(is_schema_definition);
 
     let mut leaf_type_names: IndexSet<String> = specified_scalars.iter().cloned().collect();
-    let mut enum_type_names: IndexSet<String> = IndexSet::new();
-    let mut input_object_type_names: IndexSet<String> = IndexSet::new();
+    let mut enum_type_names: IndexSet<String> = IndexSet::default();
+    let mut input_object_type_names: IndexSet<String> = IndexSet::default();
 
     for type_def in &type_defs.definitions {
         match type_def {
@@ -676,7 +676,7 @@ pub fn create_subgraph_state_builder(
 
     SubgraphStateBuilder {
         state,
-        composed_directives: IndexSet::new(),
+        composed_directives: IndexSet::default(),
         root_type_names,
         specified_scalars,
         leaf_type_names,
@@ -2858,10 +2858,10 @@ fn get_or_create_directive<'s>(state: &'s mut SubgraphState, directive_name: &st
         || {
             SubgraphType::Directive(Directive {
                 name: directive_name.to_string(),
-                locations: IndexSet::new(),
+                locations: IndexSet::default(),
                 repeatable: false,
                 composed: false,
-                args: IndexMap::new(),
+                args: IndexMap::default(),
             })
         },
         |existing| match existing {
@@ -2879,7 +2879,7 @@ fn new_argument(arg_name: &str) -> Argument {
         r#type: MISSING.to_string(),
         kind: ArgumentKind::Scalar,
         inaccessible: false,
-        tags: IndexSet::new(),
+        tags: IndexSet::default(),
         cost: None,
         default_value: None,
         from_context: None,
@@ -2913,8 +2913,8 @@ fn new_field(field_name: &str) -> Field {
         requires: None,
         shareable: false,
         // shareable: state.version === 'v1.0' ? true : false, // In Fed v1 - it should be true by default, as all fields are shareable by default, even though there's not @shareable directive
-        tags: IndexSet::new(),
-        args: IndexMap::new(),
+        tags: IndexSet::default(),
+        args: IndexMap::default(),
         description: None,
         deprecated: None,
         ast: Ast::default(),
@@ -2941,7 +2941,7 @@ fn get_or_create_scalar_type<'s>(state: &'s mut SubgraphState, type_name: &str) 
         || {
             SubgraphType::Scalar(ScalarType {
                 name: type_name.to_string(),
-                tags: IndexSet::new(),
+                tags: IndexSet::default(),
                 inaccessible: false,
                 authenticated: false,
                 policies: Vec::new(),
@@ -2974,9 +2974,9 @@ fn get_or_create_object_type<'s>(
         || {
             SubgraphType::Object(ObjectType {
                 name: type_name.to_string(),
-                fields: IndexMap::new(),
-                contexts: IndexSet::new(),
-                fields_used_as_keys: IndexSet::new(),
+                fields: IndexMap::default(),
+                contexts: IndexSet::default(),
+                fields_used_as_keys: IndexSet::default(),
                 extension: false,
                 extension_type: None,
                 external: false,
@@ -2987,8 +2987,8 @@ fn get_or_create_object_type<'s>(
                 scopes: Vec::new(),
                 cost: None,
                 shareable: false,
-                tags: IndexSet::new(),
-                interfaces: IndexSet::new(),
+                tags: IndexSet::default(),
+                interfaces: IndexSet::default(),
                 is_definition: false,
                 description: None,
                 deprecated: None,
@@ -3010,15 +3010,15 @@ fn get_or_create_interface_type<'s>(state: &'s mut SubgraphState, type_name: &st
         || {
             SubgraphType::Interface(InterfaceType {
                 name: type_name.to_string(),
-                fields: IndexMap::new(),
-                contexts: IndexSet::new(),
-                fields_used_as_keys: IndexSet::new(),
+                fields: IndexMap::default(),
+                contexts: IndexSet::default(),
+                fields_used_as_keys: IndexSet::default(),
                 extension: false,
                 keys: Vec::new(),
                 inaccessible: false,
-                tags: IndexSet::new(),
-                interfaces: IndexSet::new(),
-                implemented_by: IndexSet::new(),
+                tags: IndexSet::default(),
+                interfaces: IndexSet::default(),
+                implemented_by: IndexSet::default(),
                 is_definition: false,
                 is_interface_object: false,
                 description: None,
@@ -3043,10 +3043,10 @@ fn get_or_create_input_object_type<'s>(
         || {
             SubgraphType::InputObject(InputObjectType {
                 name: type_name.to_string(),
-                fields: IndexMap::new(),
+                fields: IndexMap::default(),
                 extension: false,
                 inaccessible: false,
-                tags: IndexSet::new(),
+                tags: IndexSet::default(),
                 is_definition: false,
                 description: None,
                 ast: Ast::default(),
@@ -3068,19 +3068,19 @@ fn get_or_create_enum_type<'s>(state: &'s mut SubgraphState, type_name: &str) ->
         || {
             SubgraphType::Enum(EnumType {
                 name: type_name.to_string(),
-                values: IndexMap::new(),
+                values: IndexMap::default(),
                 inaccessible: false,
                 authenticated: false,
                 policies: Vec::new(),
                 scopes: Vec::new(),
                 cost: None,
-                tags: IndexSet::new(),
+                tags: IndexSet::default(),
                 is_definition: false,
                 description: None,
                 referenced_by_input_type: false,
                 referenced_by_output_type: false,
-                input_type_references: IndexSet::new(),
-                output_type_references: IndexSet::new(),
+                input_type_references: IndexSet::default(),
+                output_type_references: IndexSet::default(),
                 ast: Ast::default(),
             })
         },
@@ -3099,10 +3099,10 @@ fn get_or_create_union_type<'s>(state: &'s mut SubgraphState, type_name: &str) -
         || {
             SubgraphType::Union(UnionType {
                 name: type_name.to_string(),
-                members: IndexSet::new(),
-                contexts: IndexSet::new(),
+                members: IndexSet::default(),
+                contexts: IndexSet::default(),
                 inaccessible: false,
-                tags: IndexSet::new(),
+                tags: IndexSet::default(),
                 is_definition: false,
                 description: None,
                 ast: Ast::default(),
@@ -3159,7 +3159,7 @@ fn get_or_create_input_object_field<'s>(
             kind: ArgumentKind::Scalar,
             inaccessible: false,
             cost: None,
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             default_value: None,
             description: None,
             deprecated: None,
@@ -3180,7 +3180,7 @@ fn get_or_create_enum_value<'s>(
         .or_insert_with(|| EnumValue {
             name: enum_value_name.to_string(),
             inaccessible: false,
-            tags: IndexSet::new(),
+            tags: IndexSet::default(),
             description: None,
             deprecated: None,
             ast: Ast::default(),
@@ -3460,7 +3460,7 @@ mod tests {
         b.object_type().set_shareable("Foo").unwrap();
         b.object_type().set_cost("Foo", 5.0).unwrap();
         b.object_type()
-            .set_key("Foo", "id", &IndexSet::from(["id".to_string()]), true)
+            .set_key("Foo", "id", &IndexSet::from_iter(["id".to_string()]), true)
             .unwrap();
 
         let Some(SubgraphType::Interface(foo)) = b.state.types.get("Foo") else {

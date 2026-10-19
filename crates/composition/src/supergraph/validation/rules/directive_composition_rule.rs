@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/directive-composition-rule.ts`.
 
 use graphql_js::GraphQLError;
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::specifications::link::LinkImportKind;
 use crate::supergraph::composition::directive::DirectiveState;
@@ -29,11 +29,11 @@ impl<'s> SupergraphRule<'s> for DirectiveCompositionRule {
     const NAME: &'static str = "DirectiveCompositionRule";
 
     fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        let mut link_identity_to_major_version: IndexMap<String, f64> = IndexMap::new();
+        let mut link_identity_to_major_version: IndexMap<String, f64> = IndexMap::default();
         // Map<originalDirectiveName, Map<appliedName, Set<graph>>>
-        let mut applied_directive_to_graphs: IndexMap<String, IndexMap<String, IndexSet<String>>> = IndexMap::new();
+        let mut applied_directive_to_graphs: IndexMap<String, IndexMap<String, IndexSet<String>>> = IndexMap::default();
         // Map<appliedName, Set<linkIdentity>>
-        let mut applied_directive_to_link_identities: IndexMap<String, IndexSet<String>> = IndexMap::new();
+        let mut applied_directive_to_link_identities: IndexMap<String, IndexSet<String>> = IndexMap::default();
 
         for link_with_graph in &supergraph.links {
             let link = &link_with_graph.link;
@@ -46,7 +46,7 @@ impl<'s> SupergraphRule<'s> for DirectiveCompositionRule {
                 let existing = link_identity_to_major_version.get(&link.identity).copied();
                 // NOTE(port): `existing !== major` is true for `NaN`, as `!=` is on `f64`.
                 if let Some(existing) = existing.filter(|e| *e != major) {
-                    let mut extensions = IndexMap::new();
+                    let mut extensions = IndexMap::default();
                     extensions.insert(
                         "code".to_string(),
                         serde_json::Value::String("DIRECTIVE_COMPOSITION_ERROR".to_string()),

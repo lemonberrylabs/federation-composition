@@ -4,7 +4,7 @@ use graphql_js::{
     is_specified_directive, is_specified_scalar_type, parse, Definition, Directive, DirectiveDefinition, Document,
     GraphQLError, Name, Type, TypeDefinition, Value,
 };
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use super::link::{parse_link, Link, LinkImport};
 use super::{inaccessible, tag};

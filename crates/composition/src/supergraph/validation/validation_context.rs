@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/validation-context.ts`.
 
 use graphql_js::GraphQLError;
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::{SubgraphStates, SupergraphState};
@@ -92,7 +92,7 @@ impl SupergraphStateUpdate {
 
 /// `createSupergraphValidationContext(subgraphStates)`.
 pub fn create_supergraph_validation_context(subgraph_states: SubgraphStates) -> SupergraphValidationContext {
-    let mut subgraph_name_to_id_map = IndexMap::new();
+    let mut subgraph_name_to_id_map = IndexMap::default();
 
     for (id, state) in &subgraph_states {
         subgraph_name_to_id_map.insert(state.graph.name.clone(), id.clone());

@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/root-type-used-rule.ts`.
 
 use graphql_js::{GraphQLError, NodeRef, OperationType, VisitAction, VisitInfo, Visitor};
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use graphql_js::{Definition, OperationTypeDefinition};
@@ -55,7 +55,7 @@ impl DefaultRootTypes {
 fn find_default_root_types(definitions: &[Definition]) -> DefaultRootTypes {
     let mut found_root_types = DefaultRootTypes::default();
 
-    let mut found: IndexSet<OperationType> = IndexSet::new();
+    let mut found: IndexSet<OperationType> = IndexSet::default();
 
     for definition in definitions {
         if found.len() == 3 {

@@ -2,6 +2,14 @@
 //! `bench/corpus.jsonl` with the same protocol and writes results in the same format.
 //!
 //! `cargo run -p federation_composition --release --example corpus_bench -- bench/results-guild-rust.json`
+//! (`pnpm bench:native`), or with mimalloc as the global allocator:
+//! `cargo run -p federation_composition --release --features mimalloc --example corpus_bench -- bench/results-guild-rust-mimalloc.json`
+//! (`pnpm bench:native:mimalloc`).
+
+// Opt in with `--features mimalloc`. The library never sets a global allocator; final artifacts do.
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use federation_composition::compose::{compose_services, CompositionResult};
 use federation_composition::subgraph::validation::validate_subgraph::InternalOptions;
@@ -41,8 +49,10 @@ const MIN_RUNS: usize = 5;
 const MIN_TIME: Duration = Duration::from_millis(50);
 const MAX_RUNS: usize = 200;
 
+const LABEL: &str = if cfg!(feature = "mimalloc") { "guild-rust-mimalloc" } else { "guild-rust" };
+
 fn main() {
-    let out_file = std::env::args().nth(1).unwrap_or_else(|| "bench/results-guild-rust.json".to_string());
+    let out_file = std::env::args().nth(1).unwrap_or_else(|| format!("bench/results-{LABEL}.json"));
     let corpus = std::fs::read_to_string("bench/corpus.jsonl").expect("bench/corpus.jsonl is missing: run `pnpm bench:capture`");
 
     let started = Instant::now();
@@ -87,8 +97,8 @@ fn main() {
     let wall_ms = started.elapsed().as_secs_f64() * 1000.0;
     std::fs::write(
         &out_file,
-        serde_json::to_string_pretty(&json!({ "label": "guild-rust", "node": null, "wallMs": wall_ms, "results": results })).unwrap(),
+        serde_json::to_string_pretty(&json!({ "label": LABEL, "node": null, "wallMs": wall_ms, "results": results })).unwrap(),
     )
     .unwrap();
-    println!("guild-rust: {} cases in {:.1}s -> {out_file}", results.len(), wall_ms / 1000.0);
+    println!("{LABEL}: {} cases in {:.1}s -> {out_file}", results.len(), wall_ms / 1000.0);
 }

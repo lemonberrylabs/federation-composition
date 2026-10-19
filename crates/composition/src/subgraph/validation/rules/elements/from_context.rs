@@ -6,7 +6,7 @@ use crate::subgraph::helpers::{named_type_from_type_node, parse_fields, print_ou
 use crate::subgraph::state::{FromContext, SpecName, SubgraphType};
 use crate::subgraph::validation::validation_context::{MarkAsUsedReason, SubgraphRule, SubgraphValidationContext};
 use graphql_js::{ConstDirective, FieldDefinition, InputValueDefinition, Kind, SelectionSet, Type};
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 use crate::utils::js::JsResult;
 
 use super::{finish, is_interface_kind, is_object_kind, node_name};
@@ -299,7 +299,7 @@ enum CompiledContextValues {
 }
 
 fn index_context_owners(context: &SubgraphValidationContext<'_>) -> IndexMap<String, Vec<ContextOwnerName>> {
-    let mut owners_by_context: IndexMap<String, Vec<ContextOwnerName>> = IndexMap::new();
+    let mut owners_by_context: IndexMap<String, Vec<ContextOwnerName>> = IndexMap::default();
 
     for (type_name, type_def) in context.get_subgraph_object_or_interface_types() {
         for directive in &type_def.directives {
@@ -390,8 +390,8 @@ fn validate_selection(context: &mut SubgraphValidationContext<'_>, input: Valida
     let mut validator = SelectionValidator {
         context_name: input.context_name,
         arg_def: input.arg_def,
-        type_views: IndexMap::new(),
-        runtime_type_sets: IndexMap::new(),
+        type_views: IndexMap::default(),
+        runtime_type_sets: IndexMap::default(),
     };
 
     let layout = parse_context_selection(input.selection)?;
@@ -401,7 +401,7 @@ fn validate_selection(context: &mut SubgraphValidationContext<'_>, input: Valida
         return Ok(());
     }
 
-    let mut touched_type_conditions: IndexSet<String> = IndexSet::new();
+    let mut touched_type_conditions: IndexSet<String> = IndexSet::default();
 
     for owner_name in input.context_owner_names {
         let Some(owner) = validator.get_selectable_type(context, owner_name) else {
@@ -471,7 +471,7 @@ impl SelectionValidator<'_> {
                 is_interface: false,
                 name,
                 ..
-            } => IndexSet::from([name.clone()]),
+            } => IndexSet::from_iter([name.clone()]),
             SelectableType::Union { members, .. } => members.iter().cloned().collect(),
             SelectableType::ObjectOrInterface { name, .. } => context
                 .get_subgraph_object_or_interface_types()
@@ -793,7 +793,7 @@ fn context_selection_from_selection_set(selection_set: &SelectionSet) -> Context
         };
     }
 
-    let mut branches: IndexMap<String, Vec<ContextValue>> = IndexMap::new();
+    let mut branches: IndexMap<String, Vec<ContextValue>> = IndexMap::default();
 
     for selection in &values {
         let (on_type, next) = match selection {
@@ -827,7 +827,7 @@ fn context_selection_from_selection_set(selection_set: &SelectionSet) -> Context
 
 fn build_selectable_type(context: &SubgraphValidationContext<'_>, type_name: &str) -> Option<SelectableType> {
     if let Some(object_or_interface) = context.get_subgraph_object_or_interface_types().get(type_name) {
-        let mut fields: IndexMap<String, FieldDefinition> = IndexMap::new();
+        let mut fields: IndexMap<String, FieldDefinition> = IndexMap::default();
         for field in &object_or_interface.fields {
             fields.insert(field.name.value.clone(), field.clone());
         }
@@ -1047,7 +1047,7 @@ mod tests {
             invalid("type conditions have same name")
         );
 
-        let mut branches = IndexMap::new();
+        let mut branches = IndexMap::default();
         branches.insert("A".to_string(), vec![field("id", None)]);
         branches.insert("B".to_string(), vec![field("name", None)]);
         assert_eq!(

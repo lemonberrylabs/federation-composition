@@ -6,7 +6,7 @@
 use std::cell::RefCell;
 use std::fmt;
 
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::supergraph::state::SupergraphState;
 

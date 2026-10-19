@@ -11,9 +11,12 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 graphql_js = { package = "graphql", path = "../graphql" }
 federation_composition = { path = "../composition" }
-indexmap = { workspace = true }
 # wasm-bindgen must match the wasm-bindgen-cli version exactly (wasm/build.mjs checks).
 wasm-bindgen = "=0.2.129"
 js-sys = "=0.3.106"
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# The global allocator of the WebAssembly build (see src/lib.rs).
+[target.'cfg(target_family = "wasm")'.dependencies]
+talc = "5.1.1"

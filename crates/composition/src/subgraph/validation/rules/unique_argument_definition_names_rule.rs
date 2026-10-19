@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-argument-definition-names-rule.ts`.
 
 use graphql_js::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_js::{FieldDefinition, InputValueDefinition};
@@ -37,7 +37,7 @@ impl UniqueArgumentDefinitionNamesRule {
         parent_name: &str,
         argument_nodes: &[InputValueDefinition],
     ) {
-        let mut visited_argument_names: IndexSet<&str> = IndexSet::new();
+        let mut visited_argument_names: IndexSet<&str> = IndexSet::default();
 
         for arg_def in argument_nodes {
             if visited_argument_names.contains(arg_def.name.value.as_str()) {

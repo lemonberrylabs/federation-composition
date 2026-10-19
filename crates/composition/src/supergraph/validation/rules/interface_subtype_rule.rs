@@ -7,7 +7,7 @@ use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
 use crate::utils::state::{is_list, is_non_null, strip_list, strip_non_null};
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 use crate::supergraph::composition::enum_type::EnumTypeState;
 use crate::supergraph::composition::interface_type::InterfaceTypeState;
 use crate::supergraph::composition::scalar_type::ScalarTypeState;
@@ -40,7 +40,7 @@ impl<'s> SupergraphRule<'s> for InterfaceSubtypeRule<'s> {
     const NAME: &'static str = "InterfaceSubtypeRule";
 
     fn new(_context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        let mut implementations_map: IndexMap<String, IndexSet<String>> = IndexMap::new();
+        let mut implementations_map: IndexMap<String, IndexSet<String>> = IndexMap::default();
 
         for ty in supergraph.interface_types.values() {
             // Store implementations by interface.

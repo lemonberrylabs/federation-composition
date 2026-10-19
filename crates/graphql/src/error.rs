@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use indexmap::IndexMap;
+use crate::collections::IndexMap;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize, Serializer};
 
@@ -19,7 +19,7 @@ impl GraphQLError {
     pub fn new(message: impl Into<String>) -> Self {
         GraphQLError {
             message: message.into(),
-            extensions: IndexMap::new(),
+            extensions: IndexMap::default(),
         }
     }
 
@@ -35,7 +35,7 @@ impl GraphQLError {
 
     /// An error with `extensions: { code }`, the shape composition errors use.
     pub fn with_code(message: impl Into<String>, code: impl Into<String>) -> Self {
-        let mut extensions = IndexMap::new();
+        let mut extensions = IndexMap::default();
         extensions.insert("code".to_owned(), serde_json::Value::String(code.into()));
         GraphQLError::with_extensions(message, extensions)
     }

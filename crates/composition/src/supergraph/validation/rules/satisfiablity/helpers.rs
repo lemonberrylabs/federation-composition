@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 
 /// `occurrences(str, subString)`.
 /// NOTE(port): lengths are UTF-16 in JS; key fields are ASCII.

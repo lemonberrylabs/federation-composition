@@ -25,6 +25,14 @@ mod exports;
 
 pub use exports::*;
 
+// This crate is the final WebAssembly artifact, so it picks the allocator (the library crates
+// never do). Talc instead of the default dlmalloc: measured on the corpus through the shim,
+// 2-3% faster (huge-schema 304 -> 298 ms, test-suite geomean 0.302 -> 0.294 ms); rlsf was
+// slower than dlmalloc. Talc needs no `getrandom`, and this constructor needs no `unsafe`.
+#[cfg(all(target_family = "wasm", not(target_feature = "atomics")))]
+#[global_allocator]
+static ALLOCATOR: talc::wasm::WasmDynamicTalc = talc::wasm::new_wasm_dynamic_allocator();
+
 thread_local! {
     static LAST_PANIC: RefCell<Option<PanicInfo>> = const { RefCell::new(None) };
 }

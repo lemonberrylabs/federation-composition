@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/elements/compose-directive.ts`.
 
 use graphql_js::{Definition, Directive, GraphQLError, NodeRef, Value, VisitAction, VisitInfo, Visitor};
-use indexmap::IndexMap;
+use crate::utils::collections::IndexMap;
 use crate::specifications::link::LinkImportKind;
 use crate::subgraph::helpers::validate_directive_against_original;
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
@@ -40,7 +40,7 @@ fn strip_at(value: &str) -> &str {
 
 /// `{ code: "DIRECTIVE_COMPOSITION_ERROR", subgraphName }`.
 fn composition_error(message: String, subgraph_name: &str) -> GraphQLError {
-    let mut extensions = IndexMap::new();
+    let mut extensions = IndexMap::default();
     extensions.insert(
         "code".to_string(),
         serde_json::Value::String("DIRECTIVE_COMPOSITION_ERROR".to_string()),

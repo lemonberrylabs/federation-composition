@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-argument-names-rule.ts`.
 
 use graphql_js::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
-use indexmap::IndexSet;
+use crate::utils::collections::IndexSet;
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_js::Argument;
@@ -22,7 +22,7 @@ impl<'a> SimpleRule<'a> for UniqueArgumentNamesRule {
 impl UniqueArgumentNamesRule {
     /// `checkArgUniqueness(parentNode)` (its `arguments`).
     fn check_arg_uniqueness(&mut self, context: &mut SimpleValidationContext<'_>, argument_nodes: &[Argument]) {
-        let mut seen_args: IndexSet<&str> = IndexSet::new();
+        let mut seen_args: IndexSet<&str> = IndexSet::default();
 
         for argument_node in argument_nodes {
             if seen_args.contains(argument_node.name.value.as_str()) {

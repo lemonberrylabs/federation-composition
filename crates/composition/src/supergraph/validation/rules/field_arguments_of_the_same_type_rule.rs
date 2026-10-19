@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/field-arguments-of-the-same-type-rule.ts`.
 
 use graphql_js::GraphQLError;
-use indexmap::{IndexMap, IndexSet};
+use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::supergraph::composition::directive::{DirectiveArgState, DirectiveState};
 use crate::supergraph::composition::object_type::{ObjectTypeFieldArgState, ObjectTypeFieldState, ObjectTypeState};
@@ -30,7 +30,7 @@ impl<'s> SupergraphVisitor<'s> for FieldArgumentsOfTheSameTypeRule {
         field_state: &'s ObjectTypeFieldState,
         arg_state: &'s ObjectTypeFieldArgState,
     ) -> JsResult<()> {
-        let mut type_to_graphs: IndexMap<String, Vec<String>> = IndexMap::new();
+        let mut type_to_graphs: IndexMap<String, Vec<String>> = IndexMap::default();
 
         for (graph_name, arg) in &arg_state.by_graph {
             // We normalize the type to remove the non-null modifier
@@ -112,7 +112,7 @@ impl<'s> SupergraphVisitor<'s> for FieldArgumentsOfTheSameTypeRule {
             return Ok(());
         }
 
-        let mut types_per_subgraph: IndexMap<String, IndexSet<String>> = IndexMap::new();
+        let mut types_per_subgraph: IndexMap<String, IndexSet<String>> = IndexMap::default();
 
         for (graph_name, arg) in &arg_state.by_graph {
             // `collectSubgraphType(arg.type, graphName)`
