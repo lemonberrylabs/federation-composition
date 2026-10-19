@@ -3,7 +3,9 @@
 use graphql_js::{Definition, Directive as DirectiveNode};
 use indexmap::{IndexMap, IndexSet};
 
-use super::common::{ComposeHelpers, Graph, MapByGraph, TypeBuilder};
+use super::ast::{create_input_object_type_node, CostAst, InputFieldAst, InputObjectTypeAst, JoinAst, JoinFieldAst, JoinTypeAst};
+use super::common::{convert_to_const, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
+use crate::utils::helpers::{ensure_value, math_max};
 use crate::specifications::federation::FederationVersion;
 use crate::subgraph::state::{Ast, ArgumentKind, Deprecated, Description, InputObjectType};
 use crate::supergraph::state::SubgraphStates;
@@ -26,7 +28,90 @@ impl TypeBuilder<InputObjectType, InputObjectTypeState> for InputObjectTypeBuild
         type_name: &str,
         ty: &InputObjectType,
     ) {
-        todo!()
+        let input_object_type_state = get_or_create_input_object_type(state, type_name);
+
+        for tag in &ty.tags {
+            input_object_type_state.tags.insert(tag.clone());
+        }
+
+        if ty.inaccessible {
+            input_object_type_state.inaccessible = true;
+        }
+
+        if ty.description.is_some() && input_object_type_state.description.is_none() {
+            input_object_type_state.description = ty.description.clone();
+        }
+
+        if ty.is_definition {
+            input_object_type_state.has_definition = true;
+        }
+
+        if ty.is_one_of == Some(true) {
+            input_object_type_state.is_one_of = Some(true);
+        }
+
+        // `if (type.ast.directives)`: an array is always truthy.
+        for directive in &ty.ast.directives {
+            input_object_type_state.ast.directives.push(directive.clone());
+        }
+
+        input_object_type_state.by_graph.insert(
+            graph.id.clone(),
+            InputObjectTypeStateInGraph {
+                inaccessible: ty.inaccessible,
+                version: graph.version,
+            },
+        );
+
+        for field in ty.fields.values() {
+            let field_state = get_or_create_field(input_object_type_state, &field.name, &field.r#type, field.kind);
+
+            for tag in &field.tags {
+                field_state.tags.insert(tag.clone());
+            }
+
+            if field.r#type.ends_with('!') && !field_state.r#type.ends_with('!') {
+                // Replace the nullable type with a non-nullable type
+                field_state.r#type = field.r#type.clone();
+            }
+
+            if field.inaccessible {
+                field_state.inaccessible = true;
+            }
+
+            if let Some(cost) = field.cost {
+                field_state.cost = Some(math_max(cost, field_state.cost));
+            }
+
+            if field.description.is_some() && field_state.description.is_none() {
+                field_state.description = field.description.clone();
+            }
+
+            // First deprecation wins
+            if field.deprecated.is_some() && field_state.deprecated.is_none() {
+                field_state.deprecated = field.deprecated.clone();
+            }
+
+            if field.default_value.is_some() {
+                field_state.default_value = field.default_value.clone();
+            }
+
+            field_state.kind = field.kind;
+
+            for directive in &field.ast.directives {
+                field_state.ast.directives.push(directive.clone());
+            }
+
+            field_state.by_graph.insert(
+                graph.id.clone(),
+                InputObjectFieldStateInGraph {
+                    r#type: field.r#type.clone(),
+                    inaccessible: field.inaccessible,
+                    default_value: field.default_value.clone(),
+                    version: graph.version,
+                },
+            );
+        }
     }
 
     fn compose_supergraph_node(
@@ -35,7 +120,78 @@ impl TypeBuilder<InputObjectType, InputObjectTypeState> for InputObjectTypeBuild
         graphs: &SubgraphStates,
         helpers: ComposeHelpers<'_>,
     ) -> JsResult<Definition> {
-        todo!()
+        let supergraph_state = helpers.supergraph_state;
+        let mut fields: Vec<InputFieldAst> = Vec::new();
+        for field in input_object_type
+            .fields
+            .values()
+            .filter(|field| field.by_graph.len() == input_object_type.by_graph.len())
+        {
+            let field_state_in_graphs: Vec<&InputObjectFieldStateInGraph> = field.by_graph.values().collect();
+            let has_different_type = field_state_in_graphs.iter().any(|f| f.r#type != field.r#type);
+
+            fields.push(InputFieldAst {
+                name: field.name.clone(),
+                r#type: field.r#type.clone(),
+                tags: field.tags.iter().cloned().collect(),
+                inaccessible: field.inaccessible,
+                cost: match field.cost {
+                    Some(cost) => Some(CostAst {
+                        cost,
+                        directive_name: ensure_value(
+                            supergraph_state.specs.cost.names.cost.clone(),
+                            "Directive name of @cost is not defined",
+                        )?,
+                    }),
+                    None => None,
+                },
+                default_value: if field_state_in_graphs.iter().all(|f| f.default_value.is_some()) {
+                    field.default_value.clone()
+                } else {
+                    None
+                },
+                description: field.description.clone(),
+                deprecated: field.deprecated.clone(),
+                ast: convert_to_const(&field.ast.directives),
+                join: JoinAst {
+                    field: if has_different_type {
+                        field
+                            .by_graph
+                            .iter()
+                            .map(|(graph, field_by_graph)| JoinFieldAst {
+                                graph: Some(graph.clone()),
+                                r#type: Some(field_by_graph.r#type.clone()),
+                                ..Default::default()
+                            })
+                            .collect()
+                    } else {
+                        vec![]
+                    },
+                    ..Default::default()
+                },
+            });
+        }
+
+        Ok(Definition::InputObjectTypeDefinition(create_input_object_type_node(&InputObjectTypeAst {
+            name: input_object_type.name.clone(),
+            tags: input_object_type.tags.iter().cloned().collect(),
+            inaccessible: input_object_type.inaccessible,
+            description: input_object_type.description.clone(),
+            is_one_of: input_object_type.is_one_of == Some(true),
+            ast: convert_to_const(&input_object_type.ast.directives),
+            fields,
+            join: JoinAst {
+                r#type: input_object_type
+                    .by_graph
+                    .keys()
+                    .map(|graph| JoinTypeAst {
+                        graph: graph.clone(),
+                        ..Default::default()
+                    })
+                    .collect(),
+                ..Default::default()
+            },
+        })))
     }
 }
 
@@ -89,7 +245,19 @@ fn get_or_create_input_object_type<'s>(
     state: &'s mut IndexMap<String, InputObjectTypeState>,
     type_name: &str,
 ) -> &'s mut InputObjectTypeState {
-    todo!()
+    state
+        .entry(type_name.to_string())
+        .or_insert_with(|| InputObjectTypeState {
+            name: type_name.to_string(),
+            tags: IndexSet::new(),
+            has_definition: false,
+            inaccessible: false,
+            description: None,
+            is_one_of: None,
+            by_graph: IndexMap::new(),
+            fields: IndexMap::new(),
+            ast: Ast { directives: vec![] },
+        })
 }
 
 fn get_or_create_field<'s>(
@@ -98,5 +266,139 @@ fn get_or_create_field<'s>(
     field_type: &str,
     field_kind: ArgumentKind,
 ) -> &'s mut InputObjectTypeFieldState {
-    todo!()
+    object_type_state
+        .fields
+        .entry(field_name.to_string())
+        .or_insert_with(|| InputObjectTypeFieldState {
+            name: field_name.to_string(),
+            r#type: field_type.to_string(),
+            kind: field_kind,
+            tags: IndexSet::new(),
+            inaccessible: false,
+            cost: None,
+            default_value: None,
+            description: None,
+            deprecated: None,
+            by_graph: IndexMap::new(),
+            ast: Ast { directives: vec![] },
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::subgraph::state::InputField;
+    use crate::supergraph::state::SupergraphState;
+
+    fn graph(id: &str) -> Graph {
+        Graph {
+            id: id.into(),
+            name: id.to_lowercase(),
+            version: FederationVersion::V2_3,
+            url: None,
+        }
+    }
+
+    fn field(name: &str, ty: &str, default_value: Option<&str>) -> InputField {
+        InputField {
+            name: name.into(),
+            r#type: ty.into(),
+            kind: ArgumentKind::Scalar,
+            inaccessible: false,
+            tags: IndexSet::new(),
+            cost: None,
+            default_value: default_value.map(String::from),
+            description: None,
+            deprecated: None,
+            ast: Ast::default(),
+        }
+    }
+
+    fn input(fields: Vec<InputField>, is_one_of: Option<bool>) -> InputObjectType {
+        InputObjectType {
+            name: "I".into(),
+            fields: fields.into_iter().map(|f| (f.name.clone(), f)).collect(),
+            extension: false,
+            inaccessible: false,
+            tags: IndexSet::new(),
+            is_definition: true,
+            description: None,
+            ast: Ast::default(),
+            is_one_of,
+        }
+    }
+
+    #[test]
+    fn keeps_fields_defined_everywhere() {
+        let mut builder = input_object_type_builder();
+        let mut state = IndexMap::new();
+        builder.visit_subgraph_state(
+            &graph("A"),
+            &mut state,
+            "I",
+            &input(
+                vec![
+                    field("a", "Int", Some("1")),
+                    field("b", "String", Some("\"x\"")),
+                    field("onlyA", "Int", None),
+                ],
+                None,
+            ),
+        );
+        let mut deprecated = field("b", "String!", None);
+        deprecated.deprecated = Some(Deprecated { reason: None });
+        builder.visit_subgraph_state(
+            &graph("B"),
+            &mut state,
+            "I",
+            &input(vec![field("a", "Int", Some("1")), deprecated], Some(true)),
+        );
+
+        let input_state = &state["I"];
+        // The non-null type replaces the nullable one.
+        assert_eq!(input_state.fields["b"].r#type, "String!");
+        assert_eq!(input_state.is_one_of, Some(true));
+
+        let supergraph_state = SupergraphState::default();
+        let map = IndexMap::new();
+        let node = builder
+            .compose_supergraph_node(
+                input_state,
+                &supergraph_state.subgraphs,
+                ComposeHelpers {
+                    supergraph_state: &supergraph_state,
+                    graph_name_to_id_map: &map,
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            graphql_js::print(&node),
+            "input I @join__type(graph: A) @join__type(graph: B) @oneOf {\n  a: Int = 1\n  \
+             b: String! @join__field(graph: A, type: \"String\") @join__field(graph: B, type: \"String!\") @deprecated\n}"
+        );
+    }
+
+    #[test]
+    fn missing_cost_directive_name_throws() {
+        let mut builder = input_object_type_builder();
+        let mut state = IndexMap::new();
+        let mut f = field("a", "Int", None);
+        f.cost = Some(2.0);
+        builder.visit_subgraph_state(&graph("A"), &mut state, "I", &input(vec![f], None));
+        assert_eq!(state["I"].fields["a"].cost, Some(2.0));
+
+        let supergraph_state = SupergraphState::default();
+        let map = IndexMap::new();
+        let err = builder
+            .compose_supergraph_node(
+                &state["I"],
+                &supergraph_state.subgraphs,
+                ComposeHelpers {
+                    supergraph_state: &supergraph_state,
+                    graph_name_to_id_map: &map,
+                },
+            )
+            .unwrap_err();
+        assert_eq!(err.to_js_string(), "Error: Directive name of @cost is not defined");
+    }
 }

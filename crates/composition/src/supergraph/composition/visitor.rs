@@ -91,5 +91,70 @@ pub fn visit_supergraph_state<'s>(
     cx: &mut SupergraphValidationContext,
     visitors: &mut [Box<dyn SupergraphVisitor<'s> + 's>],
 ) -> JsResult<()> {
-    todo!()
+    // Object
+    for object_type_state in supergraph_state.object_types.values() {
+        for visitor in visitors.iter_mut() {
+            visitor.object_type(cx, object_type_state)?;
+        }
+
+        for field_state in object_type_state.fields.values() {
+            for visitor in visitors.iter_mut() {
+                visitor.object_type_field(cx, object_type_state, field_state)?;
+            }
+
+            for arg_state in field_state.args.values() {
+                for visitor in visitors.iter_mut() {
+                    visitor.object_type_field_arg(cx, object_type_state, field_state, arg_state)?;
+                }
+            }
+        }
+    }
+
+    // Enum
+    for enum_type_state in supergraph_state.enum_types.values() {
+        for visitor in visitors.iter_mut() {
+            visitor.enum_type(cx, enum_type_state)?;
+        }
+    }
+
+    // Input Object
+    for input_object_type_state in supergraph_state.input_object_types.values() {
+        for visitor in visitors.iter_mut() {
+            visitor.input_object_type(cx, input_object_type_state)?;
+        }
+
+        for field_state in input_object_type_state.fields.values() {
+            for visitor in visitors.iter_mut() {
+                visitor.input_object_type_field(cx, input_object_type_state, field_state)?;
+            }
+        }
+    }
+
+    // Interface
+    for interface_type_state in supergraph_state.interface_types.values() {
+        for visitor in visitors.iter_mut() {
+            visitor.interface_type(cx, interface_type_state)?;
+        }
+
+        for field_state in interface_type_state.fields.values() {
+            for visitor in visitors.iter_mut() {
+                visitor.interface_type_field(cx, interface_type_state, field_state)?;
+            }
+        }
+    }
+
+    // Directive
+    for directive_state in supergraph_state.directives.values() {
+        for visitor in visitors.iter_mut() {
+            visitor.directive(cx, directive_state)?;
+
+            if visitor.has_directive_field_arg() {
+                for directive_arg_state in directive_state.args.values() {
+                    visitor.directive_field_arg(cx, directive_state, directive_arg_state)?;
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
