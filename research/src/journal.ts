@@ -1,4 +1,5 @@
 import baseline from "../journal/01-baseline.md?raw";
+import port from "../journal/02-port.md?raw";
 
 export type Phase = {
   title: string;
@@ -18,17 +19,26 @@ export const phases: Phase[] = [
   { title: "Baseline the TypeScript implementation", status: "done" },
   {
     title: "Port to Rust, pass the existing tests via WebAssembly",
-    status: "in progress",
+    status: "done",
   },
   {
     title: "Benchmark TypeScript vs WebAssembly vs native",
-    status: "not started",
+    status: "in progress",
   },
   { title: "Port the tests to Rust", status: "not started" },
 ];
 
 // Newest first.
 export const entries: Entry[] = [
+  {
+    slug: "port",
+    date: "2026-10-19",
+    milestone: 2,
+    title: "The port: Rust passes the unchanged test suite",
+    summary:
+      "47.5K lines of Rust in about two hours of wall-clock time. All 7,343 TypeScript tests pass against the WebAssembly build, and native Rust output is byte-identical on 3,564 compositions.",
+    body: port,
+  },
   {
     slug: "baseline",
     date: "2026-10-19",

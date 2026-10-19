@@ -78,6 +78,22 @@ function median(values: number[]) {
   return sorted[Math.floor(sorted.length / 2)];
 }
 
+type Tile = { label: string; value: string; note: string };
+
+function renderTiles(root: HTMLElement, tiles: Tile[]) {
+  const grid = html("div", "tiles");
+  for (const tile of tiles) {
+    const node = html("div", "tile");
+    node.append(
+      html("div", "tile-label", tile.label),
+      html("div", "tile-value", tile.value),
+      html("div", "tile-note", tile.note),
+    );
+    grid.append(node);
+  }
+  root.append(grid);
+}
+
 const baselineTiles: Chart = (root) => {
   const huge = guildTs.fixtures.find((f) => f.id === "huge-schema")!;
   const dgs = guildTs.fixtures.find((f) => f.id === "dgs")!;
@@ -103,18 +119,32 @@ const baselineTiles: Chart = (root) => {
       note: `median of ${count.format(guildTs.cases.length)}`,
     },
   ];
-  const grid = html("div", "tiles");
-  for (const tile of tiles) {
-    const node = html("div", "tile");
-    node.append(
-      html("div", "tile-label", tile.label),
-      html("div", "tile-value", tile.value),
-      html("div", "tile-note", tile.note),
-    );
-    grid.append(node);
-  }
-  root.append(grid);
+  renderTiles(root, tiles);
 };
+
+const portTiles: Chart = (root) =>
+  renderTiles(root, [
+    {
+      label: "Tests passing on WebAssembly",
+      value: count.format(7343),
+      note: "unchanged TypeScript suite",
+    },
+    {
+      label: "Compositions identical",
+      value: "3,564 / 3,564",
+      note: "native Rust vs TypeScript",
+    },
+    {
+      label: "Rust written",
+      value: "47.5K lines",
+      note: "graphql, composition, bindings",
+    },
+    {
+      label: "Wall-clock time",
+      value: "≈ 2 h",
+      note: "graphql port to passing suite",
+    },
+  ]);
 
 // Small multiples, one per fixture, each with its own scale: the fixtures span
 // three orders of magnitude, so a shared axis would flatten the small ones.
@@ -345,6 +375,7 @@ const baselineHistogram: Chart = (root) => {
 
 const charts: Record<string, Chart> = {
   "baseline-tiles": baselineTiles,
+  "port-tiles": portTiles,
   "baseline-mitata": baselineMitata,
   "baseline-histogram": baselineHistogram,
 };
