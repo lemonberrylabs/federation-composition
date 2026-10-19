@@ -1,5 +1,6 @@
 // Records every guild composeServices() call made by the test suite so the
-// same inputs can be replayed by bench/run-corpus.ts against each implementation.
+// same inputs can be replayed by bench/run-corpus.ts against each implementation,
+// together with the TypeScript output, which crates/composition/tests/corpus.rs compares against.
 import { appendFileSync } from "node:fs";
 import { vi } from "vitest";
 
@@ -24,6 +25,18 @@ vi.mock("../src/compose.js", async (importOriginal) => {
             })),
             internal,
             success: !("errors" in result && result.errors),
+            // The TypeScript output, so other implementations can be checked against it.
+            expected: original.compositionHasErrors(result)
+              ? {
+                  errors: result.errors.map((e) => ({
+                    message: e.message,
+                    code: e.extensions?.code ?? null,
+                  })),
+                }
+              : {
+                  supergraphSdl: result.supergraphSdl,
+                  publicSdl: result.publicSdl,
+                },
           },
           (key, value) => (key === "loc" ? undefined : value),
         ) + "\n",
