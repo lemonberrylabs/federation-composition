@@ -1,13 +1,12 @@
-// Replays the compositions captured from the test suite (bench/corpus.jsonl)
-// plus the benchmark fixtures, and records per-case timings.
+// Replays bench/corpus.jsonl (the compositions captured from the test suite plus the
+// benchmark fixtures) and records per-case timings.
 //
-// Usage: tsx --expose-gc bench/run-corpus.ts <implementation-label> <out.json>
+// Usage: tsx --expose-gc bench/run-corpus.ts <implementation> <out.json>
+// where <implementation> is "guild-ts" (src/) or "guild-wasm" (the WebAssembly build
+// through the wasm/ shim, so AST conversion across the boundary is included).
+// Native Rust uses the same protocol: crates/composition/examples/corpus_bench.rs.
 import { readFileSync, writeFileSync } from "node:fs";
 import { DocumentNode, print } from "graphql";
-import { getSubgraphs as dgs } from "../__tests__/fixtures/dgs/index.js";
-import { getSubgraphs as huge } from "../__tests__/fixtures/huge-schema/index.js";
-import { createStarsStuff } from "../__tests__/fixtures/stars-stuff.js";
-import { composeServices } from "../src/compose.js";
 
 type Case = {
   id: string;
@@ -17,27 +16,23 @@ type Case = {
   success: boolean;
 };
 
-const [label = "guild-ts", outFile = "bench/results-guild-ts.json"] =
+const [label = "guild-ts", outFile = `bench/results-${label}.json`] =
   process.argv.slice(2);
+
+const implementations = {
+  "guild-ts": () => import("../src/compose.js"),
+  "guild-wasm": () => import("../wasm/compose.js"),
+};
+if (!(label in implementations)) {
+  throw new Error(`Unknown implementation "${label}"`);
+}
+const { composeServices } =
+  await implementations[label as keyof typeof implementations]();
 
 const corpus: Case[] = readFileSync("bench/corpus.jsonl", "utf8")
   .split("\n")
   .filter(Boolean)
   .map((line) => JSON.parse(line));
-
-const fixtures: Array<[string, Array<{ name: string; typeDefs: any }>]> = [
-  ["fixture:stars-stuff", Object.values(createStarsStuff())],
-  ["fixture:dgs", await dgs()],
-  ["fixture:huge-schema", await huge()],
-];
-for (const [id, services] of fixtures) {
-  corpus.push({
-    id,
-    source: "fixture",
-    services,
-    success: true,
-  });
-}
 
 // The timed region is composeServices() only, on already-parsed ASTs.
 const prepared = corpus.map((c) => ({
