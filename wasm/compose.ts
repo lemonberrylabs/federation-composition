@@ -8,28 +8,28 @@ import type {
 import type { ServiceDefinition } from "../src/types.js";
 import {
   call,
+  decodeJSON,
+  encodeJSON,
   parseJSON,
   servicesToJSON,
   toGraphQLErrors,
-  toJSON,
   type GraphQLErrorJSON,
 } from "./runtime.js";
 
 export type { CompositionFailure, CompositionResult, CompositionSuccess };
 
-/** What the Rust exports returning a composition give back. */
-export type CompositionJSON =
-  | { errors: GraphQLErrorJSON[] }
-  | { supergraphDocumentNode: DocumentNode };
+/**
+ * What the Rust exports returning a composition give back (`composition_out` in
+ * crates/composition-wasm/src/exports.rs): the errors' JSON on failure, the
+ * supergraph document's JSON as UTF-8 bytes on success.
+ */
+export type CompositionOut = string | Uint8Array;
 
-export function fromCompositionJSON(json: string): CompositionResult {
-  const result = parseJSON<CompositionJSON>(json);
-  if ("errors" in result) {
-    return { errors: toGraphQLErrors(result.errors) };
+export function fromCompositionOut(out: CompositionOut): CompositionResult {
+  if (typeof out === "string") {
+    return { errors: toGraphQLErrors(parseJSON<GraphQLErrorJSON[]>(out)) };
   }
-  return createCompositionSuccessReadCacheContainer(
-    result.supergraphDocumentNode,
-  );
+  return createCompositionSuccessFromJSON(out);
 }
 
 export function composeServices(
@@ -38,7 +38,7 @@ export function composeServices(
     disableValidationRules?: string[];
   },
 ): CompositionResult {
-  return fromCompositionJSON(
+  return fromCompositionOut(
     call(
       "compose_services",
       servicesToJSON(services),
@@ -85,7 +85,7 @@ export function createCompositionSuccessReadCacheContainer(
       if (supergraphSdl == null) {
         supergraphSdl = call(
           "print_supergraph",
-          toJSON(supergraphDocumentNode),
+          encodeJSON(supergraphDocumentNode),
         );
       }
       return supergraphSdl;
@@ -95,7 +95,7 @@ export function createCompositionSuccessReadCacheContainer(
         publicDocumentNode = parseJSON<DocumentNode>(
           call(
             "transform_supergraph_to_public_schema",
-            toJSON(supergraphDocumentNode),
+            encodeJSON(supergraphDocumentNode),
           ),
         );
       }
@@ -104,7 +104,82 @@ export function createCompositionSuccessReadCacheContainer(
     },
     get publicSdl() {
       if (publicSdl == null) {
-        publicSdl = call("print_supergraph", toJSON(this.publicDocumentNode));
+        publicSdl = call(
+          "print_supergraph",
+          encodeJSON(this.publicDocumentNode),
+        );
+      }
+
+      return publicSdl;
+    },
+  };
+}
+
+/**
+ * {@link createCompositionSuccessReadCacheContainer} for a supergraph document
+ * that is still the JSON a Rust export returned.
+ *
+ * PERF: the TS has the document as an object already. Here turning the JSON
+ * into objects costs about as much as serializing it in Rust, and most callers
+ * only read `supergraphSdl`, so the JSON is parsed only when
+ * `supergraphDocumentNode` is read. Until then the getters hand the JSON bytes
+ * straight back to Rust. Once the document has been read the caller may have
+ * changed it, so from then on the getters serialize that object, which is what
+ * the TS prints.
+ */
+export function createCompositionSuccessFromJSON(
+  supergraphDocumentJSON: Uint8Array,
+): CompositionSuccess {
+  let supergraphDocumentNode: DocumentNode | undefined;
+  let supergraphSdl: string;
+  let publicDocumentNode: DocumentNode;
+  let publicSdl: string;
+
+  const documentJSON = () =>
+    supergraphDocumentNode === undefined
+      ? supergraphDocumentJSON
+      : encodeJSON(supergraphDocumentNode);
+
+  return {
+    get supergraphDocumentNode(): DocumentNode {
+      if (supergraphDocumentNode === undefined) {
+        supergraphDocumentNode = decodeJSON<DocumentNode>(
+          supergraphDocumentJSON,
+        );
+      }
+      return supergraphDocumentNode;
+    },
+    // A writable data property in the TS. Assigning it changes what it reads,
+    // not what the getters below print (they use the closure variable).
+    set supergraphDocumentNode(value: DocumentNode) {
+      Object.defineProperty(this, "supergraphDocumentNode", {
+        value,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+    },
+    get supergraphSdl() {
+      if (supergraphSdl == null) {
+        supergraphSdl = call("print_supergraph", documentJSON());
+      }
+      return supergraphSdl;
+    },
+    get publicDocumentNode() {
+      if (publicDocumentNode == null) {
+        publicDocumentNode = parseJSON<DocumentNode>(
+          call("transform_supergraph_to_public_schema", documentJSON()),
+        );
+      }
+
+      return publicDocumentNode;
+    },
+    get publicSdl() {
+      if (publicSdl == null) {
+        publicSdl = call(
+          "print_supergraph",
+          encodeJSON(this.publicDocumentNode),
+        );
       }
 
       return publicSdl;

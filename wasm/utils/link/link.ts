@@ -1,6 +1,6 @@
 // Shim of src/utils/link/link.ts.
 import type { DocumentNode } from "graphql";
-import { call, parseJSON, toJSON } from "../../runtime.js";
+import { call, encodeJSON, parseJSON } from "../../runtime.js";
 import { FederatedLinkImport, type LinkImportJSON } from "./link-import.js";
 import {
   FederatedLinkUrl,
@@ -42,7 +42,7 @@ export class FederatedLink {
   /** Collects all `@link`s defined in graphql typedefs */
   static fromTypedefs(typeDefs: DocumentNode): FederatedLink[] {
     return parseJSON<LinkJSON[]>(
-      call("link_from_typedefs", toJSON(typeDefs)),
+      call("link_from_typedefs", encodeJSON(typeDefs)),
     ).map(FederatedLink.fromJSONValue);
   }
 

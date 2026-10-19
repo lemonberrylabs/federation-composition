@@ -3,8 +3,14 @@
 //!
 //! Conventions shared with `wasm/runtime.ts`:
 //!
-//! * Structured arguments and results are JSON strings. AST nodes use the
-//!   graphql-js JSON form (`graphql_js` serde); the shim strips `loc`.
+//! * Structured arguments and results are JSON. AST nodes use the graphql-js
+//!   JSON form (`graphql_js` serde); the shim leaves out `loc` and the
+//!   deserializer ignores any `loc` left in. Arguments that carry documents
+//!   are UTF-8 bytes (`&[u8]`, a `Uint8Array` from `encodeJSON` in the shim):
+//!   wasm-bindgen copies those, while it re-encodes a `&str` argument one
+//!   character at a time in JS. A composition's supergraph document is
+//!   returned as bytes too, which the shim decodes only when it is read.
+//!   Small arguments and other results are strings.
 //! * A function that throws in TypeScript returns `Err` with a JSON string,
 //!   [`ThrownError`], which the shim rethrows as `Error` (or `TypeError`...) or
 //!   `GraphQLError`. A JS exception thrown by a callback passed in (such as
@@ -127,9 +133,10 @@ impl From<ThrownError> for JsValue {
 
 pub(crate) type JsResult<T> = Result<T, JsValue>;
 
-/// Parses a JSON argument sent by the shim.
-pub(crate) fn from_json<T: serde::de::DeserializeOwned>(what: &str, json: &str) -> JsResult<T> {
-    serde_json::from_str(json).map_err(|e| {
+/// Parses a JSON argument sent by the shim, either a string (`json.as_bytes()`) or the UTF-8
+/// bytes of one (`encodeJSON` in the shim, for documents).
+pub(crate) fn from_json<T: serde::de::DeserializeOwned>(what: &str, json: &[u8]) -> JsResult<T> {
+    serde_json::from_slice(json).map_err(|e| {
         ThrownError::error(format!("composition-wasm: invalid {what} argument: {e}")).into()
     })
 }
@@ -137,6 +144,12 @@ pub(crate) fn from_json<T: serde::de::DeserializeOwned>(what: &str, json: &str) 
 /// Serializes a result for the shim.
 pub(crate) fn to_json<T: Serialize + ?Sized>(value: &T) -> String {
     serde_json::to_string(value).expect("results serialize")
+}
+
+/// Serializes a result for the shim as UTF-8 bytes, which reach JS as a `Uint8Array` that the
+/// shim decodes only if it needs the value (the supergraph document of a composition).
+pub(crate) fn to_json_bytes<T: Serialize + ?Sized>(value: &T) -> Vec<u8> {
+    serde_json::to_vec(value).expect("results serialize")
 }
 
 /// A GraphQL error as the shim rebuilds it: `{ message, extensions? }`.

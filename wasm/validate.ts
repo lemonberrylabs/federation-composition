@@ -4,6 +4,7 @@ import type { validate as tsValidate } from "../src/validate.js";
 import {
   call,
   parseJSON,
+  serviceToJSON,
   servicesToJSON,
   toGraphQLErrors,
   type GraphQLErrorJSON,
@@ -16,10 +17,9 @@ export function validateSubgraph(subgraph: {
   url?: string;
   typeDefs: DocumentNode;
 }): GraphQLError[] {
-  const [service] = JSON.parse(servicesToJSON([subgraph]));
   return toGraphQLErrors(
     parseJSON<GraphQLErrorJSON[]>(
-      call("validate_subgraph", JSON.stringify(service)),
+      call("validate_subgraph", serviceToJSON(subgraph)),
     ),
   );
 }

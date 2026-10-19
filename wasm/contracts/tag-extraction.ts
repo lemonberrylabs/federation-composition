@@ -1,7 +1,7 @@
 // Shim of src/contracts/tag-extraction.ts.
 import type { ConstDirectiveNode, DocumentNode } from "graphql";
 import type { SchemaContractFilter } from "../../src/contracts/tag-extraction.js";
-import { call, parseJSON, toJSON } from "../runtime.js";
+import { call, encodeJSON, parseJSON, toJSON } from "../runtime.js";
 
 export type { SchemaContractFilter };
 
@@ -54,7 +54,7 @@ export function buildSchemaCoordinateTagRegister(
   documentNodes: Array<DocumentNode>,
 ): SchemaCoordinateToTagsRegistry {
   const entries = parseJSON<Array<[string, string[]]>>(
-    call("build_schema_coordinate_tag_register", toJSON(documentNodes)),
+    call("build_schema_coordinate_tag_register", encodeJSON(documentNodes)),
   );
   return new Map(
     entries.map(([coordinate, tags]) => [coordinate, new Set(tags)]),
@@ -74,7 +74,7 @@ export function applyTagFilterToInaccessibleTransformOnSubgraphSchema(
     parseJSON<TagFilterResultJSON>(
       call(
         "apply_tag_filter_to_inaccessible_transform_on_subgraph_schema",
-        toJSON(documentNode),
+        encodeJSON(documentNode),
         JSON.stringify(register),
         filterToJSON(filter),
       ),
@@ -93,7 +93,7 @@ export function applyTagFilterOnSubgraphs<
   const results = parseJSON<TagFilterResultJSON[]>(
     call(
       "apply_tag_filter_on_subgraphs",
-      toJSON(subgraphs.map((s) => s.typeDefs)),
+      encodeJSON(subgraphs.map((s) => s.typeDefs)),
       filterToJSON(filter),
     ),
   );

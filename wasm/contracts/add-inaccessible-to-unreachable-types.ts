@@ -1,10 +1,9 @@
 // Shim of src/contracts/add-inaccessible-to-unreachable-types.ts.
-import type { DocumentNode } from "graphql";
 import {
-  createCompositionSuccessReadCacheContainer,
+  createCompositionSuccessFromJSON,
   type CompositionSuccess,
 } from "../compose.js";
-import { call, parseJSON, toJSON } from "../runtime.js";
+import { call, encodeJSON } from "../runtime.js";
 
 type AddInaccessibleToUnreachableTypesInput = Pick<
   CompositionSuccess,
@@ -21,12 +20,11 @@ export const addInaccessibleToUnreachableTypes = (
 ): CompositionSuccess => {
   // The Rust side derives the public document from the supergraph, as the
   // getter of a `CompositionSuccess` does.
-  const supergraphNode = parseJSON<DocumentNode>(
+  return createCompositionSuccessFromJSON(
     call(
       "add_inaccessible_to_unreachable_types",
       resolveName,
-      toJSON(compositionResult.supergraphDocumentNode),
+      encodeJSON(compositionResult.supergraphDocumentNode),
     ),
   );
-  return createCompositionSuccessReadCacheContainer(supergraphNode);
 };
