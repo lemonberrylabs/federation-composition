@@ -9,7 +9,6 @@ use crate::utils::js::JsResult;
 
 /// `ContextualArgumentRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeFieldArg`.
-/// Fields: the locals of the TS factory (and `supergraph` if the callbacks read it).
 pub struct ContextualArgumentRule<'s> {
     supergraph: &'s SupergraphState,
 }
@@ -18,7 +17,7 @@ impl<'s> SupergraphRule<'s> for ContextualArgumentRule<'s> {
     const NAME: &'static str = "ContextualArgumentRule";
 
     fn new(context: &mut SupergraphValidationContext, supergraph: &'s SupergraphState) -> JsResult<Self> {
-        todo!()
+        Ok(ContextualArgumentRule { supergraph })
     }
 }
 
@@ -30,6 +29,30 @@ impl<'s> SupergraphVisitor<'s> for ContextualArgumentRule<'s> {
         field_state: &'s ObjectTypeFieldState,
         arg_state: &'s ObjectTypeFieldArgState,
     ) -> JsResult<()> {
-        todo!()
+        if arg_state.from_context.is_none() {
+            return Ok(());
+        }
+
+        let is_required_somewhere = arg_state.by_graph.values().any(|arg_in_graph| {
+            arg_in_graph.from_context.is_none()
+                && arg_in_graph.r#type.ends_with('!')
+                // `!argInGraph.defaultValue`: `""` is falsy too.
+                && arg_in_graph.default_value.as_deref().map_or(true, str::is_empty)
+        });
+
+        if !is_required_somewhere {
+            return Ok(());
+        }
+
+        let coordinate = format!("{}.{}({}:)", object_state.name, field_state.name, arg_state.name);
+
+        cx.report_error(GraphQLError::with_code(
+            format!(
+                "Argument \"{coordinate}\" is contextual in at least one subgraph but in \"{coordinate}\" it does not have @fromContext, is not nullable and has no default value."
+            ),
+            "CONTEXTUAL_ARGUMENT_NOT_CONTEXTUAL_IN_ALL_SUBGRAPHS",
+        ));
+
+        Ok(())
     }
 }

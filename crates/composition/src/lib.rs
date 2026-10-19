@@ -3,8 +3,8 @@
 //! The `graphql-js` port is the `graphql_js` crate; `crate::graphql` is `src/graphql/`.
 //! `src/index.ts` is this file: the re-exports below are its `export` list.
 
-// The skeleton has `todo!()` bodies and unused parameters everywhere.
-// This allow is removed when the port is complete.
+// The port keeps the TS signatures, so visitor callbacks and rule contexts carry parameters
+// and fields the TS also leaves unused (about 180 such warnings without this allow).
 #![allow(dead_code, unused_variables, unused_imports, unreachable_code)]
 
 pub mod compose;

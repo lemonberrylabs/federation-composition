@@ -4,14 +4,16 @@ use std::rc::Rc;
 
 use graphql_js::OperationType;
 
+use super::constants::GraphId;
+use super::contexts::Contexts;
 use super::graph::Graph;
 use super::move_validator::MoveValidator;
 use super::operation_path::Step;
 use super::selection::SelectionResolver;
-use super::walker::WalkTracker;
+use super::walker::{WalkMethod, WalkTracker, Walker};
 use crate::supergraph::state::SupergraphState;
 use crate::utils::js::JsResult;
-use crate::utils::logger::Logger;
+use crate::utils::logger::{Logger, LoggerContext};
 
 /// `Supergraph`: the supergraph graph, the merged graph (all subgraph graphs joined) and the
 /// move validator over the merged graph.
@@ -26,7 +28,65 @@ pub struct Supergraph<'s> {
 impl<'s> Supergraph<'s> {
     /// Builds every graph (throws on inconsistent state).
     pub fn new(supergraph_state: &'s SupergraphState) -> JsResult<Self> {
-        todo!()
+        let logger = Logger::new("Supergraph", &mut LoggerContext::new());
+        let selection_resolver = Rc::new(SelectionResolver::new(supergraph_state));
+        // Contexts are only ever resolved on the merged graph,
+        // the supergraph graph does not need to know about them.
+        let contexts = if supergraph_state.specs.context {
+            Some(Rc::new(Contexts::new(supergraph_state)))
+        } else {
+            None
+        };
+        let mut supergraph = Graph::new(
+            &logger,
+            GraphId::Supergraph,
+            "supergraph".to_string(),
+            supergraph_state,
+            selection_resolver.clone(),
+            true,
+            None,
+        );
+        let mut merged_graph = Graph::new(
+            &logger,
+            GraphId::MergedGraph,
+            "merged".to_string(),
+            supergraph_state,
+            selection_resolver.clone(),
+            false,
+            contexts.clone(),
+        );
+        for (id, subgraph_state) in &supergraph_state.subgraphs {
+            let mut graph = Graph::new(
+                &logger,
+                GraphId::Subgraph(id.clone()),
+                subgraph_state.graph.name.clone(),
+                supergraph_state,
+                selection_resolver.clone(),
+                false,
+                contexts.clone(),
+            );
+            graph.add_from_roots()?.add_from_entities()?.add_unreachable_types()?;
+            merged_graph.add_subgraph(graph);
+        }
+
+        merged_graph.join_subgraphs()?;
+        merged_graph.add_overridden_fields()?;
+
+        supergraph
+            .add_from_roots()?
+            .add_overridden_fields()?
+            .add_interface_object_fields()?;
+
+        let merged_graph = Rc::new(merged_graph);
+        let move_requirement_checker = MoveValidator::new(&logger, merged_graph.clone());
+
+        Ok(Supergraph {
+            supergraph: Rc::new(supergraph),
+            merged_graph,
+            selection_resolver,
+            move_requirement_checker,
+            logger,
+        })
     }
 
     /// The supergraph graph (resolves the edges of `WalkTracker::super_path`).
@@ -41,10 +101,22 @@ impl<'s> Supergraph<'s> {
 
     /// `validate()`: a depth-first walk; the unreachable paths.
     pub fn validate(&self) -> JsResult<Vec<WalkTracker<'s>>> {
-        todo!()
+        Walker::new(
+            &self.logger,
+            self.move_requirement_checker.clone(),
+            self.supergraph.clone(),
+            self.merged_graph.clone(),
+        )
+        .walk(WalkMethod::Dfs)
     }
 
     pub fn validate_operation(&self, operation: OperationType, steps: &[Step]) -> JsResult<WalkTracker<'s>> {
-        todo!()
+        Walker::new(
+            &self.logger,
+            self.move_requirement_checker.clone(),
+            self.supergraph.clone(),
+            self.merged_graph.clone(),
+        )
+        .walk_trail(operation, steps)
     }
 }

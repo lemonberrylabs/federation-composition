@@ -6,18 +6,31 @@ use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidati
 /// `LoneSchemaDefinitionRule(context)`.
 /// Visitor callbacks: `SchemaDefinition`.
 /// Fields: the locals of the TS factory.
-pub struct LoneSchemaDefinitionRule {}
+pub struct LoneSchemaDefinitionRule {
+    schema_definitions_count: usize,
+}
 
 impl<'a> SimpleRule<'a> for LoneSchemaDefinitionRule {
     const NAME: &'static str = "LoneSchemaDefinitionRule";
 
     fn new(context: &mut SimpleValidationContext<'a>) -> Self {
-        todo!()
+        LoneSchemaDefinitionRule {
+            schema_definitions_count: 0,
+        }
     }
 }
 
 impl<'a> Visitor<'a, SimpleValidationContext<'a>> for LoneSchemaDefinitionRule {
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
-        todo!()
+        if let NodeRef::SchemaDefinition(_) = node {
+            if self.schema_definitions_count > 0 {
+                cx.report_error(GraphQLError::with_code(
+                    "Must provide only one schema definition.",
+                    "INVALID_GRAPHQL",
+                ));
+            }
+            self.schema_definitions_count += 1;
+        }
+        VisitAction::Continue
     }
 }

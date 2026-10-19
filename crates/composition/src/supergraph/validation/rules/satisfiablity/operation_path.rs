@@ -4,8 +4,9 @@
 //! the merged graph otherwise); methods that need the edges take that graph.
 
 use super::contexts::ContextMask;
-use super::edge::EdgeId;
+use super::edge::{is_field_edge, EdgeId};
 use super::graph::Graph;
+use super::moves::Move;
 use super::node::NodeId;
 
 /// `Step = FieldStep | AbstractStep`.
@@ -45,7 +46,25 @@ impl OperationPath {
 
     /// `move(edge)`: appends the edge (mutating, returns `self` like the TS).
     pub fn r#move(&mut self, graph: &Graph<'_>, edge: EdgeId) -> &mut Self {
-        todo!()
+        self.previous_edges.push(edge);
+
+        // Only field moves turn the head into an ancestor.
+        // Key and abstract moves stay at the same level and preserve the context scope.
+        let e = graph.edge(edge);
+        if is_field_edge(e) {
+            let head = graph.node(e.head);
+            if !head.contexts.is_zero() {
+                self.contexts_in_scope.or_assign(&head.contexts);
+            }
+        }
+        self
+    }
+
+    /// `path.clone().move(edge)`.
+    pub fn moved(&self, graph: &Graph<'_>, edge: EdgeId) -> OperationPath {
+        let mut new_path = self.clone();
+        new_path.r#move(graph, edge);
+        new_path
     }
 
     /// `clone()`.
@@ -74,11 +93,30 @@ impl OperationPath {
     }
 
     pub fn steps(&self, graph: &Graph<'_>) -> Vec<Step> {
-        todo!()
+        self.previous_edges
+            .iter()
+            .map(|&edge| {
+                let e = graph.edge(edge);
+                match &e.r#move {
+                    Move::Field(m) => Step::Field {
+                        type_name: m.type_name.clone(),
+                        field_name: m.field_name.clone(),
+                    },
+                    _ => Step::Abstract {
+                        type_name: graph.node(e.tail).type_name.clone(),
+                    },
+                }
+            })
+            .collect()
     }
 
     pub fn tail(&self, graph: &Graph<'_>) -> Option<NodeId> {
-        todo!()
+        self.edge().map(|edge| graph.edge(edge).tail)
+    }
+
+    /// `path.tail() ?? path.rootNode()`.
+    pub fn tail_or_root(&self, graph: &Graph<'_>) -> NodeId {
+        self.tail(graph).unwrap_or(self.root_node)
     }
 
     pub fn root_node(&self) -> NodeId {
@@ -91,6 +129,11 @@ impl OperationPath {
 
     /// `toString()` (lazy in TS; logging only).
     pub fn to_string(&self, graph: &Graph<'_>) -> String {
-        todo!()
+        let mut str = graph.node(self.root_node).to_string();
+        for &edge in &self.previous_edges {
+            let e = graph.edge(edge);
+            str += &format!(" -({})-> {}", e.r#move.to_string(), graph.node(e.tail).to_string());
+        }
+        str
     }
 }

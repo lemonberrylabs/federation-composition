@@ -30,6 +30,19 @@ pub enum NodeTypeState<'s> {
     Union(&'s UnionTypeState),
 }
 
+impl NodeTypeState<'_> {
+    /// `typeState.kind`.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            NodeTypeState::Object(_) => "object",
+            NodeTypeState::Interface(_) => "interface",
+            NodeTypeState::Enum(_) => "enum",
+            NodeTypeState::Scalar(_) => "scalar",
+            NodeTypeState::Union(_) => "union",
+        }
+    }
+}
+
 /// `Node`.
 #[derive(Debug)]
 pub struct Node<'s> {
@@ -61,7 +74,25 @@ impl<'s> Node<'s> {
         graph_name: String,
         contexts: ContextMask,
     ) -> Self {
-        todo!()
+        // NOTE(port): the TS throws when `typeState` is `undefined`; `Option` cannot express that
+        // state (callers pass a state or `null`).
+        let is_leaf = matches!(
+            type_state,
+            None | Some(NodeTypeState::Scalar(_)) | Some(NodeTypeState::Enum(_))
+        );
+
+        Node {
+            index,
+            type_name,
+            type_state,
+            graph_id,
+            graph_name,
+            contexts,
+            debug_post_fix: String::new(),
+            is_leaf,
+            children_index: IndexMap::new(),
+            visited_graph_combos: RefCell::new(Vec::new()),
+        }
     }
 
     /// `withoutState()`: clears the children index and visited combos (used by `addSubgraph`).
@@ -72,7 +103,7 @@ impl<'s> Node<'s> {
     }
 
     pub fn add_field_edge(&mut self, field_name: &str, edge_at: usize) {
-        todo!()
+        self.push_to_children_index(format!("field__{field_name}"), edge_at);
     }
 
     pub fn get_field_edge_indexes(&self, field_name: &str) -> Option<&Vec<usize>> {
@@ -104,13 +135,25 @@ impl<'s> Node<'s> {
     }
 
     fn push_to_children_index(&mut self, id: String, edge_at: usize) {
-        todo!()
+        match self.children_index.get_mut(&id) {
+            Some(indexes) => {
+                if !indexes.contains(&edge_at) {
+                    indexes.push(edge_at);
+                }
+            }
+            None => {
+                self.children_index.insert(id, vec![edge_at]);
+            }
+        }
     }
 
     /// Whether a combination of graph names and @provides that lead to the Node was already
-    /// checked.
-    pub fn is_graph_combo_visited(&self, graph_name_provides_combos: &[String], label_values: &OverrideLabels) -> bool {
-        todo!()
+    /// checked. (`labelValues` is unused, as in the TS.)
+    pub fn is_graph_combo_visited(&self, graph_name_provides_combos: &[String], _label_values: &OverrideLabels) -> bool {
+        self.visited_graph_combos
+            .borrow()
+            .iter()
+            .any(|visited_graphs| visited_graphs.iter().all(|g| graph_name_provides_combos.contains(g)))
     }
 
     pub fn set_graph_combo_as_visited(&self, graph_names: Vec<String>) {
