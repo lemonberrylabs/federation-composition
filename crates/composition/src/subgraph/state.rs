@@ -13,14 +13,21 @@
 //!   nodes.
 
 use graphql_js::{
-    Directive as DirectiveNode, DirectiveLocation, Document, NodeRef, ObjectTypeDefinition,
-    ObjectTypeExtension, OperationType, SchemaDefinition, Type, VisitAction, VisitInfo, Visitor,
+    specified_scalar_types, Ancestor, Definition, Directive as DirectiveNode, DirectiveDefinition,
+    DirectiveLocation, Document, EnumValueDefinition, FieldDefinition, InputValueDefinition,
+    InterfaceTypeDefinition, InterfaceTypeExtension, NodeRef, ObjectTypeDefinition,
+    ObjectTypeExtension, OperationType, ScalarTypeDefinition, SchemaDefinition, StringValue, Type,
+    UnionTypeDefinition, UnionTypeExtension, Value, VisitAction, VisitInfo, Visitor,
 };
 use indexmap::{IndexMap, IndexSet};
 
-use crate::specifications::federation::FederationVersion;
-use crate::specifications::link::{Link, LinkImport};
+use crate::graphql::printer::print;
+use crate::graphql::type_node_info::TypeNodeInfo;
+use crate::specifications::federation::{is_federation_link, FederationVersion};
+use crate::specifications::link::{Link, LinkImport, LinkImportKind};
+use crate::subgraph::helpers::print_output_type;
 use crate::subgraph::validation::validation_context::SubgraphValidationContext;
+use crate::utils::auth::merge_scope_policies;
 use crate::utils::js::{JsError, JsResult};
 
 /// `SubgraphType`.
@@ -554,7 +561,129 @@ pub fn create_subgraph_state_builder(
     version: FederationVersion,
     links: &[Link],
 ) -> SubgraphStateBuilder {
-    todo!()
+    let federation_link = links.iter().find(|link| is_federation_link(link));
+    let links_with_directive: Vec<Link> = links
+        .iter()
+        // Reject federation links and links without directives
+        .filter(|link| {
+            !is_federation_link(link)
+                && link
+                    .imports
+                    .iter()
+                    .any(|im| im.kind == LinkImportKind::Directive)
+        })
+        .cloned()
+        .collect();
+    let is_link_spec_manually_provided = type_defs.definitions.iter().any(|def| match def {
+        Definition::DirectiveDefinition(def) => {
+            def.name.value == "link" && def.locations.iter().all(|loc| loc.value == "SCHEMA")
+        }
+        _ => false,
+    });
+    let specified_scalars: Vec<String> = specified_scalar_types()
+        .iter()
+        .map(|ty| ty.name.to_string())
+        .collect();
+
+    let state = SubgraphState {
+        graph: SubgraphGraph {
+            id: graph.id.clone(),
+            name: graph.name.clone(),
+            version,
+            url: graph.url.clone(),
+        },
+        types: IndexMap::new(),
+        schema: SubgraphSchema::default(),
+        links: links_with_directive,
+        specs: SubgraphSpecs {
+            tag: false,
+            context: false,
+            cost: CostSpec {
+                used: false,
+                names: CostSpecNames {
+                    cost: None,
+                    list_size: None,
+                },
+            },
+            inaccessible: false,
+            authenticated: false,
+            requires_scopes: false,
+            policy: false,
+            link: is_link_spec_manually_provided,
+        },
+        federation: SubgraphFederation {
+            version,
+            imports: federation_link
+                .map(|link| link.imports.clone())
+                .unwrap_or_default(),
+        },
+    };
+
+    let schema_def = type_defs.definitions.iter().find_map(is_schema_definition);
+
+    let mut leaf_type_names: IndexSet<String> = specified_scalars.iter().cloned().collect();
+    let mut enum_type_names: IndexSet<String> = IndexSet::new();
+    let mut input_object_type_names: IndexSet<String> = IndexSet::new();
+
+    for type_def in &type_defs.definitions {
+        match type_def {
+            Definition::EnumTypeDefinition(def) => {
+                enum_type_names.insert(def.name.value.clone());
+                leaf_type_names.insert(def.name.value.clone());
+            }
+            Definition::EnumTypeExtension(def) => {
+                enum_type_names.insert(def.name.value.clone());
+                leaf_type_names.insert(def.name.value.clone());
+            }
+            Definition::ScalarTypeDefinition(def) => {
+                leaf_type_names.insert(def.name.value.clone());
+            }
+            Definition::ScalarTypeExtension(def) => {
+                leaf_type_names.insert(def.name.value.clone());
+            }
+            Definition::InputObjectTypeDefinition(def) => {
+                input_object_type_names.insert(def.name.value.clone());
+            }
+            Definition::InputObjectTypeExtension(def) => {
+                input_object_type_names.insert(def.name.value.clone());
+            }
+            _ => {}
+        }
+    }
+
+    let root_type_names = RootTypeNames {
+        query: decide_on_root_type_name(schema_def, OperationType::Query, "Query"),
+        mutation: decide_on_root_type_name(schema_def, OperationType::Mutation, "Mutation"),
+        subscription: decide_on_root_type_name(
+            schema_def,
+            OperationType::Subscription,
+            "Subscription",
+        ),
+    };
+
+    // NOTE(port): the TS computes `enumTypesByName` in `visitor()`, from the same `typeDefs`
+    // object; the enum definitions it reads do not change in between, so it is computed here.
+    let enum_types_by_name: IndexSet<String> = type_defs
+        .definitions
+        .iter()
+        .filter(|def| is_enum_type(def))
+        .filter_map(|def| match def {
+            Definition::EnumTypeDefinition(def) => Some(def.name.value.clone()),
+            Definition::EnumTypeExtension(def) => Some(def.name.value.clone()),
+            _ => None,
+        })
+        .collect();
+
+    SubgraphStateBuilder {
+        state,
+        composed_directives: IndexSet::new(),
+        root_type_names,
+        specified_scalars,
+        leaf_type_names,
+        enum_type_names,
+        input_object_type_names,
+        enum_types_by_name,
+    }
 }
 
 impl SubgraphStateBuilder {
@@ -680,8 +809,742 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for SubgraphStateVisitor {
         cx: &mut SubgraphValidationContext<'a>,
         info: &VisitInfo<'a, '_>,
     ) -> VisitAction {
-        todo!()
+        let type_node_info = cx.type_node_info;
+        let result = self.enter_node(node, &mut *cx.state_builder, &type_node_info, info);
+        match result {
+            Ok(()) => VisitAction::Continue,
+            Err(error) => cx.throw(error),
+        }
     }
+}
+
+/// The name of a node kept by `TypeNodeInfo` (type definitions and extensions, directive
+/// definitions, field and input value definitions all have one).
+fn node_name<'a>(node: NodeRef<'a>) -> &'a str {
+    node.name().map(|name| name.value.as_str()).unwrap_or_default()
+}
+
+/// `fieldDef!.name.value` where the TS asserts `fieldDef` is defined. If it were not, JS would
+/// throw a `TypeError` reading `name` of `undefined`.
+fn asserted_field_name<'a>(field_def: Option<NodeRef<'a>>) -> JsResult<&'a str> {
+    match field_def {
+        Some(field_def) => Ok(node_name(field_def)),
+        None => Err(JsError::type_error(
+            "Cannot read properties of undefined (reading 'name')",
+        )),
+    }
+}
+
+/// `node.arguments?.find((arg) => arg.name.value === name)?.value` when it is a `StringValue`.
+fn find_string_argument<'a>(node: &'a DirectiveNode, name: &str) -> Option<&'a str> {
+    match node.arguments.iter().find(|arg| arg.name.value == name) {
+        Some(arg) => match &arg.value {
+            Value::String(s) => Some(s.value.as_str()),
+            _ => None,
+        },
+        None => None,
+    }
+}
+
+impl SubgraphStateVisitor {
+    fn enter_node<'a>(
+        &self,
+        node: NodeRef<'a>,
+        b: &mut SubgraphStateBuilder,
+        type_node_info: &TypeNodeInfo<'a>,
+        info: &VisitInfo<'a, '_>,
+    ) -> JsResult<()> {
+        match node {
+            NodeRef::FieldDefinition(node) => self.field_definition(node, b, type_node_info),
+            NodeRef::InputValueDefinition(node) => {
+                self.input_value_definition(node, b, type_node_info)
+            }
+            NodeRef::ObjectTypeDefinition(node) => object_type_definition(node, b),
+            NodeRef::ObjectTypeExtension(node) => object_type_extension(node, b),
+            NodeRef::InterfaceTypeDefinition(node) => interface_type_definition(node, b),
+            NodeRef::InterfaceTypeExtension(node) => interface_type_extension(node, b),
+            NodeRef::UnionTypeDefinition(node) => union_type_definition(node, b),
+            NodeRef::UnionTypeExtension(node) => union_type_extension(node, b),
+            NodeRef::EnumTypeDefinition(node) => b.enum_type().set_definition(&node.name.value),
+            NodeRef::EnumValueDefinition(node) => enum_value_definition(node, b, type_node_info),
+            NodeRef::InputObjectTypeDefinition(node) => {
+                b.input_object_type().set_definition(&node.name.value)
+            }
+            NodeRef::ScalarTypeDefinition(node) => scalar_type_definition(node, b),
+            NodeRef::ScalarTypeExtension(_) => {
+                // TODO: T06 implement scalar type extension
+                Ok(())
+            }
+            NodeRef::Directive(node) => directive(node, b, type_node_info),
+            NodeRef::DirectiveDefinition(node) => directive_definition(node, b),
+            NodeRef::StringValue(node) => string_value(node, b, type_node_info, info),
+            _ => Ok(()),
+        }
+    }
+
+    /// `FieldDefinition(node)`.
+    fn field_definition<'a>(
+        &self,
+        node: &'a FieldDefinition,
+        b: &mut SubgraphStateBuilder,
+        type_node_info: &TypeNodeInfo<'a>,
+    ) -> JsResult<()> {
+        let Some(type_def) = type_node_info.get_type_def() else {
+            return Err(JsError::error(
+                "Expected to find a type definition or extension",
+            ));
+        };
+
+        let is_interface_type = matches!(
+            type_def,
+            NodeRef::InterfaceTypeDefinition(_) | NodeRef::InterfaceTypeExtension(_)
+        );
+        let is_object_type = matches!(
+            type_def,
+            NodeRef::ObjectTypeDefinition(_) | NodeRef::ObjectTypeExtension(_)
+        );
+        let type_name = node_name(type_def);
+        let field_name = node.name.value.as_str();
+
+        let output_type_name = resolve_type_name(&node.ty);
+        let is_leaf = b.leaf_type_names.contains(&output_type_name);
+        let references_enum_type = self.enum_types_by_name.contains(&output_type_name);
+
+        if references_enum_type {
+            b.enum_type().set_referenced_by_output_type(
+                &output_type_name,
+                &format!("{type_name}.{field_name}"),
+            )?;
+        }
+
+        if is_interface_type || b.is_interface_object(type_name) {
+            b.interface_type()
+                .field()
+                .set_type(type_name, field_name, &print_output_type(&node.ty))?;
+            b.interface_type().field().set_used(type_name, field_name)?;
+
+            if is_leaf {
+                b.interface_type().field().set_leaf(type_name, field_name)?;
+            }
+
+            return Ok(());
+        }
+
+        if !is_object_type {
+            return Err(JsError::error("Expected to find an object type"));
+        }
+
+        b.object_type()
+            .field()
+            .set_type(type_name, field_name, &print_output_type(&node.ty))?;
+
+        if is_leaf {
+            b.object_type().field().set_leaf(type_name, field_name)?;
+        }
+
+        if matches!(type_def, NodeRef::ObjectTypeExtension(_)) {
+            b.object_type().field().set_extension(type_name, field_name)?;
+        }
+
+        // In Federation v1, all fields are shareable by default, but only in object type definition.
+        // Extensions are not shareable.
+        // The exception are root types, all their fields are shareable.
+        if b.state.graph.version == FederationVersion::V1_0
+            && (matches!(type_def, NodeRef::ObjectTypeDefinition(_))
+                || type_name == b.root_type_names.query
+                || type_name == b.root_type_names.mutation
+                || type_name == b.root_type_names.subscription)
+        {
+            b.object_type().field().set_shareable(type_name, field_name)?;
+        }
+
+        Ok(())
+    }
+
+    /// `InputValueDefinition(node)`.
+    fn input_value_definition<'a>(
+        &self,
+        node: &'a InputValueDefinition,
+        b: &mut SubgraphStateBuilder,
+        type_node_info: &TypeNodeInfo<'a>,
+    ) -> JsResult<()> {
+        let type_def = type_node_info.get_type_def();
+        let field_def = type_node_info.get_field_def();
+
+        let Some(type_def) = type_def else {
+            return Ok(());
+        };
+
+        let is_input_object_type = matches!(
+            type_def,
+            NodeRef::InputObjectTypeDefinition(_) | NodeRef::InputObjectTypeExtension(_)
+        );
+        let is_object_type = matches!(
+            type_def,
+            NodeRef::ObjectTypeDefinition(_) | NodeRef::ObjectTypeExtension(_)
+        );
+        let is_interface_type = matches!(
+            type_def,
+            NodeRef::InterfaceTypeDefinition(_) | NodeRef::InterfaceTypeExtension(_)
+        );
+        let type_name = node_name(type_def);
+        let name = node.name.value.as_str();
+
+        let output_type_name = resolve_type_name(&node.ty);
+        let references_enum_type = self.enum_types_by_name.contains(&output_type_name);
+
+        if is_input_object_type {
+            b.input_object_type()
+                .field()
+                .set_type(type_name, name, &print_output_type(&node.ty))?;
+
+            let kind = b.resolve_argument_kind(&output_type_name);
+            b.input_object_type().field().set_kind(type_name, name, kind)?;
+
+            if references_enum_type {
+                b.enum_type().set_referenced_by_input_type(
+                    &output_type_name,
+                    &format!("{type_name}.{name}"),
+                )?;
+            }
+
+            if let Some(default_value) = &node.default_value {
+                b.input_object_type()
+                    .field()
+                    .set_default_value(type_name, name, &print(default_value))?;
+            }
+        }
+
+        if is_object_type {
+            if let Some(field_def) = field_def {
+                let field_name = node_name(field_def);
+                // It's a field argument
+                b.object_type().field().arg().set_type(
+                    type_name,
+                    field_name,
+                    name,
+                    &print_output_type(&node.ty),
+                )?;
+
+                let kind = b.resolve_argument_kind(&output_type_name);
+                b.object_type()
+                    .field()
+                    .arg()
+                    .set_kind(type_name, field_name, name, kind)?;
+
+                if let Some(default_value) = &node.default_value {
+                    b.object_type().field().arg().set_default_value(
+                        type_name,
+                        field_name,
+                        name,
+                        &print(default_value),
+                    )?;
+                }
+
+                if references_enum_type {
+                    b.enum_type().set_referenced_by_input_type(
+                        &output_type_name,
+                        &format!("{type_name}.{field_name}({name}:)"),
+                    )?;
+                }
+            }
+        }
+
+        if is_interface_type {
+            if let Some(field_def) = field_def {
+                let field_name = node_name(field_def);
+                // It's a field argument
+                b.interface_type().field().arg().set_type(
+                    type_name,
+                    field_name,
+                    name,
+                    &print_output_type(&node.ty),
+                )?;
+
+                let kind = b.resolve_argument_kind(&output_type_name);
+                b.interface_type()
+                    .field()
+                    .arg()
+                    .set_kind(type_name, field_name, name, kind)?;
+
+                if let Some(default_value) = &node.default_value {
+                    b.interface_type().field().arg().set_default_value(
+                        type_name,
+                        field_name,
+                        name,
+                        &print(default_value),
+                    )?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Sets `state.schema.{query,mutation,subscription}Type` when `type_name` is a root type
+/// (shared by `ObjectTypeDefinition` and `ObjectTypeExtension`).
+fn set_schema_root_type(b: &mut SubgraphStateBuilder, type_name: &str) {
+    // Set query, mutation or subscription types as found in the schema
+    if type_name == b.root_type_names.query {
+        let renamed = b.root_type_names.rename_object_type(type_name);
+        b.state.schema.set(RootTypeKind::QueryType, renamed);
+    } else if type_name == b.root_type_names.mutation {
+        let renamed = b.root_type_names.rename_object_type(type_name);
+        b.state.schema.set(RootTypeKind::MutationType, renamed);
+    } else if type_name == b.root_type_names.subscription {
+        let renamed = b.root_type_names.rename_object_type(type_name);
+        b.state.schema.set(RootTypeKind::SubscriptionType, renamed);
+    }
+}
+
+/// `ObjectTypeDefinition(node)`.
+fn object_type_definition(node: &ObjectTypeDefinition, b: &mut SubgraphStateBuilder) -> JsResult<()> {
+    let type_name = node.name.value.as_str();
+
+    if has_interface_object_directive(&node.directives) {
+        b.interface_type().set_definition(type_name)?;
+        b.interface_type().set_interface_object(type_name)?;
+
+        for interface_node in &node.interfaces {
+            b.interface_type()
+                .set_interface(type_name, &interface_node.name.value)?;
+        }
+        return Ok(());
+    }
+
+    b.object_type().set_definition(type_name)?;
+
+    set_schema_root_type(b, type_name);
+
+    for interface_node in &node.interfaces {
+        b.object_type()
+            .set_interface(type_name, &interface_node.name.value)?;
+    }
+
+    Ok(())
+}
+
+/// `ObjectTypeExtension(node)`.
+fn object_type_extension(node: &ObjectTypeExtension, b: &mut SubgraphStateBuilder) -> JsResult<()> {
+    let type_name = node.name.value.as_str();
+
+    // NOTE(port): the TS has an empty `if (hasInterfaceObjectDirective(node)) {}` here.
+
+    set_schema_root_type(b, type_name);
+
+    b.object_type().set_extension(type_name, ExtensionType::Extend)?;
+
+    for interface_node in &node.interfaces {
+        b.object_type()
+            .set_interface(type_name, &interface_node.name.value)?;
+    }
+
+    Ok(())
+}
+
+/// `InterfaceTypeDefinition(node)`.
+fn interface_type_definition(
+    node: &InterfaceTypeDefinition,
+    b: &mut SubgraphStateBuilder,
+) -> JsResult<()> {
+    let type_name = node.name.value.as_str();
+    b.interface_type().set_definition(type_name)?;
+
+    for interface_node in &node.interfaces {
+        b.interface_type()
+            .set_interface(type_name, &interface_node.name.value)?;
+    }
+
+    Ok(())
+}
+
+/// `InterfaceTypeExtension(node)`.
+fn interface_type_extension(
+    node: &InterfaceTypeExtension,
+    b: &mut SubgraphStateBuilder,
+) -> JsResult<()> {
+    let type_name = node.name.value.as_str();
+    if b.state.graph.version != FederationVersion::V1_0 {
+        b.interface_type().set_extension(type_name)?;
+    }
+
+    for interface_node in &node.interfaces {
+        b.interface_type()
+            .set_interface(type_name, &interface_node.name.value)?;
+    }
+
+    Ok(())
+}
+
+/// `UnionTypeDefinition(node)`.
+fn union_type_definition(node: &UnionTypeDefinition, b: &mut SubgraphStateBuilder) -> JsResult<()> {
+    let type_name = node.name.value.as_str();
+    b.union_type().set_definition(type_name)?;
+    for member in &node.types {
+        b.union_type().set_member(type_name, &member.name.value)?;
+    }
+    Ok(())
+}
+
+/// `UnionTypeExtension(node)`.
+fn union_type_extension(node: &UnionTypeExtension, b: &mut SubgraphStateBuilder) -> JsResult<()> {
+    let type_name = node.name.value.as_str();
+    for member in &node.types {
+        b.union_type().set_member(type_name, &member.name.value)?;
+    }
+    Ok(())
+}
+
+/// `EnumValueDefinition(node)`.
+fn enum_value_definition(
+    node: &EnumValueDefinition,
+    b: &mut SubgraphStateBuilder,
+    type_node_info: &TypeNodeInfo<'_>,
+) -> JsResult<()> {
+    let Some(type_def) = type_node_info.get_type_def() else {
+        return Ok(());
+    };
+
+    b.enum_type()
+        .value()
+        .set_value(node_name(type_def), &node.name.value)
+}
+
+/// `ScalarTypeDefinition(node)`.
+fn scalar_type_definition(node: &ScalarTypeDefinition, b: &mut SubgraphStateBuilder) -> JsResult<()> {
+    if !b.specified_scalars.iter().any(|s| *s == node.name.value) {
+        b.scalar_type().set_definition(&node.name.value)?;
+    }
+    Ok(())
+}
+
+/// `Directive(node)`.
+fn directive(
+    node: &DirectiveNode,
+    b: &mut SubgraphStateBuilder,
+    type_node_info: &TypeNodeInfo<'_>,
+) -> JsResult<()> {
+    if b.composed_directives.contains(&node.name.value) {
+        let type_def = type_node_info.get_type_def();
+        let field_def = type_node_info.get_field_def();
+        let enum_value_def = type_node_info.get_value_def();
+        let arg_def = type_node_info.get_argument_def();
+
+        let Some(type_def) = type_def else {
+            return Ok(());
+        };
+        let type_name = node_name(type_def);
+
+        match type_def {
+            NodeRef::ObjectTypeDefinition(_) | NodeRef::ObjectTypeExtension(_) => {
+                if let Some(arg_def) = arg_def {
+                    let field_name = asserted_field_name(field_def)?;
+                    b.object_type().field().arg().set_directive(
+                        type_name,
+                        field_name,
+                        &arg_def.name.value,
+                        node,
+                    )?;
+                } else if let Some(field_def) = field_def {
+                    b.object_type()
+                        .field()
+                        .set_directive(type_name, node_name(field_def), node)?;
+                } else {
+                    b.object_type().set_directive(type_name, node)?;
+                }
+            }
+            NodeRef::InterfaceTypeDefinition(_) | NodeRef::InterfaceTypeExtension(_) => {
+                if let Some(arg_def) = arg_def {
+                    let field_name = asserted_field_name(field_def)?;
+                    b.interface_type().field().arg().set_directive(
+                        type_name,
+                        field_name,
+                        &arg_def.name.value,
+                        node,
+                    )?;
+                } else if let Some(field_def) = field_def {
+                    b.interface_type()
+                        .field()
+                        .set_directive(type_name, node_name(field_def), node)?;
+                } else {
+                    b.interface_type().set_directive(type_name, node)?;
+                }
+            }
+            NodeRef::ScalarTypeDefinition(_) | NodeRef::ScalarTypeExtension(_) => {
+                b.scalar_type().set_directive(type_name, node)?;
+            }
+            NodeRef::DirectiveDefinition(_) => {
+                if let Some(field_def) = field_def {
+                    b.directive()
+                        .arg()
+                        .set_directive(type_name, node_name(field_def), node)?;
+                }
+            }
+            NodeRef::InputObjectTypeDefinition(_) | NodeRef::InputObjectTypeExtension(_) => {
+                if let Some(field_def) = field_def {
+                    b.input_object_type()
+                        .field()
+                        .set_directive(type_name, node_name(field_def), node)?;
+                } else {
+                    b.input_object_type().set_directive(type_name, node)?;
+                }
+            }
+            NodeRef::EnumTypeDefinition(_) | NodeRef::EnumTypeExtension(_) => {
+                if let Some(enum_value_def) = enum_value_def {
+                    b.enum_type().value().set_directive(
+                        type_name,
+                        &enum_value_def.name.value,
+                        node,
+                    )?;
+                } else {
+                    b.enum_type().set_directive(type_name, node)?;
+                }
+            }
+            NodeRef::UnionTypeDefinition(_) | NodeRef::UnionTypeExtension(_) => {
+                b.union_type().set_directive(type_name, node)?;
+            }
+            other => {
+                return Err(JsError::error(format!(
+                    "Directives on \"{}\" types are not supported yet",
+                    other.kind().as_str()
+                )));
+            }
+        }
+    } else if node.name.value == "specifiedBy" {
+        let type_def = type_node_info.get_type_def();
+        if let Some(
+            type_def @ (NodeRef::ScalarTypeDefinition(_) | NodeRef::ScalarTypeExtension(_)),
+        ) = type_def
+        {
+            if let Some(url) = find_string_argument(node, "url") {
+                b.scalar_type().set_specified_by(node_name(type_def), url)?;
+            }
+        }
+    } else if node.name.value == "deprecated" {
+        let type_def = type_node_info.get_type_def();
+        let field_def = type_node_info.get_field_def();
+        let arg_def = type_node_info.get_argument_def();
+
+        let Some(type_def) = type_def else {
+            return Ok(());
+        };
+        let type_name = node_name(type_def);
+
+        let reason = find_string_argument(node, "reason");
+
+        match type_def {
+            NodeRef::ObjectTypeDefinition(_) | NodeRef::ObjectTypeExtension(_) => {
+                let Some(field_def) = field_def else {
+                    return Ok(());
+                };
+
+                if let Some(arg_def) = arg_def {
+                    b.object_type().field().arg().set_deprecated(
+                        type_name,
+                        node_name(field_def),
+                        &arg_def.name.value,
+                        reason,
+                    )?;
+                } else {
+                    b.object_type()
+                        .field()
+                        .set_deprecated(type_name, node_name(field_def), reason)?;
+                }
+            }
+            NodeRef::InterfaceTypeDefinition(_) | NodeRef::InterfaceTypeExtension(_) => {
+                let Some(field_def) = field_def else {
+                    return Ok(());
+                };
+
+                if let Some(arg_def) = arg_def {
+                    b.interface_type().field().arg().set_deprecated(
+                        type_name,
+                        node_name(field_def),
+                        &arg_def.name.value,
+                        reason,
+                    )?;
+                } else {
+                    b.interface_type()
+                        .field()
+                        .set_deprecated(type_name, node_name(field_def), reason)?;
+                }
+            }
+            NodeRef::EnumTypeDefinition(_) | NodeRef::EnumTypeExtension(_) => {
+                let Some(value_def) = type_node_info.get_value_def() else {
+                    return Ok(());
+                };
+
+                b.enum_type()
+                    .value()
+                    .set_deprecated(type_name, &value_def.name.value, reason)?;
+            }
+            NodeRef::InputObjectTypeDefinition(_) | NodeRef::InputObjectTypeExtension(_) => {
+                let Some(field_def) = field_def else {
+                    return Ok(());
+                };
+
+                b.input_object_type()
+                    .field()
+                    .set_deprecated(type_name, node_name(field_def), reason)?;
+            }
+            _ => {}
+        }
+    } else if node.name.value == "oneOf" {
+        let type_def = type_node_info.get_type_def();
+        if let Some(
+            type_def @ (NodeRef::InputObjectTypeDefinition(_)
+            | NodeRef::InputObjectTypeExtension(_)),
+        ) = type_def
+        {
+            b.input_object_type().set_one_of(node_name(type_def))?;
+        }
+    }
+
+    Ok(())
+}
+
+/// `DirectiveDefinition(node)`.
+fn directive_definition(node: &DirectiveDefinition, b: &mut SubgraphStateBuilder) -> JsResult<()> {
+    let directive_name = node.name.value.as_str();
+
+    if node.repeatable {
+        b.directive().set_repeatable(directive_name)?;
+    }
+
+    for location in &node.locations {
+        b.directive().set_location(directive_name, &location.value)?;
+    }
+
+    for arg in &node.arguments {
+        b.directive()
+            .arg()
+            .set_type(directive_name, &arg.name.value, &print_output_type(&arg.ty))?;
+
+        let output_type_name = resolve_type_name(&arg.ty);
+
+        let kind = b.resolve_argument_kind(&output_type_name);
+        b.directive()
+            .arg()
+            .set_kind(directive_name, &arg.name.value, kind)?;
+
+        if let Some(default_value) = &arg.default_value {
+            b.directive().arg().set_default_value(
+                directive_name,
+                &arg.name.value,
+                &print(default_value),
+            )?;
+        }
+    }
+
+    Ok(())
+}
+
+/// `StringValue(node, _, parent)`.
+fn string_value<'a>(
+    node: &'a StringValue,
+    b: &mut SubgraphStateBuilder,
+    type_node_info: &TypeNodeInfo<'a>,
+    info: &VisitInfo<'a, '_>,
+) -> JsResult<()> {
+    let type_def = type_node_info.get_type_def();
+    let field_def = type_node_info.get_field_def();
+    let arg_def = type_node_info.get_argument_def();
+
+    let description = Description {
+        value: node.value.clone(),
+        block: node.block,
+    };
+
+    // `parent && "kind" in parent`: the parent is a node, not a list.
+    let parent: Option<NodeRef<'a>> = info.parent.and_then(Ancestor::as_node);
+
+    if let Some(parent) = parent {
+        if let NodeRef::ScalarTypeDefinition(_) | NodeRef::ScalarTypeExtension(_) = parent {
+            b.scalar_type()
+                .set_description(node_name(parent), description.clone())?;
+        }
+
+        if let NodeRef::InputValueDefinition(parent) = parent {
+            if let Some(Value::String(default_value)) = &parent.default_value {
+                if std::ptr::eq(default_value, node) {
+                    // It seems like StringValue comes from a default value. Ignore it.
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    let Some(type_def) = type_def else {
+        return Ok(());
+    };
+    let type_name = node_name(type_def);
+
+    // `node === parent`.
+    let matches_parent = |node: NodeRef<'_>| parent.is_some_and(|parent| parent.ptr_eq(node));
+
+    match type_def {
+        NodeRef::ObjectTypeDefinition(_) | NodeRef::ObjectTypeExtension(_) => {
+            if let Some(arg_def) = arg_def.filter(|a| matches_parent(NodeRef::InputValueDefinition(a))) {
+                let field_name = asserted_field_name(field_def)?;
+                b.object_type().field().arg().set_description(
+                    type_name,
+                    field_name,
+                    &arg_def.name.value,
+                    description,
+                )?;
+            } else if let Some(field_def) = field_def.filter(|f| matches_parent(*f)) {
+                b.object_type()
+                    .field()
+                    .set_description(type_name, node_name(field_def), description)?;
+            } else if matches_parent(type_def) {
+                b.object_type().set_description(type_name, description)?;
+            }
+        }
+        NodeRef::InterfaceTypeDefinition(_) | NodeRef::InterfaceTypeExtension(_) => {
+            if let Some(arg_def) = arg_def.filter(|a| matches_parent(NodeRef::InputValueDefinition(a))) {
+                let field_name = asserted_field_name(field_def)?;
+                b.interface_type().field().arg().set_description(
+                    type_name,
+                    field_name,
+                    &arg_def.name.value,
+                    description,
+                )?;
+            } else if let Some(field_def) = field_def.filter(|f| matches_parent(*f)) {
+                b.interface_type()
+                    .field()
+                    .set_description(type_name, node_name(field_def), description)?;
+            } else if matches_parent(type_def) {
+                b.interface_type().set_description(type_name, description)?;
+            }
+        }
+        NodeRef::InputObjectTypeDefinition(_) | NodeRef::InputObjectTypeExtension(_) => {
+            if let Some(field_def) = field_def.filter(|f| matches_parent(*f)) {
+                b.input_object_type()
+                    .field()
+                    .set_description(type_name, node_name(field_def), description)?;
+            } else if matches_parent(type_def) {
+                b.input_object_type().set_description(type_name, description)?;
+            }
+        }
+        NodeRef::EnumTypeDefinition(_) | NodeRef::EnumTypeExtension(_) => {
+            if let Some(NodeRef::EnumValueDefinition(parent)) = parent {
+                b.enum_type()
+                    .value()
+                    .set_description(type_name, &parent.name.value, description)?;
+            } else if matches_parent(type_def) {
+                b.enum_type().set_description(type_name, description)?;
+            }
+        }
+        NodeRef::UnionTypeDefinition(_) | NodeRef::UnionTypeExtension(_) => {
+            if matches_parent(type_def) {
+                b.union_type().set_description(type_name, description)?;
+            }
+        }
+        _ => {}
+    }
+
+    Ok(())
 }
 
 /// `directiveFactory(state)`.
@@ -691,13 +1554,18 @@ pub struct DirectiveBuilder<'s> {
 
 impl<'s> DirectiveBuilder<'s> {
     pub fn set_composed(self, directive_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_directive(self.state, directive_name)?.composed = true;
+        Ok(())
     }
     pub fn set_location(self, directive_name: &str, location: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_directive(self.state, directive_name)?
+            .locations
+            .insert(location.to_string());
+        Ok(())
     }
     pub fn set_repeatable(self, directive_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_directive(self.state, directive_name)?.repeatable = true;
+        Ok(())
     }
     /// `directive.arg`.
     pub fn arg(self) -> DirectiveArgBuilder<'s> {
@@ -712,22 +1580,35 @@ pub struct DirectiveArgBuilder<'s> {
 
 impl DirectiveArgBuilder<'_> {
     pub fn set_tag(self, directive_name: &str, arg_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_directive_arg(self.state, directive_name, arg_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
     pub fn set_type(self, directive_name: &str, arg_name: &str, arg_type: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_directive_arg(self.state, directive_name, arg_name)?.r#type =
+            arg_type.to_string();
+        Ok(())
     }
     pub fn set_kind(self, directive_name: &str, arg_name: &str, arg_kind: ArgumentKind) -> JsResult<()> {
-        todo!()
+        get_or_create_directive_arg(self.state, directive_name, arg_name)?.kind = arg_kind;
+        Ok(())
     }
     pub fn set_directive(self, type_name: &str, arg_name: &str, directive: &DirectiveNode) -> JsResult<()> {
-        todo!()
+        get_or_create_directive_arg(self.state, type_name, arg_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
     pub fn set_default_value(self, type_name: &str, arg_name: &str, default_value: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_directive_arg(self.state, type_name, arg_name)?.default_value =
+            Some(default_value.to_string());
+        Ok(())
     }
     pub fn set_inaccessible(self, type_name: &str, arg_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_directive_arg(self.state, type_name, arg_name)?.inaccessible = true;
+        Ok(())
     }
 }
 
@@ -757,34 +1638,51 @@ pub struct ScalarTypeBuilder<'s> {
 
 impl ScalarTypeBuilder<'_> {
     pub fn set_definition(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_scalar_type(self.state, type_name)?;
+        Ok(())
     }
     pub fn set_inaccessible(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_scalar_type(self.state, type_name)?.inaccessible = true;
+        Ok(())
     }
     pub fn set_authenticated(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_scalar_type(self.state, type_name)?.authenticated = true;
+        Ok(())
     }
     pub fn set_policies(self, type_name: &str, policies: &[Vec<String>]) -> JsResult<()> {
-        todo!()
+        let existing = get_or_create_scalar_type(self.state, type_name)?;
+        existing.policies = merge_scope_policies(&existing.policies, policies);
+        Ok(())
     }
     pub fn set_scopes(self, type_name: &str, scopes: &[Vec<String>]) -> JsResult<()> {
-        todo!()
+        let existing = get_or_create_scalar_type(self.state, type_name)?;
+        existing.scopes = merge_scope_policies(&existing.scopes, scopes);
+        Ok(())
     }
     pub fn set_cost(self, type_name: &str, cost: f64) -> JsResult<()> {
-        todo!()
+        get_or_create_scalar_type(self.state, type_name)?.cost = Some(cost);
+        Ok(())
     }
     pub fn set_tag(self, type_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_scalar_type(self.state, type_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
     pub fn set_directive(self, type_name: &str, directive: &DirectiveNode) -> JsResult<()> {
-        todo!()
+        get_or_create_scalar_type(self.state, type_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
     pub fn set_description(self, type_name: &str, description: Description) -> JsResult<()> {
-        todo!()
+        get_or_create_scalar_type(self.state, type_name)?.description = Some(description);
+        Ok(())
     }
     pub fn set_specified_by(self, type_name: &str, url: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_scalar_type(self.state, type_name)?.specified_by = Some(url.to_string());
+        Ok(())
     }
 }
 
@@ -802,56 +1700,171 @@ impl<'s> ObjectTypeBuilder<'s> {
         InterfaceTypeBuilder { state: self.state }
     }
 
-    pub fn set_definition(self, type_name: &str) -> JsResult<()> {
-        todo!()
+    fn is_interface_object(&self, type_name: &str) -> bool {
+        is_interface_object(self.state, type_name)
     }
-    pub fn set_extension(self, type_name: &str, extension_type: ExtensionType) -> JsResult<()> {
-        todo!()
+
+    pub fn set_definition(mut self, type_name: &str) -> JsResult<()> {
+        if self.is_interface_object(type_name) {
+            return self.interface_type_builder().set_definition(type_name);
+        }
+
+        get_or_create_object_type(self.state, self.roots, type_name)?.is_definition = true;
+        Ok(())
     }
-    pub fn set_description(self, type_name: &str, description: Description) -> JsResult<()> {
-        todo!()
+    pub fn set_extension(mut self, type_name: &str, extension_type: ExtensionType) -> JsResult<()> {
+        if self.is_interface_object(type_name) {
+            return self.interface_type_builder().set_extension(type_name);
+        }
+
+        let object_type = get_or_create_object_type(self.state, self.roots, type_name)?;
+        object_type.extension = true;
+        if object_type.extension_type != Some(ExtensionType::Extends) {
+            object_type.extension_type = Some(extension_type);
+        }
+        Ok(())
+    }
+    pub fn set_description(mut self, type_name: &str, description: Description) -> JsResult<()> {
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_type_builder()
+                .set_description(type_name, description);
+        }
+        get_or_create_object_type(self.state, self.roots, type_name)?.description = Some(description);
+        Ok(())
     }
     pub fn set_external(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return Ok(());
+        }
+
+        let object_type = get_or_create_object_type(self.state, self.roots, type_name)?;
+        object_type.external = true;
+
+        for field in object_type.fields.values_mut() {
+            field.external = true;
+        }
+        Ok(())
     }
-    pub fn set_interface(self, type_name: &str, interface_name: &str) -> JsResult<()> {
-        todo!()
+    pub fn set_interface(mut self, type_name: &str, interface_name: &str) -> JsResult<()> {
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_type_builder()
+                .set_interface(type_name, interface_name);
+        }
+
+        get_or_create_object_type(self.state, self.roots, type_name)?
+            .interfaces
+            .insert(interface_name.to_string());
+        get_or_create_interface_type(self.state, interface_name)?
+            .implemented_by
+            .insert(type_name.to_string());
+        Ok(())
     }
     pub fn set_key(
-        self,
+        mut self,
         type_name: &str,
         fields: &str,
         fields_used_in_key: &IndexSet<String>,
         resolvable: bool,
     ) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self.interface_type_builder().set_key(
+                type_name,
+                fields,
+                fields_used_in_key,
+                resolvable,
+            );
+        }
+        let object_type = get_or_create_object_type(self.state, self.roots, type_name)?;
+        object_type.keys.push(Key {
+            fields: fields.to_string(),
+            resolvable,
+        });
+
+        for field in fields_used_in_key {
+            object_type.fields_used_as_keys.insert(field.clone());
+        }
+        Ok(())
     }
-    pub fn set_inaccessible(self, type_name: &str) -> JsResult<()> {
-        todo!()
+    pub fn set_inaccessible(mut self, type_name: &str) -> JsResult<()> {
+        if self.is_interface_object(type_name) {
+            return self.interface_type_builder().set_inaccessible(type_name);
+        }
+
+        let object_type = get_or_create_object_type(self.state, self.roots, type_name)?;
+        object_type.inaccessible = true;
+        Ok(())
     }
     pub fn set_authenticated(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        // NOTE(port): the TS has the interface-object redirect commented out here.
+        let object_type = get_or_create_object_type(self.state, self.roots, type_name)?;
+        object_type.authenticated = true;
+        Ok(())
     }
     pub fn set_policies(self, type_name: &str, policies: &[Vec<String>]) -> JsResult<()> {
-        todo!()
+        let existing = get_or_create_object_type(self.state, self.roots, type_name)?;
+        existing.policies = merge_scope_policies(&existing.policies, policies);
+        Ok(())
     }
     pub fn set_scopes(self, type_name: &str, scopes: &[Vec<String>]) -> JsResult<()> {
-        todo!()
+        let existing = get_or_create_object_type(self.state, self.roots, type_name)?;
+        existing.scopes = merge_scope_policies(&existing.scopes, scopes);
+        Ok(())
     }
     pub fn set_cost(self, type_name: &str, cost: f64) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            // type Foo @cost(weight: 420) @interfaceObject @key(fields: "id")
+            // is not allowed.
+            // The validation rules are detecting this as an error.
+            return Ok(());
+        }
+
+        get_or_create_object_type(self.state, self.roots, type_name)?.cost = Some(cost);
+        Ok(())
     }
     pub fn set_shareable(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return Ok(());
+        }
+
+        get_or_create_object_type(self.state, self.roots, type_name)?.shareable = true;
+        Ok(())
     }
-    pub fn set_tag(self, type_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+    pub fn set_tag(mut self, type_name: &str, tag: &str) -> JsResult<()> {
+        if self.is_interface_object(type_name) {
+            return self.interface_type_builder().set_tag(type_name, tag);
+        }
+
+        get_or_create_object_type(self.state, self.roots, type_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
-    pub fn set_directive(self, type_name: &str, directive: &DirectiveNode) -> JsResult<()> {
-        todo!()
+    pub fn set_directive(mut self, type_name: &str, directive: &DirectiveNode) -> JsResult<()> {
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_type_builder()
+                .set_directive(type_name, directive);
+        }
+
+        get_or_create_object_type(self.state, self.roots, type_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
-    pub fn add_context(self, type_name: &str, context_name: &str) -> JsResult<()> {
-        todo!()
+    pub fn add_context(mut self, type_name: &str, context_name: &str) -> JsResult<()> {
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_type_builder()
+                .add_context(type_name, context_name);
+        }
+
+        get_or_create_object_type(self.state, self.roots, type_name)?
+            .contexts
+            .insert(context_name.to_string());
+        Ok(())
     }
     /// `objectType.field`.
     pub fn field(self) -> ObjectTypeFieldBuilder<'s> {
@@ -869,44 +1882,149 @@ pub struct ObjectTypeFieldBuilder<'s> {
 }
 
 impl<'s> ObjectTypeFieldBuilder<'s> {
+    fn is_interface_object(&self, type_name: &str) -> bool {
+        is_interface_object(self.state, type_name)
+    }
+
+    /// `interfaceTypeBuilder.field`.
+    fn interface_field(self) -> InterfaceTypeFieldBuilder<'s> {
+        InterfaceTypeFieldBuilder { state: self.state }
+    }
+
+    fn field(self, type_name: &str, field_name: &str) -> JsResult<&'s mut Field> {
+        get_or_create_object_field(self.state, self.roots, type_name, field_name)
+    }
+
     pub fn set_type(self, type_name: &str, field_name: &str, field_type: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_field()
+                .set_type(type_name, field_name, field_type);
+        }
+
+        self.field(type_name, field_name)?.r#type = field_type.to_string();
+        Ok(())
     }
     pub fn set_leaf(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self.interface_field().set_leaf(type_name, field_name);
+        }
+
+        self.field(type_name, field_name)?.is_leaf = true;
+        Ok(())
     }
     pub fn set_extension(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return Ok(());
+        }
+
+        self.field(type_name, field_name)?.extension = true;
+        Ok(())
     }
     pub fn set_directive(self, type_name: &str, field_name: &str, directive: &DirectiveNode) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_field()
+                .set_directive(type_name, field_name, directive);
+        }
+
+        self.field(type_name, field_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
     pub fn set_description(self, type_name: &str, field_name: &str, description: Description) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_field()
+                .set_description(type_name, field_name, description);
+        }
+
+        self.field(type_name, field_name)?.description = Some(description);
+        Ok(())
     }
     pub fn set_deprecated(self, type_name: &str, field_name: &str, reason: Option<&str>) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_field()
+                .set_deprecated(type_name, field_name, reason);
+        }
+
+        self.field(type_name, field_name)?.deprecated = Some(Deprecated {
+            reason: reason.map(str::to_string),
+        });
+        Ok(())
     }
     pub fn set_authenticated(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_field()
+                .set_authenticated(type_name, field_name);
+        }
+
+        self.field(type_name, field_name)?.authenticated = true;
+        Ok(())
     }
     pub fn set_policies(self, type_name: &str, field_name: &str, policies: &[Vec<String>]) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_field()
+                .set_policies(type_name, field_name, policies);
+        }
+
+        let existing = self.field(type_name, field_name)?;
+
+        existing.policies = merge_scope_policies(&existing.policies, policies);
+        Ok(())
     }
     pub fn set_scopes(self, type_name: &str, field_name: &str, scopes: &[Vec<String>]) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_field()
+                .set_scopes(type_name, field_name, scopes);
+        }
+
+        let existing = self.field(type_name, field_name)?;
+
+        existing.scopes = merge_scope_policies(&existing.scopes, scopes);
+        Ok(())
     }
     pub fn set_cost(self, type_name: &str, field_name: &str, cost: f64) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self.interface_field().set_cost(type_name, field_name, cost);
+        }
+
+        self.field(type_name, field_name)?.cost = Some(cost);
+        Ok(())
     }
     pub fn set_list_size(self, type_name: &str, field_name: &str, list_size: ListSize) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_field()
+                .set_list_size(type_name, field_name, list_size);
+        }
+
+        self.field(type_name, field_name)?.list_size = Some(list_size);
+        Ok(())
     }
     pub fn set_external(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self.interface_field().set_external(type_name, field_name);
+        }
+
+        self.field(type_name, field_name)?.external = true;
+        Ok(())
     }
     pub fn set_inaccessible(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_field()
+                .set_inaccessible(type_name, field_name);
+        }
+
+        self.field(type_name, field_name)?.inaccessible = true;
+        Ok(())
     }
     pub fn set_override(
         self,
@@ -915,28 +2033,76 @@ impl<'s> ObjectTypeFieldBuilder<'s> {
         r#override: &str,
         label: Option<&str>,
     ) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_field()
+                .set_override(type_name, field_name, r#override, label);
+        }
+
+        let field = self.field(type_name, field_name)?;
+        field.r#override = Some(r#override.to_string());
+        field.override_label = label.map(str::to_string);
+        Ok(())
     }
     pub fn set_provides(self, type_name: &str, field_name: &str, provides: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return Ok(());
+        }
+
+        self.field(type_name, field_name)?.provides = Some(provides.to_string());
+        Ok(())
     }
     pub fn set_requires(self, type_name: &str, field_name: &str, requires: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_field()
+                .set_requires(type_name, field_name, requires);
+        }
+
+        self.field(type_name, field_name)?.requires = Some(requires.to_string());
+        Ok(())
     }
     pub fn mark_as_provided(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return Ok(());
+        }
+
+        self.field(type_name, field_name)?.provided = true;
+        Ok(())
     }
     pub fn marked_as_required(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return Ok(());
+        }
+
+        self.field(type_name, field_name)?.required = true;
+        Ok(())
     }
     pub fn set_shareable(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self.interface_field().set_shareable(type_name, field_name);
+        }
+
+        self.field(type_name, field_name)?.shareable = true;
+        Ok(())
     }
     pub fn set_tag(self, type_name: &str, field_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self.interface_field().set_tag(type_name, field_name, tag);
+        }
+
+        self.field(type_name, field_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
     pub fn set_used(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self.interface_field().set_used(type_name, field_name);
+        }
+
+        self.field(type_name, field_name)?.used = true;
+        Ok(())
     }
     /// `objectType.field.arg`.
     pub fn arg(self) -> ObjectTypeFieldArgBuilder<'s> {
@@ -953,12 +2119,39 @@ pub struct ObjectTypeFieldArgBuilder<'s> {
     roots: &'s RootTypeNames,
 }
 
-impl ObjectTypeFieldArgBuilder<'_> {
+impl<'s> ObjectTypeFieldArgBuilder<'s> {
+    fn is_interface_object(&self, type_name: &str) -> bool {
+        is_interface_object(self.state, type_name)
+    }
+
+    /// `interfaceTypeBuilder.field.arg`.
+    fn interface_arg(self) -> InterfaceTypeFieldArgBuilder<'s> {
+        InterfaceTypeFieldArgBuilder { state: self.state }
+    }
+
+    fn arg(self, type_name: &str, field_name: &str, arg_name: &str) -> JsResult<&'s mut Argument> {
+        get_or_create_object_field_argument(self.state, self.roots, type_name, field_name, arg_name)
+    }
+
     pub fn set_type(self, type_name: &str, field_name: &str, arg_name: &str, arg_type: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_arg()
+                .set_type(type_name, field_name, arg_name, arg_type);
+        }
+
+        self.arg(type_name, field_name, arg_name)?.r#type = arg_type.to_string();
+        Ok(())
     }
     pub fn set_kind(self, type_name: &str, field_name: &str, arg_name: &str, arg_kind: ArgumentKind) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_arg()
+                .set_kind(type_name, field_name, arg_name, arg_kind);
+        }
+
+        self.arg(type_name, field_name, arg_name)?.kind = arg_kind;
+        Ok(())
     }
     pub fn set_description(
         self,
@@ -967,10 +2160,26 @@ impl ObjectTypeFieldArgBuilder<'_> {
         arg_name: &str,
         description: Description,
     ) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_arg()
+                .set_description(type_name, field_name, arg_name, description);
+        }
+
+        self.arg(type_name, field_name, arg_name)?.description = Some(description);
+        Ok(())
     }
     pub fn set_deprecated(self, type_name: &str, field_name: &str, arg_name: &str, reason: Option<&str>) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_arg()
+                .set_deprecated(type_name, field_name, arg_name, reason);
+        }
+
+        self.arg(type_name, field_name, arg_name)?.deprecated = Some(Deprecated {
+            reason: reason.map(str::to_string),
+        });
+        Ok(())
     }
     pub fn set_directive(
         self,
@@ -979,7 +2188,17 @@ impl ObjectTypeFieldArgBuilder<'_> {
         arg_name: &str,
         directive: &DirectiveNode,
     ) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_arg()
+                .set_directive(type_name, field_name, arg_name, directive);
+        }
+
+        self.arg(type_name, field_name, arg_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
     pub fn set_default_value(
         self,
@@ -988,10 +2207,24 @@ impl ObjectTypeFieldArgBuilder<'_> {
         arg_name: &str,
         default_value: &str,
     ) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_arg()
+                .set_default_value(type_name, field_name, arg_name, default_value);
+        }
+
+        self.arg(type_name, field_name, arg_name)?.default_value = Some(default_value.to_string());
+        Ok(())
     }
     pub fn set_inaccessible(self, type_name: &str, field_name: &str, arg_name: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_arg()
+                .set_inaccessible(type_name, field_name, arg_name);
+        }
+
+        self.arg(type_name, field_name, arg_name)?.inaccessible = true;
+        Ok(())
     }
     pub fn set_from_context(
         self,
@@ -1000,13 +2233,36 @@ impl ObjectTypeFieldArgBuilder<'_> {
         arg_name: &str,
         from_context: FromContext,
     ) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_arg()
+                .set_from_context(type_name, field_name, arg_name, from_context);
+        }
+
+        self.arg(type_name, field_name, arg_name)?.from_context = Some(from_context);
+        Ok(())
     }
     pub fn set_tag(self, type_name: &str, field_name: &str, arg_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_arg()
+                .set_tag(type_name, field_name, arg_name, tag);
+        }
+
+        self.arg(type_name, field_name, arg_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
     pub fn set_cost(self, type_name: &str, field_name: &str, arg_name: &str, cost: f64) -> JsResult<()> {
-        todo!()
+        if self.is_interface_object(type_name) {
+            return self
+                .interface_arg()
+                .set_cost(type_name, field_name, arg_name, cost);
+        }
+
+        self.arg(type_name, field_name, arg_name)?.cost = Some(cost);
+        Ok(())
     }
 }
 
@@ -1017,18 +2273,24 @@ pub struct InterfaceTypeBuilder<'s> {
 
 impl<'s> InterfaceTypeBuilder<'s> {
     pub fn set_definition(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_interface_type(self.state, type_name)?.is_definition = true;
+        Ok(())
     }
     /// For Federation v1: set as extension only if it uses @extends directive (not for
     /// `extend type` syntax). For Federation v2: set as extension if it's not a definition.
     pub fn set_extension(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_interface_type(self.state, type_name)?.extension = true;
+        Ok(())
     }
     pub fn set_interface(self, type_name: &str, interface_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_interface_type(self.state, type_name)?
+            .interfaces
+            .insert(interface_name.to_string());
+        Ok(())
     }
     pub fn set_interface_object(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_interface_type(self.state, type_name)?.is_interface_object = true;
+        Ok(())
     }
     pub fn set_key(
         self,
@@ -1037,22 +2299,44 @@ impl<'s> InterfaceTypeBuilder<'s> {
         fields_used_in_key: &IndexSet<String>,
         resolvable: bool,
     ) -> JsResult<()> {
-        todo!()
+        let interface_type = get_or_create_interface_type(self.state, type_name)?;
+        interface_type.keys.push(Key {
+            fields: fields.to_string(),
+            resolvable,
+        });
+
+        for field in fields_used_in_key {
+            interface_type.fields_used_as_keys.insert(field.clone());
+        }
+        Ok(())
     }
     pub fn set_inaccessible(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        let object_type = get_or_create_interface_type(self.state, type_name)?;
+        object_type.inaccessible = true;
+        Ok(())
     }
     pub fn set_tag(self, type_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_interface_type(self.state, type_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
     pub fn set_directive(self, type_name: &str, directive: &DirectiveNode) -> JsResult<()> {
-        todo!()
+        get_or_create_interface_type(self.state, type_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
     pub fn add_context(self, type_name: &str, context_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_interface_type(self.state, type_name)?
+            .contexts
+            .insert(context_name.to_string());
+        Ok(())
     }
     pub fn set_description(self, type_name: &str, description: Description) -> JsResult<()> {
-        todo!()
+        get_or_create_interface_type(self.state, type_name)?.description = Some(description);
+        Ok(())
     }
     /// `interfaceType.field`.
     pub fn field(self) -> InterfaceTypeFieldBuilder<'s> {
@@ -1066,32 +2350,47 @@ pub struct InterfaceTypeFieldBuilder<'s> {
 }
 
 impl<'s> InterfaceTypeFieldBuilder<'s> {
+    fn field(self, type_name: &str, field_name: &str) -> JsResult<&'s mut Field> {
+        get_or_create_interface_field(self.state, type_name, field_name)
+    }
+
     pub fn set_type(self, type_name: &str, field_name: &str, field_type: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.r#type = field_type.to_string();
+        Ok(())
     }
     pub fn set_leaf(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.is_leaf = true;
+        Ok(())
     }
     pub fn set_external(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.external = true;
+        Ok(())
     }
     pub fn set_inaccessible(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.inaccessible = true;
+        Ok(())
     }
     pub fn set_authenticated(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.authenticated = true;
+        Ok(())
     }
     pub fn set_policies(self, type_name: &str, field_name: &str, policies: &[Vec<String>]) -> JsResult<()> {
-        todo!()
+        let existing = self.field(type_name, field_name)?;
+        existing.policies = merge_scope_policies(&existing.policies, policies);
+        Ok(())
     }
     pub fn set_scopes(self, type_name: &str, field_name: &str, scopes: &[Vec<String>]) -> JsResult<()> {
-        todo!()
+        let existing = self.field(type_name, field_name)?;
+        existing.scopes = merge_scope_policies(&existing.scopes, scopes);
+        Ok(())
     }
     pub fn set_cost(self, type_name: &str, field_name: &str, cost: f64) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.cost = Some(cost);
+        Ok(())
     }
     pub fn set_list_size(self, type_name: &str, field_name: &str, list_size: ListSize) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.list_size = Some(list_size);
+        Ok(())
     }
     pub fn set_override(
         self,
@@ -1100,28 +2399,45 @@ impl<'s> InterfaceTypeFieldBuilder<'s> {
         r#override: &str,
         label: Option<&str>,
     ) -> JsResult<()> {
-        todo!()
+        let field = self.field(type_name, field_name)?;
+        field.r#override = Some(r#override.to_string());
+        field.override_label = label.map(str::to_string);
+        Ok(())
     }
     pub fn set_requires(self, type_name: &str, field_name: &str, requires: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.requires = Some(requires.to_string());
+        Ok(())
     }
     pub fn set_shareable(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.shareable = true;
+        Ok(())
     }
     pub fn set_tag(self, type_name: &str, field_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
     pub fn set_used(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.used = true;
+        Ok(())
     }
     pub fn set_directive(self, type_name: &str, field_name: &str, directive: &DirectiveNode) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
     pub fn set_description(self, type_name: &str, field_name: &str, description: Description) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.description = Some(description);
+        Ok(())
     }
     pub fn set_deprecated(self, type_name: &str, field_name: &str, reason: Option<&str>) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.deprecated = Some(Deprecated {
+            reason: reason.map(str::to_string),
+        });
+        Ok(())
     }
     /// `interfaceType.field.arg`.
     pub fn arg(self) -> InterfaceTypeFieldArgBuilder<'s> {
@@ -1134,12 +2450,18 @@ pub struct InterfaceTypeFieldArgBuilder<'s> {
     state: &'s mut SubgraphState,
 }
 
-impl InterfaceTypeFieldArgBuilder<'_> {
+impl<'s> InterfaceTypeFieldArgBuilder<'s> {
+    fn arg(self, type_name: &str, field_name: &str, arg_name: &str) -> JsResult<&'s mut Argument> {
+        get_or_create_interface_field_argument(self.state, type_name, field_name, arg_name)
+    }
+
     pub fn set_type(self, type_name: &str, field_name: &str, arg_name: &str, arg_type: &str) -> JsResult<()> {
-        todo!()
+        self.arg(type_name, field_name, arg_name)?.r#type = arg_type.to_string();
+        Ok(())
     }
     pub fn set_kind(self, type_name: &str, field_name: &str, arg_name: &str, arg_kind: ArgumentKind) -> JsResult<()> {
-        todo!()
+        self.arg(type_name, field_name, arg_name)?.kind = arg_kind;
+        Ok(())
     }
     pub fn set_default_value(
         self,
@@ -1148,10 +2470,14 @@ impl InterfaceTypeFieldArgBuilder<'_> {
         arg_name: &str,
         default_value: &str,
     ) -> JsResult<()> {
-        todo!()
+        self.arg(type_name, field_name, arg_name)?.default_value = Some(default_value.to_string());
+        Ok(())
     }
     pub fn set_deprecated(self, type_name: &str, field_name: &str, arg_name: &str, reason: Option<&str>) -> JsResult<()> {
-        todo!()
+        self.arg(type_name, field_name, arg_name)?.deprecated = Some(Deprecated {
+            reason: reason.map(str::to_string),
+        });
+        Ok(())
     }
     pub fn set_description(
         self,
@@ -1160,16 +2486,22 @@ impl InterfaceTypeFieldArgBuilder<'_> {
         arg_name: &str,
         description: Description,
     ) -> JsResult<()> {
-        todo!()
+        self.arg(type_name, field_name, arg_name)?.description = Some(description);
+        Ok(())
     }
     pub fn set_tag(self, type_name: &str, field_name: &str, arg_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+        self.arg(type_name, field_name, arg_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
     pub fn set_inaccessible(self, type_name: &str, field_name: &str, arg_name: &str) -> JsResult<()> {
-        todo!()
+        self.arg(type_name, field_name, arg_name)?.inaccessible = true;
+        Ok(())
     }
     pub fn set_cost(self, type_name: &str, field_name: &str, arg_name: &str, cost: f64) -> JsResult<()> {
-        todo!()
+        self.arg(type_name, field_name, arg_name)?.cost = Some(cost);
+        Ok(())
     }
     pub fn set_directive(
         self,
@@ -1178,7 +2510,11 @@ impl InterfaceTypeFieldArgBuilder<'_> {
         arg_name: &str,
         directive: &DirectiveNode,
     ) -> JsResult<()> {
-        todo!()
+        self.arg(type_name, field_name, arg_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
     pub fn set_from_context(
         self,
@@ -1187,7 +2523,8 @@ impl InterfaceTypeFieldArgBuilder<'_> {
         arg_name: &str,
         from_context: FromContext,
     ) -> JsResult<()> {
-        todo!()
+        self.arg(type_name, field_name, arg_name)?.from_context = Some(from_context);
+        Ok(())
     }
 }
 
@@ -1198,25 +2535,67 @@ pub struct InputObjectTypeBuilder<'s> {
 
 impl<'s> InputObjectTypeBuilder<'s> {
     pub fn set_definition(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_input_object_type(self.state, type_name)?.is_definition = true;
+        Ok(())
     }
     pub fn set_extension(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_input_object_type(self.state, type_name)?.extension = true;
+        Ok(())
     }
     pub fn set_description(self, type_name: &str, description: Description) -> JsResult<()> {
-        todo!()
+        get_or_create_input_object_type(self.state, type_name)?.description = Some(description);
+        Ok(())
     }
     pub fn set_inaccessible(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        let input_object_type = get_or_create_input_object_type(self.state, type_name)?;
+        input_object_type.inaccessible = true;
+
+        for field in input_object_type.fields.values_mut() {
+            field.inaccessible = true;
+        }
+        Ok(())
     }
     pub fn set_directive(self, type_name: &str, directive: &DirectiveNode) -> JsResult<()> {
-        todo!()
+        get_or_create_input_object_type(self.state, type_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
     pub fn set_tag(self, type_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_input_object_type(self.state, type_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
     pub fn set_one_of(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        let input_object = DirectiveLocation::InputObject.as_str();
+
+        match self.state.types.get_mut("oneOf") {
+            // if definition matches the built-in, flag the type as isOneOf
+            // and ensure the directive is composed
+            Some(SubgraphType::Directive(existing_one_of))
+                if existing_one_of.locations.len() == 1
+                    && existing_one_of.locations.contains(input_object)
+                    && !existing_one_of.repeatable
+                    && existing_one_of.args.is_empty() =>
+            {
+                existing_one_of.composed = true; // make sure it's composed
+                get_or_create_input_object_type(self.state, type_name)?.is_one_of = Some(true);
+            }
+            // If there is no existing definition, then this must be referencing the built-in.
+            // Create the definition and flag the type as isOneOf
+            None => {
+                let one_of_directive = get_or_create_directive(self.state, "oneOf")?;
+                one_of_directive.locations.insert(input_object.to_string());
+                one_of_directive.composed = true; // force including in the composed output
+
+                get_or_create_input_object_type(self.state, type_name)?.is_one_of = Some(true);
+            }
+            // otherwise let composeDirective figure it out
+            _ => {}
+        }
+        Ok(())
     }
     /// `inputObjectType.field`.
     pub fn field(self) -> InputObjectTypeFieldBuilder<'s> {
@@ -1229,33 +2608,53 @@ pub struct InputObjectTypeFieldBuilder<'s> {
     state: &'s mut SubgraphState,
 }
 
-impl InputObjectTypeFieldBuilder<'_> {
+impl<'s> InputObjectTypeFieldBuilder<'s> {
+    fn field(self, type_name: &str, field_name: &str) -> JsResult<&'s mut InputField> {
+        get_or_create_input_object_field(self.state, type_name, field_name)
+    }
+
     pub fn set_type(self, type_name: &str, field_name: &str, field_type: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.r#type = field_type.to_string();
+        Ok(())
     }
     pub fn set_kind(self, type_name: &str, field_name: &str, field_kind: ArgumentKind) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.kind = field_kind;
+        Ok(())
     }
     pub fn set_description(self, type_name: &str, field_name: &str, description: Description) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.description = Some(description);
+        Ok(())
     }
     pub fn set_deprecated(self, type_name: &str, field_name: &str, reason: Option<&str>) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.deprecated = Some(Deprecated {
+            reason: reason.map(str::to_string),
+        });
+        Ok(())
     }
     pub fn set_default_value(self, type_name: &str, field_name: &str, default_value: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.default_value = Some(default_value.to_string());
+        Ok(())
     }
     pub fn set_inaccessible(self, type_name: &str, field_name: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.inaccessible = true;
+        Ok(())
     }
     pub fn set_tag(self, type_name: &str, field_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
     pub fn set_directive(self, type_name: &str, field_name: &str, directive: &DirectiveNode) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
     pub fn set_cost(self, type_name: &str, field_name: &str, cost: f64) -> JsResult<()> {
-        todo!()
+        self.field(type_name, field_name)?.cost = Some(cost);
+        Ok(())
     }
 }
 
@@ -1266,25 +2665,41 @@ pub struct UnionTypeBuilder<'s> {
 
 impl UnionTypeBuilder<'_> {
     pub fn set_definition(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_union_type(self.state, type_name)?.is_definition = true;
+        Ok(())
     }
     pub fn set_inaccessible(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_union_type(self.state, type_name)?.inaccessible = true;
+        Ok(())
     }
     pub fn set_tag(self, type_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_union_type(self.state, type_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
     pub fn set_description(self, type_name: &str, description: Description) -> JsResult<()> {
-        todo!()
+        get_or_create_union_type(self.state, type_name)?.description = Some(description);
+        Ok(())
     }
     pub fn set_member(self, type_name: &str, member: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_union_type(self.state, type_name)?
+            .members
+            .insert(member.to_string());
+        Ok(())
     }
     pub fn set_directive(self, type_name: &str, directive: &DirectiveNode) -> JsResult<()> {
-        todo!()
+        get_or_create_union_type(self.state, type_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
     pub fn add_context(self, type_name: &str, context_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_union_type(self.state, type_name)?
+            .contexts
+            .insert(context_name.to_string());
+        Ok(())
     }
 }
 
@@ -1295,37 +2710,61 @@ pub struct EnumTypeBuilder<'s> {
 
 impl<'s> EnumTypeBuilder<'s> {
     pub fn set_definition(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_enum_type(self.state, type_name)?.is_definition = true;
+        Ok(())
     }
     pub fn set_inaccessible(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_enum_type(self.state, type_name)?.inaccessible = true;
+        Ok(())
     }
     pub fn set_authenticated(self, type_name: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_enum_type(self.state, type_name)?.authenticated = true;
+        Ok(())
     }
     pub fn set_policies(self, type_name: &str, policies: &[Vec<String>]) -> JsResult<()> {
-        todo!()
+        let existing = get_or_create_enum_type(self.state, type_name)?;
+        existing.policies = merge_scope_policies(&existing.policies, policies);
+        Ok(())
     }
     pub fn set_scopes(self, type_name: &str, scopes: &[Vec<String>]) -> JsResult<()> {
-        todo!()
+        let existing = get_or_create_enum_type(self.state, type_name)?;
+        existing.scopes = merge_scope_policies(&existing.scopes, scopes);
+        Ok(())
     }
     pub fn set_cost(self, type_name: &str, cost: f64) -> JsResult<()> {
-        todo!()
+        get_or_create_enum_type(self.state, type_name)?.cost = Some(cost);
+        Ok(())
     }
     pub fn set_description(self, type_name: &str, description: Description) -> JsResult<()> {
-        todo!()
+        get_or_create_enum_type(self.state, type_name)?.description = Some(description);
+        Ok(())
     }
     pub fn set_tag(self, type_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_enum_type(self.state, type_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
     pub fn set_referenced_by_input_type(self, type_name: &str, schema_coordinate: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_enum_type(self.state, type_name)?.referenced_by_input_type = true;
+        get_or_create_enum_type(self.state, type_name)?
+            .input_type_references
+            .insert(schema_coordinate.to_string());
+        Ok(())
     }
     pub fn set_referenced_by_output_type(self, type_name: &str, schema_coordinate: &str) -> JsResult<()> {
-        todo!()
+        get_or_create_enum_type(self.state, type_name)?.referenced_by_output_type = true;
+        get_or_create_enum_type(self.state, type_name)?
+            .output_type_references
+            .insert(schema_coordinate.to_string());
+        Ok(())
     }
     pub fn set_directive(self, type_name: &str, directive: &DirectiveNode) -> JsResult<()> {
-        todo!()
+        get_or_create_enum_type(self.state, type_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
     /// `enumType.value`.
     pub fn value(self) -> EnumTypeValueBuilder<'s> {
@@ -1338,24 +2777,41 @@ pub struct EnumTypeValueBuilder<'s> {
     state: &'s mut SubgraphState,
 }
 
-impl EnumTypeValueBuilder<'_> {
+impl<'s> EnumTypeValueBuilder<'s> {
+    fn value(self, type_name: &str, value_name: &str) -> JsResult<&'s mut EnumValue> {
+        get_or_create_enum_value(self.state, type_name, value_name)
+    }
+
     pub fn set_value(self, type_name: &str, value_name: &str) -> JsResult<()> {
-        todo!()
+        self.value(type_name, value_name)?;
+        Ok(())
     }
     pub fn set_description(self, type_name: &str, value_name: &str, description: Description) -> JsResult<()> {
-        todo!()
+        self.value(type_name, value_name)?.description = Some(description);
+        Ok(())
     }
     pub fn set_directive(self, type_name: &str, value_name: &str, directive: &DirectiveNode) -> JsResult<()> {
-        todo!()
+        self.value(type_name, value_name)?
+            .ast
+            .directives
+            .push(directive.clone());
+        Ok(())
     }
     pub fn set_inaccessible(self, type_name: &str, value_name: &str) -> JsResult<()> {
-        todo!()
+        self.value(type_name, value_name)?.inaccessible = true;
+        Ok(())
     }
     pub fn set_tag(self, type_name: &str, value_name: &str, tag: &str) -> JsResult<()> {
-        todo!()
+        self.value(type_name, value_name)?
+            .tags
+            .insert(tag.to_string());
+        Ok(())
     }
     pub fn set_deprecated(self, type_name: &str, value_name: &str, reason: Option<&str>) -> JsResult<()> {
-        todo!()
+        self.value(type_name, value_name)?.deprecated = Some(Deprecated {
+            reason: reason.map(str::to_string),
+        });
+        Ok(())
     }
 }
 
@@ -1376,8 +2832,93 @@ pub fn is_executable_directive_location(location: &str) -> bool {
     EXECUTABLE_DIRECTIVE_LOCATIONS.iter().any(|l| l.as_str() == location)
 }
 
+/// The shared shape of the `getOrCreate*Type` helpers: an existing entry of another kind throws
+/// `message`; a missing one is created with `create` (appended, like `Map.set`).
+fn get_or_create_type<'s, T>(
+    state: &'s mut SubgraphState,
+    type_name: &str,
+    create: impl FnOnce() -> SubgraphType,
+    as_kind: impl FnOnce(&'s mut SubgraphType) -> Option<&'s mut T>,
+    message: impl FnOnce() -> String,
+) -> JsResult<&'s mut T> {
+    if !state.types.contains_key(type_name) {
+        state.types.insert(type_name.to_string(), create());
+    }
+    let existing = state
+        .types
+        .get_mut(type_name)
+        .expect("the type was just looked up or inserted");
+    as_kind(existing).ok_or_else(|| JsError::error(message()))
+}
+
 fn get_or_create_directive<'s>(state: &'s mut SubgraphState, directive_name: &str) -> JsResult<&'s mut Directive> {
-    todo!()
+    get_or_create_type(
+        state,
+        directive_name,
+        || {
+            SubgraphType::Directive(Directive {
+                name: directive_name.to_string(),
+                locations: IndexSet::new(),
+                repeatable: false,
+                composed: false,
+                args: IndexMap::new(),
+            })
+        },
+        |existing| match existing {
+            SubgraphType::Directive(d) => Some(d),
+            _ => None,
+        },
+        || format!("Expected {directive_name} to be a directive"),
+    )
+}
+
+/// A new `Argument` (field and directive arguments share the defaults).
+fn new_argument(arg_name: &str) -> Argument {
+    Argument {
+        name: arg_name.to_string(),
+        r#type: MISSING.to_string(),
+        kind: ArgumentKind::Scalar,
+        inaccessible: false,
+        tags: IndexSet::new(),
+        cost: None,
+        default_value: None,
+        from_context: None,
+        description: None,
+        deprecated: None,
+        ast: Ast::default(),
+    }
+}
+
+/// A new `Field` (object and interface fields share the defaults).
+fn new_field(field_name: &str) -> Field {
+    Field {
+        name: field_name.to_string(),
+        r#type: MISSING.to_string(),
+        used_as_key: false,
+        is_leaf: false,
+        external: false,
+        inaccessible: false,
+        authenticated: false,
+        extension: false,
+        policies: Vec::new(),
+        scopes: Vec::new(),
+        cost: None,
+        list_size: None,
+        used: false,
+        required: false,
+        provided: false,
+        r#override: None,
+        override_label: None,
+        provides: None,
+        requires: None,
+        shareable: false,
+        // shareable: state.version === 'v1.0' ? true : false, // In Fed v1 - it should be true by default, as all fields are shareable by default, even though there's not @shareable directive
+        tags: IndexSet::new(),
+        args: IndexMap::new(),
+        description: None,
+        deprecated: None,
+        ast: Ast::default(),
+    }
 }
 
 fn get_or_create_directive_arg<'s>(
@@ -1385,11 +2926,38 @@ fn get_or_create_directive_arg<'s>(
     directive_name: &str,
     arg_name: &str,
 ) -> JsResult<&'s mut Argument> {
-    todo!()
+    let directive = get_or_create_directive(state, directive_name)?;
+
+    Ok(directive
+        .args
+        .entry(arg_name.to_string())
+        .or_insert_with(|| new_argument(arg_name)))
 }
 
 fn get_or_create_scalar_type<'s>(state: &'s mut SubgraphState, type_name: &str) -> JsResult<&'s mut ScalarType> {
-    todo!()
+    get_or_create_type(
+        state,
+        type_name,
+        || {
+            SubgraphType::Scalar(ScalarType {
+                name: type_name.to_string(),
+                tags: IndexSet::new(),
+                inaccessible: false,
+                authenticated: false,
+                policies: Vec::new(),
+                scopes: Vec::new(),
+                cost: None,
+                description: None,
+                specified_by: None,
+                ast: Ast::default(),
+            })
+        },
+        |existing| match existing {
+            SubgraphType::Scalar(t) => Some(t),
+            _ => None,
+        },
+        || format!("Expected {type_name} to be a scalar type"),
+    )
 }
 
 /// `getOrCreateObjectType(state, renameObject, typeName)`.
@@ -1398,26 +2966,154 @@ fn get_or_create_object_type<'s>(
     rename_object: &RootTypeNames,
     type_name: &str,
 ) -> JsResult<&'s mut ObjectType> {
-    todo!()
+    let type_name = rename_object.rename_object_type(type_name);
+    let type_name = type_name.as_str();
+    get_or_create_type(
+        state,
+        type_name,
+        || {
+            SubgraphType::Object(ObjectType {
+                name: type_name.to_string(),
+                fields: IndexMap::new(),
+                contexts: IndexSet::new(),
+                fields_used_as_keys: IndexSet::new(),
+                extension: false,
+                extension_type: None,
+                external: false,
+                keys: Vec::new(),
+                inaccessible: false,
+                authenticated: false,
+                policies: Vec::new(),
+                scopes: Vec::new(),
+                cost: None,
+                shareable: false,
+                tags: IndexSet::new(),
+                interfaces: IndexSet::new(),
+                is_definition: false,
+                description: None,
+                deprecated: None,
+                ast: Ast::default(),
+            })
+        },
+        |existing| match existing {
+            SubgraphType::Object(t) => Some(t),
+            _ => None,
+        },
+        || format!("Expected {type_name} to be an object type"),
+    )
 }
 
 fn get_or_create_interface_type<'s>(state: &'s mut SubgraphState, type_name: &str) -> JsResult<&'s mut InterfaceType> {
-    todo!()
+    get_or_create_type(
+        state,
+        type_name,
+        || {
+            SubgraphType::Interface(InterfaceType {
+                name: type_name.to_string(),
+                fields: IndexMap::new(),
+                contexts: IndexSet::new(),
+                fields_used_as_keys: IndexSet::new(),
+                extension: false,
+                keys: Vec::new(),
+                inaccessible: false,
+                tags: IndexSet::new(),
+                interfaces: IndexSet::new(),
+                implemented_by: IndexSet::new(),
+                is_definition: false,
+                is_interface_object: false,
+                description: None,
+                ast: Ast::default(),
+            })
+        },
+        |existing| match existing {
+            SubgraphType::Interface(t) => Some(t),
+            _ => None,
+        },
+        || format!("Expected {type_name} to be an interface type"),
+    )
 }
 
 fn get_or_create_input_object_type<'s>(
     state: &'s mut SubgraphState,
     type_name: &str,
 ) -> JsResult<&'s mut InputObjectType> {
-    todo!()
+    get_or_create_type(
+        state,
+        type_name,
+        || {
+            SubgraphType::InputObject(InputObjectType {
+                name: type_name.to_string(),
+                fields: IndexMap::new(),
+                extension: false,
+                inaccessible: false,
+                tags: IndexSet::new(),
+                is_definition: false,
+                description: None,
+                ast: Ast::default(),
+                is_one_of: None,
+            })
+        },
+        |existing| match existing {
+            SubgraphType::InputObject(t) => Some(t),
+            _ => None,
+        },
+        || format!("Expected {type_name} to be an input object type"),
+    )
 }
 
 fn get_or_create_enum_type<'s>(state: &'s mut SubgraphState, type_name: &str) -> JsResult<&'s mut EnumType> {
-    todo!()
+    get_or_create_type(
+        state,
+        type_name,
+        || {
+            SubgraphType::Enum(EnumType {
+                name: type_name.to_string(),
+                values: IndexMap::new(),
+                inaccessible: false,
+                authenticated: false,
+                policies: Vec::new(),
+                scopes: Vec::new(),
+                cost: None,
+                tags: IndexSet::new(),
+                is_definition: false,
+                description: None,
+                referenced_by_input_type: false,
+                referenced_by_output_type: false,
+                input_type_references: IndexSet::new(),
+                output_type_references: IndexSet::new(),
+                ast: Ast::default(),
+            })
+        },
+        |existing| match existing {
+            SubgraphType::Enum(t) => Some(t),
+            _ => None,
+        },
+        || format!("Expected {type_name} to be an enum type"),
+    )
 }
 
 fn get_or_create_union_type<'s>(state: &'s mut SubgraphState, type_name: &str) -> JsResult<&'s mut UnionType> {
-    todo!()
+    get_or_create_type(
+        state,
+        type_name,
+        || {
+            SubgraphType::Union(UnionType {
+                name: type_name.to_string(),
+                members: IndexSet::new(),
+                contexts: IndexSet::new(),
+                inaccessible: false,
+                tags: IndexSet::new(),
+                is_definition: false,
+                description: None,
+                ast: Ast::default(),
+            })
+        },
+        |existing| match existing {
+            SubgraphType::Union(t) => Some(t),
+            _ => None,
+        },
+        || format!("Expected {type_name} to be a union type"),
+    )
 }
 
 fn get_or_create_object_field<'s>(
@@ -1426,7 +3122,12 @@ fn get_or_create_object_field<'s>(
     type_name: &str,
     field_name: &str,
 ) -> JsResult<&'s mut Field> {
-    todo!()
+    let object_type = get_or_create_object_type(state, rename_object, type_name)?;
+
+    Ok(object_type
+        .fields
+        .entry(field_name.to_string())
+        .or_insert_with(|| new_field(field_name)))
 }
 
 fn get_or_create_interface_field<'s>(
@@ -1434,7 +3135,12 @@ fn get_or_create_interface_field<'s>(
     type_name: &str,
     field_name: &str,
 ) -> JsResult<&'s mut Field> {
-    todo!()
+    let interface_type = get_or_create_interface_type(state, type_name)?;
+
+    Ok(interface_type
+        .fields
+        .entry(field_name.to_string())
+        .or_insert_with(|| new_field(field_name)))
 }
 
 fn get_or_create_input_object_field<'s>(
@@ -1442,7 +3148,23 @@ fn get_or_create_input_object_field<'s>(
     type_name: &str,
     field_name: &str,
 ) -> JsResult<&'s mut InputField> {
-    todo!()
+    let input_object_type = get_or_create_input_object_type(state, type_name)?;
+
+    Ok(input_object_type
+        .fields
+        .entry(field_name.to_string())
+        .or_insert_with(|| InputField {
+            name: field_name.to_string(),
+            r#type: MISSING.to_string(),
+            kind: ArgumentKind::Scalar,
+            inaccessible: false,
+            cost: None,
+            tags: IndexSet::new(),
+            default_value: None,
+            description: None,
+            deprecated: None,
+            ast: Ast::default(),
+        }))
 }
 
 fn get_or_create_enum_value<'s>(
@@ -1450,7 +3172,19 @@ fn get_or_create_enum_value<'s>(
     type_name: &str,
     enum_value_name: &str,
 ) -> JsResult<&'s mut EnumValue> {
-    todo!()
+    let enum_type = get_or_create_enum_type(state, type_name)?;
+
+    Ok(enum_type
+        .values
+        .entry(enum_value_name.to_string())
+        .or_insert_with(|| EnumValue {
+            name: enum_value_name.to_string(),
+            inaccessible: false,
+            tags: IndexSet::new(),
+            description: None,
+            deprecated: None,
+            ast: Ast::default(),
+        }))
 }
 
 fn get_or_create_object_field_argument<'s>(
@@ -1460,7 +3194,12 @@ fn get_or_create_object_field_argument<'s>(
     field_name: &str,
     arg_name: &str,
 ) -> JsResult<&'s mut Argument> {
-    todo!()
+    let field_state = get_or_create_object_field(state, rename_object, type_name, field_name)?;
+
+    Ok(field_state
+        .args
+        .entry(arg_name.to_string())
+        .or_insert_with(|| new_argument(arg_name)))
 }
 
 fn get_or_create_interface_field_argument<'s>(
@@ -1469,7 +3208,12 @@ fn get_or_create_interface_field_argument<'s>(
     field_name: &str,
     arg_name: &str,
 ) -> JsResult<&'s mut Argument> {
-    todo!()
+    let field_state = get_or_create_interface_field(state, type_name, field_name)?;
+
+    Ok(field_state
+        .args
+        .entry(arg_name.to_string())
+        .or_insert_with(|| new_argument(arg_name)))
 }
 
 fn is_schema_definition(node: &graphql_js::Definition) -> Option<&SchemaDefinition> {
@@ -1507,4 +3251,473 @@ fn decide_on_root_type_name(schema_def: Option<&SchemaDefinition>, kind: Operati
 /// `hasInterfaceObjectDirective(node)` for an object type definition.
 fn has_interface_object_directive(directives: &[DirectiveNode]) -> bool {
     directives.iter().any(|d| d.name.value == "interfaceObject")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use graphql_js::parse;
+
+    fn graph() -> GraphInput {
+        GraphInput {
+            id: "a".to_string(),
+            name: "A".to_string(),
+            url: None,
+        }
+    }
+
+    fn builder(sdl: &str) -> SubgraphStateBuilder {
+        builder_with_links(sdl, &[])
+    }
+
+    fn builder_with_links(sdl: &str, links: &[Link]) -> SubgraphStateBuilder {
+        let doc = parse(sdl).expect("valid SDL");
+        create_subgraph_state_builder(&graph(), &doc, FederationVersion::V2_3, links)
+    }
+
+    fn link(identity: &str, imports: Vec<LinkImport>) -> Link {
+        Link {
+            name: None,
+            version: Some("v1.0".to_string()),
+            identity: identity.to_string(),
+            imports,
+        }
+    }
+
+    fn import(kind: LinkImportKind, name: &str) -> LinkImport {
+        LinkImport {
+            kind,
+            name: name.to_string(),
+            alias: None,
+        }
+    }
+
+    #[test]
+    fn root_type_names_come_from_the_schema_definition() {
+        let b = builder("schema { query: RootQuery mutation: M } type RootQuery { a: String }");
+        assert_eq!(b.root_type_names.query, "RootQuery");
+        assert_eq!(b.root_type_names.mutation, "M");
+        assert_eq!(b.root_type_names.subscription, "Subscription");
+        assert_eq!(b.root_type_names.rename_object_type("RootQuery"), "Query");
+        assert_eq!(b.root_type_names.rename_object_type("M"), "Mutation");
+        assert_eq!(b.root_type_names.rename_object_type("Subscription"), "Subscription");
+        assert_eq!(b.root_type_names.rename_object_type("Query"), "Query");
+        assert_eq!(b.root_type_names.rename_object_type("Other"), "Other");
+    }
+
+    #[test]
+    fn link_spec_is_manually_provided_only_when_every_location_is_schema() {
+        let b = builder("directive @link(url: String) repeatable on SCHEMA");
+        assert!(b.state.specs.link);
+        let b = builder("directive @link(url: String) on SCHEMA | OBJECT");
+        assert!(!b.state.specs.link);
+        let b = builder("directive @other on SCHEMA");
+        assert!(!b.state.specs.link);
+    }
+
+    #[test]
+    fn links_without_directives_and_federation_links_are_dropped() {
+        let fed = link(
+            "https://specs.apollo.dev/federation",
+            vec![import(LinkImportKind::Directive, "@key")],
+        );
+        let types_only = link(
+            "https://example.com/types",
+            vec![import(LinkImportKind::Type, "Foo")],
+        );
+        let with_directive = link(
+            "https://example.com/dirs",
+            vec![
+                import(LinkImportKind::Type, "Foo"),
+                import(LinkImportKind::Directive, "@bar"),
+            ],
+        );
+        let b = builder_with_links(
+            "type Query { a: String }",
+            &[fed.clone(), types_only, with_directive.clone()],
+        );
+        assert_eq!(b.state.links, vec![with_directive]);
+        assert_eq!(b.state.federation.imports, fed.imports);
+        assert_eq!(b.state.federation.version, FederationVersion::V2_3);
+
+        let b = builder("type Query { a: String }");
+        assert!(b.state.federation.imports.is_empty());
+    }
+
+    #[test]
+    fn type_name_sets_are_collected_from_definitions_and_extensions() {
+        let b = builder(
+            "enum E { A } extend enum E2 { B } scalar S extend scalar S2 @d \
+             input I { a: Int } extend input I2 { b: Int } type Query { e: E }",
+        );
+        assert!(b.leaf_type_names.contains("String"));
+        assert!(b.leaf_type_names.contains("ID"));
+        for name in ["E", "E2", "S", "S2"] {
+            assert!(b.leaf_type_names.contains(name), "{name}");
+        }
+        assert_eq!(b.resolve_argument_kind("E"), ArgumentKind::Enum);
+        assert_eq!(b.resolve_argument_kind("E2"), ArgumentKind::Enum);
+        assert_eq!(b.resolve_argument_kind("I"), ArgumentKind::Object);
+        assert_eq!(b.resolve_argument_kind("I2"), ArgumentKind::Object);
+        assert_eq!(b.resolve_argument_kind("S"), ArgumentKind::Scalar);
+        assert_eq!(
+            b.enum_types_by_name.iter().cloned().collect::<Vec<_>>(),
+            vec!["E".to_string(), "E2".to_string()]
+        );
+        assert_eq!(
+            b.specified_scalars,
+            vec!["String", "Int", "Float", "Boolean", "ID"]
+        );
+    }
+
+    #[test]
+    fn get_or_create_throws_on_a_kind_clash() {
+        let mut b = builder("type Query { a: String }");
+        b.scalar_type().set_definition("Foo").unwrap();
+        let cases: Vec<(JsResult<()>, &str)> = vec![
+            (b.enum_type().set_definition("Foo"), "Expected Foo to be an enum type"),
+            (b.union_type().set_definition("Foo"), "Expected Foo to be a union type"),
+            (
+                b.interface_type().set_definition("Foo"),
+                "Expected Foo to be an interface type",
+            ),
+            (
+                b.input_object_type().set_definition("Foo"),
+                "Expected Foo to be an input object type",
+            ),
+            (b.object_type().set_definition("Foo"), "Expected Foo to be an object type"),
+            (b.directive().set_repeatable("Foo"), "Expected Foo to be a directive"),
+        ];
+        for (result, message) in cases {
+            assert_eq!(result, Err(JsError::error(message)));
+        }
+        b.enum_type().set_definition("Bar").unwrap();
+        assert_eq!(
+            b.scalar_type().set_definition("Bar"),
+            Err(JsError::error("Expected Bar to be a scalar type"))
+        );
+        // A failed lookup does not create or replace anything.
+        assert_eq!(b.state.types.len(), 2);
+    }
+
+    #[test]
+    fn object_types_are_stored_under_the_renamed_root_name() {
+        let mut b = builder("schema { query: RootQuery } type RootQuery { a: String }");
+        b.object_type().set_definition("RootQuery").unwrap();
+        b.object_type().field().set_type("RootQuery", "a", "String").unwrap();
+        let Some(SubgraphType::Object(query)) = b.state.types.get("Query") else {
+            panic!("Query missing");
+        };
+        assert!(query.is_definition);
+        assert_eq!(query.name, "Query");
+        assert_eq!(query.fields["a"].r#type, "String");
+        assert!(!b.state.types.contains_key("RootQuery"));
+
+        // The error message names the renamed type.
+        let mut b = builder("schema { mutation: M } type M { a: String }");
+        b.scalar_type().set_definition("Mutation").unwrap();
+        assert_eq!(
+            b.object_type().set_definition("M"),
+            Err(JsError::error("Expected Mutation to be an object type"))
+        );
+    }
+
+    #[test]
+    fn new_entries_keep_insertion_order_and_defaults() {
+        let mut b = builder("type Query { a: String }");
+        b.object_type().field().set_type("T", "z", "Int").unwrap();
+        b.object_type().field().set_used("T", "a").unwrap();
+        b.object_type().field().set_type("T", "z", "String").unwrap();
+        b.object_type().field().arg().set_type("T", "a", "x", "Int").unwrap();
+        let Some(SubgraphType::Object(t)) = b.state.types.get("T") else {
+            panic!("T missing");
+        };
+        assert!(!t.is_definition);
+        assert_eq!(t.fields.keys().collect::<Vec<_>>(), vec!["z", "a"]);
+        assert_eq!(t.fields["z"].r#type, "String");
+        let a = &t.fields["a"];
+        assert_eq!(a.r#type, MISSING);
+        assert!(a.used);
+        assert_eq!(a.args["x"].r#type, "Int");
+        assert_eq!(a.args["x"].kind, ArgumentKind::Scalar);
+        assert_eq!(a.cost, None);
+    }
+
+    #[test]
+    fn interface_object_calls_are_redirected_to_the_interface() {
+        let mut b = builder("type Query { a: String }");
+        b.interface_type().set_definition("Foo").unwrap();
+        b.interface_type().set_interface_object("Foo").unwrap();
+        assert!(b.is_interface_object("Foo"));
+        assert!(!b.is_interface_object("Query"));
+        assert!(!b.is_interface_object("Missing"));
+
+        b.object_type().set_definition("Foo").unwrap();
+        b.object_type().field().set_type("Foo", "id", "ID!").unwrap();
+        b.object_type().field().set_shareable("Foo", "id").unwrap();
+        b.object_type().field().set_provides("Foo", "id", "x").unwrap();
+        b.object_type().field().arg().set_tag("Foo", "id", "arg", "t").unwrap();
+        b.object_type().set_shareable("Foo").unwrap();
+        b.object_type().set_cost("Foo", 5.0).unwrap();
+        b.object_type()
+            .set_key("Foo", "id", &IndexSet::from(["id".to_string()]), true)
+            .unwrap();
+
+        let Some(SubgraphType::Interface(foo)) = b.state.types.get("Foo") else {
+            panic!("Foo is not an interface");
+        };
+        assert!(foo.is_definition);
+        let id = &foo.fields["id"];
+        assert_eq!(id.r#type, "ID!");
+        assert!(id.shareable);
+        // setProvides is ignored for interface objects.
+        assert_eq!(id.provides, None);
+        assert!(id.args["arg"].tags.contains("t"));
+        assert_eq!(
+            foo.keys,
+            vec![Key {
+                fields: "id".to_string(),
+                resolvable: true
+            }]
+        );
+        assert!(foo.fields_used_as_keys.contains("id"));
+    }
+
+    #[test]
+    fn object_set_interface_records_implemented_by() {
+        let mut b = builder("type Query { a: String }");
+        b.object_type().set_interface("Book", "Node").unwrap();
+        let Some(SubgraphType::Interface(node)) = b.state.types.get("Node") else {
+            panic!("Node missing");
+        };
+        assert!(node.implemented_by.contains("Book"));
+        assert!(!node.is_definition);
+        let Some(SubgraphType::Object(book)) = b.state.types.get("Book") else {
+            panic!("Book missing");
+        };
+        assert!(book.interfaces.contains("Node"));
+    }
+
+    #[test]
+    fn object_extension_type_keeps_extends() {
+        let mut b = builder("type Query { a: String }");
+        b.object_type().set_extension("A", ExtensionType::Extend).unwrap();
+        b.object_type().set_extension("A", ExtensionType::Extends).unwrap();
+        b.object_type().set_extension("A", ExtensionType::Extend).unwrap();
+        b.object_type().set_extension("B", ExtensionType::Extends).unwrap();
+        b.object_type().set_extension("B", ExtensionType::Extend).unwrap();
+        let ext = |name: &str| match b.state.types.get(name) {
+            Some(SubgraphType::Object(o)) => (o.extension, o.extension_type),
+            _ => panic!("{name} missing"),
+        };
+        assert_eq!(ext("A"), (true, Some(ExtensionType::Extends)));
+        assert_eq!(ext("B"), (true, Some(ExtensionType::Extends)));
+    }
+
+    #[test]
+    fn object_set_external_marks_existing_fields_only() {
+        let mut b = builder("type Query { a: String }");
+        b.object_type().field().set_type("A", "x", "Int").unwrap();
+        b.object_type().set_external("A").unwrap();
+        b.object_type().field().set_type("A", "y", "Int").unwrap();
+        let Some(SubgraphType::Object(a)) = b.state.types.get("A") else {
+            panic!("A missing");
+        };
+        assert!(a.external);
+        assert!(a.fields["x"].external);
+        assert!(!a.fields["y"].external);
+    }
+
+    #[test]
+    fn input_object_set_inaccessible_marks_existing_fields() {
+        let mut b = builder("type Query { a: String }");
+        b.input_object_type().field().set_type("I", "x", "Int").unwrap();
+        b.input_object_type().set_inaccessible("I").unwrap();
+        b.input_object_type().field().set_type("I", "y", "Int").unwrap();
+        let Some(SubgraphType::InputObject(i)) = b.state.types.get("I") else {
+            panic!("I missing");
+        };
+        assert!(i.inaccessible);
+        assert!(i.fields["x"].inaccessible);
+        assert!(!i.fields["y"].inaccessible);
+    }
+
+    fn one_of(b: &SubgraphStateBuilder) -> Option<&Directive> {
+        match b.state.types.get("oneOf") {
+            Some(SubgraphType::Directive(d)) => Some(d),
+            _ => None,
+        }
+    }
+
+    fn is_one_of(b: &SubgraphStateBuilder, name: &str) -> Option<Option<bool>> {
+        match b.state.types.get(name) {
+            Some(SubgraphType::InputObject(i)) => Some(i.is_one_of),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn set_one_of_without_a_definition_creates_the_built_in() {
+        let mut b = builder("type Query { a: String }");
+        b.input_object_type().set_one_of("I").unwrap();
+        let d = one_of(&b).expect("oneOf created");
+        assert!(d.composed);
+        assert_eq!(d.locations.iter().collect::<Vec<_>>(), vec!["INPUT_OBJECT"]);
+        assert_eq!(is_one_of(&b, "I"), Some(Some(true)));
+    }
+
+    #[test]
+    fn set_one_of_with_a_matching_definition_composes_it() {
+        let mut b = builder("type Query { a: String }");
+        b.directive().set_location("oneOf", "INPUT_OBJECT").unwrap();
+        b.input_object_type().set_one_of("I").unwrap();
+        assert!(one_of(&b).unwrap().composed);
+        assert_eq!(is_one_of(&b, "I"), Some(Some(true)));
+    }
+
+    #[test]
+    fn set_one_of_with_a_different_definition_does_nothing() {
+        // Repeatable.
+        let mut b = builder("type Query { a: String }");
+        b.directive().set_location("oneOf", "INPUT_OBJECT").unwrap();
+        b.directive().set_repeatable("oneOf").unwrap();
+        b.input_object_type().set_one_of("I").unwrap();
+        assert!(!one_of(&b).unwrap().composed);
+        assert_eq!(is_one_of(&b, "I"), None);
+
+        // Extra location.
+        let mut b = builder("type Query { a: String }");
+        b.directive().set_location("oneOf", "INPUT_OBJECT").unwrap();
+        b.directive().set_location("oneOf", "OBJECT").unwrap();
+        b.input_object_type().set_one_of("I").unwrap();
+        assert!(!one_of(&b).unwrap().composed);
+
+        // With an argument.
+        let mut b = builder("type Query { a: String }");
+        b.directive().set_location("oneOf", "INPUT_OBJECT").unwrap();
+        b.directive().arg().set_type("oneOf", "x", "Int").unwrap();
+        b.input_object_type().set_one_of("I").unwrap();
+        assert!(!one_of(&b).unwrap().composed);
+
+        // A type named oneOf.
+        let mut b = builder("type Query { a: String }");
+        b.scalar_type().set_definition("oneOf").unwrap();
+        b.input_object_type().set_one_of("I").unwrap();
+        assert_eq!(is_one_of(&b, "I"), None);
+    }
+
+    #[test]
+    fn enum_references_are_recorded() {
+        let mut b = builder("type Query { a: String }");
+        b.enum_type()
+            .set_referenced_by_output_type("E", "Query.a")
+            .unwrap();
+        b.enum_type()
+            .set_referenced_by_input_type("E", "Query.a(x:)")
+            .unwrap();
+        let Some(SubgraphType::Enum(e)) = b.state.types.get("E") else {
+            panic!("E missing");
+        };
+        assert!(e.referenced_by_output_type && e.referenced_by_input_type);
+        assert!(!e.is_definition);
+        assert!(e.output_type_references.contains("Query.a"));
+        assert!(e.input_type_references.contains("Query.a(x:)"));
+    }
+
+    #[test]
+    fn deprecated_and_override_values() {
+        let mut b = builder("type Query { a: String }");
+        b.object_type().field().set_deprecated("A", "x", None).unwrap();
+        b.object_type().field().set_override("A", "x", "other", None).unwrap();
+        b.interface_type().field().set_deprecated("I", "x", Some("why")).unwrap();
+        b.interface_type()
+            .field()
+            .set_override("I", "x", "other", Some("percent(5)"))
+            .unwrap();
+        let Some(SubgraphType::Object(a)) = b.state.types.get("A") else {
+            panic!("A missing");
+        };
+        assert_eq!(a.fields["x"].deprecated, Some(Deprecated { reason: None }));
+        assert_eq!(a.fields["x"].r#override.as_deref(), Some("other"));
+        assert_eq!(a.fields["x"].override_label, None);
+        let Some(SubgraphType::Interface(i)) = b.state.types.get("I") else {
+            panic!("I missing");
+        };
+        assert_eq!(
+            i.fields["x"].deprecated,
+            Some(Deprecated {
+                reason: Some("why".to_string())
+            })
+        );
+        assert_eq!(i.fields["x"].override_label.as_deref(), Some("percent(5)"));
+    }
+
+    #[test]
+    fn directive_is_executable_by_location() {
+        let mut b = builder("type Query { a: String }");
+        b.directive().set_location("d", "OBJECT").unwrap();
+        let exec = |b: &SubgraphStateBuilder| match b.state.types.get("d") {
+            Some(SubgraphType::Directive(d)) => d.is_executable(),
+            _ => panic!("d missing"),
+        };
+        assert!(!exec(&b));
+        b.directive().set_location("d", "FIELD").unwrap();
+        assert!(exec(&b));
+        assert!(is_executable_directive_location("VARIABLE_DEFINITION"));
+        assert!(is_executable_directive_location("QUERY"));
+        assert!(!is_executable_directive_location("SCHEMA"));
+        assert!(!is_executable_directive_location("field"));
+    }
+
+    #[test]
+    fn clean_helpers_remove_spec_types_and_keep_order() {
+        let mut b = builder("type Query { a: String }");
+        for name in ["A", "_FieldSet", "link__Import", "B", "federation__Scope", "link", "C"] {
+            b.scalar_type().set_definition(name).unwrap();
+        }
+        let state = clean_subgraph_state_from_link_spec(clean_subgraph_state_from_federation_spec(
+            b.into_state(),
+        ));
+        assert_eq!(state.types.keys().collect::<Vec<_>>(), vec!["A", "B", "C"]);
+    }
+
+    #[test]
+    fn small_helpers() {
+        let doc = parse("type Q { a(x: [String!]! = \"d\"): Int }").unwrap();
+        let Definition::ObjectTypeDefinition(q) = &doc.definitions[0] else {
+            panic!("expected an object type");
+        };
+        assert_eq!(resolve_type_name(&q.fields[0].arguments[0].ty), "String");
+        assert_eq!(print_output_type(&q.fields[0].arguments[0].ty), "[String!]!");
+
+        let doc = parse("type T @d(reason: \"r\", url: 1) @interfaceObject { a: Int }").unwrap();
+        let Definition::ObjectTypeDefinition(t) = &doc.definitions[0] else {
+            panic!("expected an object type");
+        };
+        assert_eq!(find_string_argument(&t.directives[0], "reason"), Some("r"));
+        // Not a string value.
+        assert_eq!(find_string_argument(&t.directives[0], "url"), None);
+        assert_eq!(find_string_argument(&t.directives[0], "missing"), None);
+        assert!(has_interface_object_directive(&t.directives));
+        assert!(!has_interface_object_directive(&[]));
+
+        assert_eq!(
+            asserted_field_name(None),
+            Err(JsError::type_error(
+                "Cannot read properties of undefined (reading 'name')"
+            ))
+        );
+    }
+
+    #[test]
+    fn mark_spec_helpers() {
+        let mut b = builder("type Query { a: String }");
+        b.mark_cost_spec_as_used(CostSpecDirective::ListSize, "listSize");
+        b.mark_spec_as_used(SpecName::RequiresScopes);
+        assert!(b.state.specs.cost.used);
+        assert_eq!(b.state.specs.cost.names.list_size.as_deref(), Some("listSize"));
+        assert_eq!(b.state.specs.cost.names.cost, None);
+        assert!(b.state.specs.requires_scopes);
+        assert!(!b.state.specs.policy);
+    }
 }
