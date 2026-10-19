@@ -1,6 +1,7 @@
 import baseline from "../journal/01-baseline.md?raw";
 import port from "../journal/02-port.md?raw";
 import speed from "../journal/03-speed.md?raw";
+import optimize from "../journal/04-optimize.md?raw";
 
 export type Phase = {
   title: string;
@@ -26,11 +27,21 @@ export const phases: Phase[] = [
     title: "Benchmark TypeScript vs WebAssembly vs native",
     status: "done",
   },
+  { title: "Optimize the port without changing its output", status: "done" },
   { title: "Port the tests to Rust", status: "not started" },
 ];
 
 // Newest first.
 export const entries: Entry[] = [
+  {
+    slug: "optimize",
+    date: "2026-10-19",
+    milestone: 4,
+    title: "Optimization: same output, 2.4× less time",
+    summary:
+      "A behavior-preserving pass took native Rust to 9.75× faster than TypeScript on typical compositions and 4.21× on the huge schema. WebAssembly is now 5.12× faster on typical compositions and 2.58× on the huge schema. All 3,567 outputs are still byte-identical.",
+    body: optimize,
+  },
   {
     slug: "speed",
     date: "2026-10-19",

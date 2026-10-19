@@ -3,6 +3,9 @@ import mitata from "../data/01-baseline-mitata.json";
 import speedRust from "../data/03-speed-guild-rust.json";
 import speedTs from "../data/03-speed-guild-ts.json";
 import speedWasm from "../data/03-speed-guild-wasm.json";
+import optRust from "../data/04-optimized-guild-rust.json";
+import optTs from "../data/04-optimized-guild-ts.json";
+import optWasm from "../data/04-optimized-guild-wasm.json";
 
 // Each chart renders into a placeholder `<div data-chart="<name>">` in a journal entry.
 type Chart = (root: HTMLElement) => void;
@@ -254,203 +257,239 @@ const IMPLEMENTATIONS: BarSeries[] = [
   { name: "Native Rust", series: 7 },
 ];
 
-const speedFixtures: Chart = (root) =>
-  barMultiples(
-    root,
-    "The benchmark fixtures in each implementation",
-    "Median composeServices() time. WebAssembly includes converting the AST across the boundary. Each panel has its own scale.",
-    IMPLEMENTATIONS,
-    speedTs.fixtures.map((f, i) => {
-      const values = [
-        f.medianMs,
-        speedWasm.fixtures[i].medianMs,
-        speedRust.fixtures[i].medianMs,
-      ];
-      return {
-        title: f.id,
-        note: `${f.subgraphs} subgraphs · native ${(values[0] / values[2]).toFixed(2)}× faster`,
-        values,
-      };
-    }),
-  );
+type RunData = Pick<typeof speedTs, "fixtures" | "cases">;
+// One benchmark session: the three implementations run one after another on the same corpus.
+type Session = { ts: RunData; wasm: RunData; rust: RunData };
+const SPEED: Session = { ts: speedTs, wasm: speedWasm, rust: speedRust };
+const OPTIMIZED: Session = { ts: optTs, wasm: optWasm, rust: optRust };
+
+const fixtureBars =
+  (session: Session): Chart =>
+  (root) =>
+    barMultiples(
+      root,
+      "The benchmark fixtures in each implementation",
+      "Median composeServices() time. WebAssembly includes converting the AST across the boundary. Each panel has its own scale.",
+      IMPLEMENTATIONS,
+      session.ts.fixtures.map((f, i) => {
+        const values = [
+          f.medianMs,
+          session.wasm.fixtures[i].medianMs,
+          session.rust.fixtures[i].medianMs,
+        ];
+        return {
+          title: f.id,
+          note: `${f.subgraphs} subgraphs · native ${(values[0] / values[2]).toFixed(2)}× faster`,
+          values,
+        };
+      }),
+    );
 
 // Distribution of per-composition speedups over TypeScript, one panel per implementation,
-// on shared log-spaced bins so the panels compare directly.
-const speedupHistogram: Chart = (root) => {
-  root.append(
-    html(
-      "div",
-      "chart-title",
-      "Speedup over TypeScript, per test-suite composition",
-    ),
-    html(
-      "div",
-      "chart-subtitle",
-      `TypeScript median time divided by the other implementation's, for each of the ${count.format(speedTs.cases.length)} compositions. Left of 1× means slower than TypeScript.`,
-    ),
-  );
-  const edges = [0.5, 0.71, 1, 1.41, 2, 2.83, 4, 5.66, 8];
-  const grid = html("div", "multiples");
-  root.append(grid);
-  const panels = [
-    { name: "WebAssembly", series: 3, data: speedWasm },
-    { name: "Native Rust", series: 7, data: speedRust },
-  ];
-  const binned = panels.map((p) => {
-    const bins = edges
-      .slice(0, -1)
-      .map((lo, i) => ({ lo, hi: edges[i + 1], n: 0 }));
-    speedTs.cases.forEach((c, i) => {
-      const ratio = c[0] / p.data.cases[i][0];
-      const bin =
-        bins.find((b) => ratio >= b.lo && ratio < b.hi) ??
-        (ratio < edges[0] ? bins[0] : bins[bins.length - 1]);
-      bin.n++;
-    });
-    return bins;
-  });
-  const max = Math.max(...binned.flat().map((b) => b.n));
-  const yMax = Math.ceil(max / 500) * 500;
-
-  panels.forEach((p, pi) => {
-    const panel = html("div", "multiple");
-    const ratios = speedTs.cases.map((c, i) => c[0] / p.data.cases[i][0]);
-    const geomean = Math.exp(
-      ratios.reduce((s, r) => s + Math.log(r), 0) / ratios.length,
-    );
-    const slower = ratios.filter((r) => r < 1).length;
-    panel.append(
-      html("div", "multiple-title", p.name),
+// on shared log-spaced bins so the panels compare directly. `edges` are the bin edges, in ×.
+const speedupHistogram =
+  (session: Session, edges: number[]): Chart =>
+  (root) => {
+    root.append(
       html(
         "div",
-        "multiple-note",
-        `geometric mean ${geomean.toFixed(2)}× · ${slower === 0 ? "none" : count.format(slower)} slower than TypeScript`,
+        "chart-title",
+        "Speedup over TypeScript, per test-suite composition",
+      ),
+      html(
+        "div",
+        "chart-subtitle",
+        `TypeScript median time divided by the other implementation's, for each of the ${count.format(session.ts.cases.length)} compositions. Left of 1× means slower than TypeScript.`,
       ),
     );
-    const width = 300;
-    const height = 170;
-    const margin = { top: 8, right: 4, bottom: 24, left: 36 };
-    const plotW = width - margin.left - margin.right;
-    const plotH = height - margin.top - margin.bottom;
-    const bins = binned[pi];
-    const band = plotW / bins.length;
-    const colW = Math.min(24, band - 2);
-    const baseline = margin.top + plotH;
-    const chart = svg("svg", {
-      viewBox: `0 0 ${width} ${height}`,
-      width: "100%",
-      role: "img",
+    const grid = html("div", "multiples");
+    root.append(grid);
+    const panels = [
+      { name: "WebAssembly", series: 3, data: session.wasm },
+      { name: "Native Rust", series: 7, data: session.rust },
+    ];
+    const binned = panels.map((p) => {
+      const bins = edges
+        .slice(0, -1)
+        .map((lo, i) => ({ lo, hi: edges[i + 1], n: 0 }));
+      session.ts.cases.forEach((c, i) => {
+        const ratio = c[0] / p.data.cases[i][0];
+        const bin =
+          bins.find((b) => ratio >= b.lo && ratio < b.hi) ??
+          (ratio < edges[0] ? bins[0] : bins[bins.length - 1]);
+        bin.n++;
+      });
+      return bins;
     });
-    chart.setAttribute(
-      "aria-label",
-      `${p.name} speedup histogram; geometric mean ${geomean.toFixed(2)}×`,
-    );
-    for (let t = 0; t <= yMax; t += 500) {
-      const y = baseline - (t / yMax) * plotH;
-      chart.append(
-        svg("line", {
-          x1: margin.left,
-          x2: width - margin.right,
-          y1: y,
-          y2: y,
-          class: t === 0 ? "axis" : "grid",
-        }),
-        svg(
-          "text",
-          {
-            x: margin.left - 6,
-            y,
-            class: "tick",
-            "text-anchor": "end",
-            "dominant-baseline": "central",
-          },
-          t >= 1000 ? `${t / 1000}K` : String(t),
+    const max = Math.max(...binned.flat().map((b) => b.n));
+    const yMax = Math.ceil(max / 500) * 500;
+
+    panels.forEach((p, pi) => {
+      const panel = html("div", "multiple");
+      const ratios = session.ts.cases.map((c, i) => c[0] / p.data.cases[i][0]);
+      const geomean = Math.exp(
+        ratios.reduce((s, r) => s + Math.log(r), 0) / ratios.length,
+      );
+      const slower = ratios.filter((r) => r < 1).length;
+      panel.append(
+        html("div", "multiple-title", p.name),
+        html(
+          "div",
+          "multiple-note",
+          `geometric mean ${geomean.toFixed(2)}× · ${slower === 0 ? "none" : count.format(slower)} slower than TypeScript`,
         ),
       );
-    }
-    bins.forEach((bin, i) => {
-      const x = margin.left + i * band;
-      const h = (bin.n / yMax) * plotH;
-      const g = svg("g", {
-        "data-tip": `${p.name}: ${bin.lo}× – ${bin.hi}×\n${count.format(bin.n)} compositions`,
-        tabindex: 0,
+      const width = 300;
+      const height = 170;
+      const margin = { top: 8, right: 4, bottom: 24, left: 36 };
+      const plotW = width - margin.left - margin.right;
+      const plotH = height - margin.top - margin.bottom;
+      const bins = binned[pi];
+      const band = plotW / bins.length;
+      const colW = Math.min(24, band - 2);
+      const baseline = margin.top + plotH;
+      const chart = svg("svg", {
+        viewBox: `0 0 ${width} ${height}`,
+        width: "100%",
+        role: "img",
       });
-      g.append(
-        svg("rect", {
-          x,
-          y: margin.top,
-          width: band,
-          height: plotH,
-          class: "hit",
-        }),
+      chart.setAttribute(
+        "aria-label",
+        `${p.name} speedup histogram; geometric mean ${geomean.toFixed(2)}×`,
       );
-      if (bin.n > 0) {
-        g.append(
-          svg("path", {
-            d: columnPath(
-              x + (band - colW) / 2,
-              baseline,
-              colW,
-              Math.max(h, 2),
-            ),
-            class: `mark series-${p.series}`,
+      for (let t = 0; t <= yMax; t += 500) {
+        const y = baseline - (t / yMax) * plotH;
+        chart.append(
+          svg("line", {
+            x1: margin.left,
+            x2: width - margin.right,
+            y1: y,
+            y2: y,
+            class: t === 0 ? "axis" : "grid",
           }),
+          svg(
+            "text",
+            {
+              x: margin.left - 6,
+              y,
+              class: "tick",
+              "text-anchor": "end",
+              "dominant-baseline": "central",
+            },
+            t >= 1000 ? `${t / 1000}K` : String(t),
+          ),
         );
       }
-      chart.append(g);
+      bins.forEach((bin, i) => {
+        const x = margin.left + i * band;
+        const h = (bin.n / yMax) * plotH;
+        const g = svg("g", {
+          "data-tip": `${p.name}: ${bin.lo}× – ${bin.hi}×\n${count.format(bin.n)} compositions`,
+          tabindex: 0,
+        });
+        g.append(
+          svg("rect", {
+            x,
+            y: margin.top,
+            width: band,
+            height: plotH,
+            class: "hit",
+          }),
+        );
+        if (bin.n > 0) {
+          g.append(
+            svg("path", {
+              d: columnPath(
+                x + (band - colW) / 2,
+                baseline,
+                colW,
+                Math.max(h, 2),
+              ),
+              class: `mark series-${p.series}`,
+            }),
+          );
+        }
+        chart.append(g);
+      });
+      edges
+        .filter((_, i) => i % 2 === 0)
+        .forEach((v) => {
+          const x = margin.left + edges.indexOf(v) * band;
+          chart.append(
+            svg("line", {
+              x1: x,
+              x2: x,
+              y1: baseline,
+              y2: baseline + 4,
+              class: "axis",
+            }),
+            svg(
+              "text",
+              { x, y: baseline + 16, class: "tick", "text-anchor": "middle" },
+              `${v}×`,
+            ),
+          );
+        });
+      panel.append(chart);
+      grid.append(panel);
     });
-    [0.5, 1, 2, 4, 8].forEach((v) => {
-      const x = margin.left + edges.indexOf(v) * band;
-      chart.append(
-        svg("line", {
-          x1: x,
-          x2: x,
-          y1: baseline,
-          y2: baseline + 4,
-          class: "axis",
-        }),
-        svg(
-          "text",
-          { x, y: baseline + 16, class: "tick", "text-anchor": "middle" },
-          `${v}×`,
-        ),
-      );
-    });
-    panel.append(chart);
-    grid.append(panel);
-  });
-};
+  };
 
-const speedTiles: Chart = (root) => {
-  const huge = (d: Pick<typeof speedTs, "fixtures">) =>
-    d.fixtures.find((f) => f.id === "huge-schema")!.medianMs;
-  const ratios = speedTs.cases.map((c, i) => c[0] / speedRust.cases[i][0]);
-  const wasmRatios = speedTs.cases.map((c, i) => c[0] / speedWasm.cases[i][0]);
-  const geo = (r: number[]) =>
-    Math.exp(r.reduce((s, x) => s + Math.log(x), 0) / r.length);
+const geo = (r: number[]) =>
+  Math.exp(r.reduce((s, x) => s + Math.log(x), 0) / r.length);
+const hugeMs = (d: RunData) =>
+  d.fixtures.find((f) => f.id === "huge-schema")!.medianMs;
+const speedups = (base: RunData, other: RunData) =>
+  base.cases.map((c, i) => c[0] / other.cases[i][0]);
+
+const speedTiles: Chart = (root) =>
   renderTiles(root, [
     {
       label: "Native, test compositions",
-      value: `${geo(ratios).toFixed(2)}×`,
+      value: `${geo(speedups(speedTs, speedRust)).toFixed(2)}×`,
       note: "geometric mean speedup",
     },
     {
       label: "WebAssembly, test compositions",
-      value: `${geo(wasmRatios).toFixed(2)}×`,
+      value: `${geo(speedups(speedTs, speedWasm)).toFixed(2)}×`,
       note: "geometric mean speedup",
     },
     {
       label: "Native, huge schema",
-      value: `${(huge(speedTs) / huge(speedRust)).toFixed(2)}×`,
-      note: `${formatMs(huge(speedRust))} vs ${formatMs(huge(speedTs))}`,
+      value: `${(hugeMs(speedTs) / hugeMs(speedRust)).toFixed(2)}×`,
+      note: `${formatMs(hugeMs(speedRust))} vs ${formatMs(hugeMs(speedTs))}`,
     },
     {
       label: "WebAssembly, huge schema",
-      value: `${(huge(speedTs) / huge(speedWasm)).toFixed(2)}×`,
-      note: `${formatMs(huge(speedWasm))} vs ${formatMs(huge(speedTs))}`,
+      value: `${(hugeMs(speedTs) / hugeMs(speedWasm)).toFixed(2)}×`,
+      note: `${formatMs(hugeMs(speedWasm))} vs ${formatMs(hugeMs(speedTs))}`,
     },
   ]);
-};
+
+// Speedups over TypeScript after optimization, each with the faithful port's value for comparison.
+const optimizedTiles: Chart = (root) =>
+  renderTiles(root, [
+    {
+      label: "Native, test compositions",
+      value: `${geo(speedups(optTs, optRust)).toFixed(2)}×`,
+      note: `geometric mean · was ${geo(speedups(speedTs, speedRust)).toFixed(2)}×`,
+    },
+    {
+      label: "WebAssembly, test compositions",
+      value: `${geo(speedups(optTs, optWasm)).toFixed(2)}×`,
+      note: `geometric mean · was ${geo(speedups(speedTs, speedWasm)).toFixed(2)}×`,
+    },
+    {
+      label: "Native, huge schema",
+      value: `${(hugeMs(optTs) / hugeMs(optRust)).toFixed(2)}×`,
+      note: `${formatMs(hugeMs(optRust))} · was ${formatMs(hugeMs(speedRust))}`,
+    },
+    {
+      label: "WebAssembly, huge schema",
+      value: `${(hugeMs(optTs) / hugeMs(optWasm)).toFixed(2)}×`,
+      note: `${formatMs(hugeMs(optWasm))} · was ${formatMs(hugeMs(speedWasm))}`,
+    },
+  ]);
 
 // Histogram of per-composition medians on log-spaced bins, 4 per decade.
 const baselineHistogram: Chart = (root) => {
@@ -593,8 +632,17 @@ const charts: Record<string, Chart> = {
   "baseline-mitata": baselineMitata,
   "baseline-histogram": baselineHistogram,
   "speed-tiles": speedTiles,
-  "speed-fixtures": speedFixtures,
-  "speedup-histogram": speedupHistogram,
+  "speed-fixtures": fixtureBars(SPEED),
+  "speedup-histogram": speedupHistogram(
+    SPEED,
+    [0.5, 0.71, 1, 1.41, 2, 2.83, 4, 5.66, 8],
+  ),
+  "optimized-tiles": optimizedTiles,
+  "optimized-fixtures": fixtureBars(OPTIMIZED),
+  "optimized-histogram": speedupHistogram(
+    OPTIMIZED,
+    [0.5, 0.71, 1, 1.41, 2, 2.83, 4, 5.66, 8, 11.3, 16, 22.6, 32],
+  ),
 };
 
 export function renderCharts(scope: HTMLElement) {
