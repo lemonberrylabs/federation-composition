@@ -11,6 +11,8 @@
   --accent: #2a78d6;
   --series-1: #2a78d6;
   --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-7: #6250d6;
   --code-bg: #efeeea;
   --done: #008300;
 }
@@ -28,6 +30,8 @@
     --accent: #3987e5;
     --series-1: #3987e5;
     --series-2: #d95926;
+    --series-3: #199e70;
+    --series-7: #9085e9;
     --code-bg: #232322;
     --done: #3fa43f;
   }
@@ -45,6 +49,8 @@
   --accent: #3987e5;
   --series-1: #3987e5;
   --series-2: #d95926;
+  --series-3: #199e70;
+  --series-7: #9085e9;
   --code-bg: #232322;
   --done: #3fa43f;
 }
@@ -247,6 +253,12 @@ th {
 .swatch.series-2 {
   background: var(--series-2);
 }
+.swatch.series-3 {
+  background: var(--series-3);
+}
+.swatch.series-7 {
+  background: var(--series-7);
+}
 .multiples {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -273,6 +285,12 @@ svg .mark.series-1 {
 }
 svg .mark.series-2 {
   fill: var(--series-2);
+}
+svg .mark.series-3 {
+  fill: var(--series-3);
+}
+svg .mark.series-7 {
+  fill: var(--series-7);
 }
 svg .grid {
   stroke: var(--grid);

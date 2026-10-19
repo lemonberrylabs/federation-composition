@@ -1,5 +1,6 @@
 import baseline from "../journal/01-baseline.md?raw";
 import port from "../journal/02-port.md?raw";
+import speed from "../journal/03-speed.md?raw";
 
 export type Phase = {
   title: string;
@@ -23,13 +24,22 @@ export const phases: Phase[] = [
   },
   {
     title: "Benchmark TypeScript vs WebAssembly vs native",
-    status: "in progress",
+    status: "done",
   },
   { title: "Port the tests to Rust", status: "not started" },
 ];
 
 // Newest first.
 export const entries: Entry[] = [
+  {
+    slug: "speed",
+    date: "2026-10-19",
+    milestone: 3,
+    title: "Speed: TypeScript vs WebAssembly vs native Rust",
+    summary:
+      "Native Rust is faster on all 3,567 cases: 3.84× on typical compositions, 1.73× on the huge schema. WebAssembly is 1.82× faster on typical compositions and no faster on large ones. Half the native time goes to memory allocation and copying carried over from the line-by-line port.",
+    body: speed,
+  },
   {
     slug: "port",
     date: "2026-10-19",

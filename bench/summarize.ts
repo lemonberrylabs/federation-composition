@@ -21,7 +21,8 @@ type Result = {
 
 const run = JSON.parse(readFileSync(input, "utf8"));
 const results: Result[] = run.results;
-const round = (ms: number) => Math.round(ms * 1000) / 1000;
+// 0.1 µs: coarser rounding flips near-ties between implementations on sub-millisecond cases.
+const round = (ms: number) => Math.round(ms * 10_000) / 10_000;
 
 writeFileSync(
   output,
