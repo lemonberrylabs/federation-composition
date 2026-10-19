@@ -281,4 +281,4 @@ onto the returned objects, which only the bindings may need to reproduce.
 | `supergraph/validation/rules/satisfiablity/` | 4,891 | not started |
 | `contracts/` | 977 | not started |
 | `compose`, `validate`, `index` | 558 | not started |
-| WebAssembly bindings + JS shim | — | infrastructure done (exports, shim, `pnpm test:wasm`); exports return "Not wired yet" until connected to `federation_composition` |
+| WebAssembly bindings + JS shim | — | done: wired to `federation_composition`; `pnpm test:wasm --run` passes the whole suite |

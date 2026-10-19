@@ -57,7 +57,7 @@ function toJsError(error: unknown, current: Bindings): unknown {
   if (typeof error === "string") {
     // A `ThrownError` JSON from Rust.
     const thrown = JSON.parse(error) as
-      | { kind: "error"; message: string }
+      | { kind: "error"; name: string; message: string }
       | {
           kind: "graphql";
           message: string;
@@ -68,7 +68,7 @@ function toJsError(error: unknown, current: Bindings): unknown {
         extensions: thrown.extensions,
       });
     }
-    return new Error(thrown.message);
+    return createError(thrown.name, thrown.message);
   }
   if (error instanceof WebAssembly.RuntimeError) {
     // A panic aborts with a trap; the instance's state (its stack pointer,
@@ -91,6 +91,20 @@ function toJsError(error: unknown, current: Bindings): unknown {
     return rustError;
   }
   // A JS exception thrown by a callback passed to Rust propagates unchanged.
+  return error;
+}
+
+/** `new Error(message)`, or a runtime error of the named built-in class (`TypeError`...). */
+function createError(name: string, message: string): Error {
+  const ErrorClass = (globalThis as Record<string, unknown>)[name];
+  if (
+    typeof ErrorClass === "function" &&
+    (ErrorClass === Error || ErrorClass.prototype instanceof Error)
+  ) {
+    return new (ErrorClass as ErrorConstructor)(message);
+  }
+  const error = new Error(message);
+  error.name = name;
   return error;
 }
 

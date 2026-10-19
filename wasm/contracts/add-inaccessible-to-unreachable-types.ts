@@ -19,12 +19,13 @@ export const addInaccessibleToUnreachableTypes = (
   resolveName: (identity: string, name: string) => string,
   compositionResult: AddInaccessibleToUnreachableTypesInput,
 ): CompositionSuccess => {
+  // The Rust side derives the public document from the supergraph, as the
+  // getter of a `CompositionSuccess` does.
   const supergraphNode = parseJSON<DocumentNode>(
     call(
       "add_inaccessible_to_unreachable_types",
       resolveName,
       toJSON(compositionResult.supergraphDocumentNode),
-      () => toJSON(compositionResult.publicDocumentNode),
     ),
   );
   return createCompositionSuccessReadCacheContainer(supergraphNode);

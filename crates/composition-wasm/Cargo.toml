@@ -10,7 +10,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 graphql_js = { package = "graphql", path = "../graphql" }
-# federation_composition is added when the exports are wired to the port.
+federation_composition = { path = "../composition" }
+indexmap = { workspace = true }
 # wasm-bindgen must match the wasm-bindgen-cli version exactly (wasm/build.mjs checks).
 wasm-bindgen = "=0.2.129"
 js-sys = "=0.3.106"

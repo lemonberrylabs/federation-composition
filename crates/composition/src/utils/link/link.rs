@@ -79,6 +79,16 @@ impl FederatedLink {
         FederatedLink { url, as_, imports }
     }
 
+    /// TS `_url`.
+    pub fn url(&self) -> &FederatedLinkUrl {
+        &self.url
+    }
+
+    /// TS `_as`.
+    pub fn as_(&self) -> Option<&str> {
+        self.as_.as_deref()
+    }
+
     /// `FederatedLink.fromTypedefs(typeDefs)`: all `@link`s (and Federation 1 `@core`s) on
     /// schema definitions and extensions.
     pub fn from_typedefs(type_defs: &Document) -> JsResult<Vec<FederatedLink>> {

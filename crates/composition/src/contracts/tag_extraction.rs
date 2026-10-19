@@ -36,6 +36,19 @@ fn create_transform_tag_directives(tag_directive_name: &str, inaccessible_direct
 }
 
 impl TransformTagDirectives {
+    /// `createTransformTagDirectives(tagDirectiveName, inaccessibleDirectiveName)`.
+    pub fn new(tag_directive_name: &str, inaccessible_directive_name: &str) -> Self {
+        create_transform_tag_directives(tag_directive_name, inaccessible_directive_name)
+    }
+
+    pub fn tag_directive_name(&self) -> &str {
+        &self.tag_directive_name
+    }
+
+    pub fn inaccessible_directive_name(&self) -> &str {
+        &self.inaccessible_directive_name
+    }
+
     /// `transformTagDirectives(node, includeInaccessibleDirective = false)`: the node's
     /// directives without `@tag`, plus `@inaccessible` if requested and missing.
     pub fn call(&self, directives: &[ConstDirective], include_inaccessible_directive: bool) -> Vec<ConstDirective> {
@@ -724,16 +737,32 @@ pub fn apply_tag_filter_on_subgraphs(
     subgraphs: &[ServiceDefinition],
     filter: &SchemaContractFilter,
 ) -> JsResult<Vec<ServiceDefinition>> {
-    // All combined @tag directive in all subgraphs per schema coordinate
-    let tag_register =
-        build_schema_coordinate_tag_register(&subgraphs.iter().map(|s| &s.type_defs).collect::<Vec<_>>())?;
+    let type_defs: Vec<&Document> = subgraphs.iter().map(|s| &s.type_defs).collect();
+    Ok(apply_tag_filter_on_subgraph_type_defs(&type_defs, filter)?
+        .into_iter()
+        .zip(subgraphs)
+        .map(|(result, subgraph)| ServiceDefinition {
+            type_defs: result.type_defs,
+            name: subgraph.name.clone(),
+            url: subgraph.url.clone(),
+        })
+        .collect())
+}
 
-    let mut filtered_subgraphs: Vec<(&ServiceDefinition, TagFilterTransformResult)> =
-        Vec::with_capacity(subgraphs.len());
-    for subgraph in subgraphs {
-        let result =
-            apply_tag_filter_to_inaccessible_transform_on_subgraph_schema(&subgraph.type_defs, &tag_register, filter)?;
-        filtered_subgraphs.push((subgraph, result));
+/// The body of `applyTagFilterOnSubgraphs` over the subgraphs' `typeDefs`: per subgraph, the
+/// properties the TS spreads onto the returned subgraph object (`typeDefs`,
+/// `typesWithAllFieldsInaccessible` after the cross-subgraph deletions, ...).
+pub fn apply_tag_filter_on_subgraph_type_defs(
+    type_defs: &[&Document],
+    filter: &SchemaContractFilter,
+) -> JsResult<Vec<TagFilterTransformResult>> {
+    // All combined @tag directive in all subgraphs per schema coordinate
+    let tag_register = build_schema_coordinate_tag_register(type_defs)?;
+
+    let mut filtered_subgraphs: Vec<((), TagFilterTransformResult)> = Vec::with_capacity(type_defs.len());
+    for type_defs in type_defs {
+        let result = apply_tag_filter_to_inaccessible_transform_on_subgraph_schema(type_defs, &tag_register, filter)?;
+        filtered_subgraphs.push(((), result));
     }
 
     let mut intersection_of_types_where_all_fields_are_inaccessible: IndexSet<String> = IndexSet::new();
@@ -772,19 +801,12 @@ pub fn apply_tag_filter_on_subgraphs(
     }
 
     if intersection_of_types_where_all_fields_are_inaccessible.is_empty() {
-        return Ok(filtered_subgraphs
-            .into_iter()
-            .map(|(subgraph, result)| ServiceDefinition {
-                type_defs: result.type_defs,
-                name: subgraph.name.clone(),
-                url: subgraph.url.clone(),
-            })
-            .collect());
+        return Ok(filtered_subgraphs.into_iter().map(|(_, result)| result).collect());
     }
 
     Ok(filtered_subgraphs
         .into_iter()
-        .map(|(subgraph, result)| ServiceDefinition {
+        .map(|(_, result)| TagFilterTransformResult {
             type_defs: make_types_from_set_inaccessible(
                 &result.type_defs,
                 // We exclude the types that are already marked as inaccessible within the subgraph as we want to avoid `@inaccessible` applied more than once.
@@ -794,8 +816,7 @@ pub fn apply_tag_filter_on_subgraphs(
                 ),
                 &result.transform_tag_directives,
             ),
-            name: subgraph.name.clone(),
-            url: subgraph.url.clone(),
+            ..result
         })
         .collect())
 }

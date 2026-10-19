@@ -70,23 +70,30 @@ impl LinkImplementations {
 /// `extractLinkImplementations(typeDefs)`.
 pub fn extract_link_implementations(type_defs: &Document) -> JsResult<LinkImplementations> {
     let links = FederatedLink::from_typedefs(type_defs)?;
-    let mut link_by_identity: IndexMap<String, FederatedLink> = IndexMap::new();
-    for l in &links {
-        link_by_identity.insert(l.identity().to_string(), l.clone());
+    Ok(LinkImplementations::from_links(links))
+}
+
+impl LinkImplementations {
+    /// The rest of `extractLinkImplementations`, given `FederatedLink.fromTypedefs(typeDefs)`.
+    pub fn from_links(links: Vec<FederatedLink>) -> LinkImplementations {
+        let mut link_by_identity: IndexMap<String, FederatedLink> = IndexMap::new();
+        for l in &links {
+            link_by_identity.insert(l.identity().to_string(), l.clone());
+        }
+        // Any schema with a `@link` directive present is considered federation 2
+        // although according to federation docs, schemas require linking specifically
+        // the federation 2.x spec. The reason for not being so picky is that supergraphs also
+        // use @link, but do not necessarily link to the federation 2.x spec.
+
+        // Check if any @link or @core features are used.
+        let supports_federation_v2 = !link_by_identity.is_empty();
+
+        LinkImplementations {
+            links,
+            link_by_identity,
+            supports_federation_v2,
+        }
     }
-    // Any schema with a `@link` directive present is considered federation 2
-    // although according to federation docs, schemas require linking specifically
-    // the federation 2.x spec. The reason for not being so picky is that supergraphs also
-    // use @link, but do not necessarily link to the federation 2.x spec.
-
-    // Check if any @link or @core features are used.
-    let supports_federation_v2 = !link_by_identity.is_empty();
-
-    Ok(LinkImplementations {
-        links,
-        link_by_identity,
-        supports_federation_v2,
-    })
 }
 
 #[cfg(test)]

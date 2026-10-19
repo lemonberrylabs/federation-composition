@@ -81,9 +81,14 @@ describe("wasm bridge", () => {
     ).toThrow(/^composition-wasm: invalid document argument: /);
   });
 
-  test("exports not connected to the port say so", () => {
-    expect(() =>
-      composeServices([{ name: "a", typeDefs: parse(sdl) }]),
-    ).toThrow(/^Not wired yet: composeServices/);
+  test("a runtime error keeps its class", () => {
+    expect(() => call("debug_type_error", "x is undefined")).toThrow(TypeError);
+  });
+
+  test("composition results are rebuilt with lazy getters", () => {
+    const result = composeServices([{ name: "a", typeDefs: parse(sdl) }]);
+    expect(result.errors).toBeUndefined();
+    expect(result.supergraphSdl).toContain("join__Graph");
+    expect(result.publicSdl).toContain("type Query");
   });
 });

@@ -6,7 +6,9 @@
 //! * Structured arguments and results are JSON strings. AST nodes use the
 //!   graphql-js JSON form (`graphql_js` serde); the shim strips `loc`.
 //! * A function that throws in TypeScript returns `Err` with a JSON string,
-//!   [`ThrownError`], which the shim rethrows as `Error` or `GraphQLError`.
+//!   [`ThrownError`], which the shim rethrows as `Error` (or `TypeError`...) or
+//!   `GraphQLError`. A JS exception thrown by a callback passed in (such as
+//!   `resolveName`) is rethrown unchanged.
 //! * A Rust panic traps the instance. The panic hook records the payload
 //!   first; the shim reads it with [`take_panic_message`], throws an `Error`
 //!   with that message and loads a fresh instance.
@@ -18,6 +20,7 @@ use std::cell::RefCell;
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
+mod convert;
 mod exports;
 
 pub use exports::*;
@@ -63,8 +66,8 @@ pub fn take_panic_message() -> Option<String> {
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub(crate) enum ThrownError {
-    /// `throw new Error(message)`.
-    Error { message: String },
+    /// `throw new Error(message)`, or a runtime error (`name` is then e.g. `"TypeError"`).
+    Error { name: String, message: String },
     /// `throw new GraphQLError(message, { extensions })`.
     #[serde(rename = "graphql")]
     GraphQL {
@@ -77,6 +80,7 @@ pub(crate) enum ThrownError {
 impl ThrownError {
     pub(crate) fn error(message: impl Into<String>) -> Self {
         ThrownError::Error {
+            name: "Error".to_owned(),
             message: message.into(),
         }
     }
@@ -87,6 +91,24 @@ impl ThrownError {
             extensions: error.extensions.into_iter().collect(),
         }
     }
+}
+
+impl From<federation_composition::utils::js::JsError> for ThrownError {
+    fn from(e: federation_composition::utils::js::JsError) -> Self {
+        use federation_composition::utils::js::JsError;
+        match e {
+            JsError::Error { name, message } => ThrownError::Error {
+                name: name.to_owned(),
+                message,
+            },
+            JsError::GraphQL(e) => ThrownError::graphql(e),
+        }
+    }
+}
+
+/// A crate `JsError` as the value the shim rethrows.
+pub(crate) fn thrown(e: federation_composition::utils::js::JsError) -> JsValue {
+    ThrownError::from(e).into()
 }
 
 impl From<ThrownError> for JsValue {
@@ -107,14 +129,6 @@ pub(crate) fn from_json<T: serde::de::DeserializeOwned>(what: &str, json: &str) 
 /// Serializes a result for the shim.
 pub(crate) fn to_json<T: Serialize + ?Sized>(value: &T) -> String {
     serde_json::to_string(value).expect("results serialize")
-}
-
-/// The error of an export that is not connected to `federation_composition` yet.
-pub(crate) fn not_wired<T>(js_name: &str) -> JsResult<T> {
-    Err(ThrownError::error(format!(
-        "Not wired yet: {js_name} (crates/composition-wasm does not call federation_composition yet)"
-    ))
-    .into())
 }
 
 /// A GraphQL error as the shim rebuilds it: `{ message, extensions? }`.
