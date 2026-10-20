@@ -10,8 +10,8 @@ order) as the TypeScript library at the upstream release recorded in [`UPSTREAM`
 (v0.27.0). This is checked on every pull request and every week against upstream's own test suite
 (see [Correctness](#correctness) and [Staying in sync with upstream](#staying-in-sync-with-upstream)).
 
-Nothing is published to crates.io or npm yet. The install instructions below give the names the
-packages will be published under, and how to use them from this repository until then.
+The npm package is published. The crates are not on crates.io yet; the install instructions below
+show how to use them from this repository until then.
 
 ## Packages
 
@@ -133,8 +133,8 @@ if (compositionHasErrors(result)) {
 ```
 
 `graphql` 16 or 17 is a peer dependency. The package is an ES module and needs Node.js 22.12 or
-later; CommonJS code can `require()` it. Until it is published, build it from this
-repository with `pnpm wasm:build` (see [npm/README.md](npm/README.md)).
+later; CommonJS code can `require()` it. To build it from this repository instead, run
+`pnpm wasm:build` (see [npm/README.md](npm/README.md)).
 
 ## Performance
 

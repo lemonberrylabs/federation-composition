@@ -3,8 +3,8 @@
 ## Supported versions
 
 Only the latest release of each package receives fixes: the crates `graphql-rs` and
-`federation-composition-rs`, and the npm package `@lemonberrylabs/federation-composition-wasm`. Before the first
-release, that is the `main` branch.
+`federation-composition-rs`, and the npm package `@lemonberrylabs/federation-composition-wasm`. Until the crates'
+first release, that is the `main` branch for them.
 
 ## Reporting a vulnerability
 
