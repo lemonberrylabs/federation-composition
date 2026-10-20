@@ -79,14 +79,12 @@ impl GraphQLSchema {
         // The type objects graphql-js can reach: the config's types and the
         // standard types (which a config type with the same name is).
         let mut pool = std_type_map();
-        let config_type_names: Vec<String> =
-            config.types.iter().map(|t| t.name().to_string()).collect();
+        let config_type_names: Vec<String> = config.types.iter().map(|t| t.name().to_string()).collect();
         for named_type in config.types {
             pool.insert(named_type.name().to_string(), named_type);
         }
 
-        let mut all_referenced_types: IndexSet<String> =
-            config_type_names.iter().cloned().collect();
+        let mut all_referenced_types: IndexSet<String> = config_type_names.iter().cloned().collect();
         for type_name in &config_type_names {
             all_referenced_types.shift_remove(type_name);
             collect_referenced_types(type_name, &pool, &mut all_referenced_types)?;
@@ -107,9 +105,7 @@ impl GraphQLSchema {
         let mut type_map: IndexMap<String, GraphQLNamedType> = IndexMap::default();
         let mut implementations_map: IndexMap<String, Implementations> = IndexMap::default();
         for type_name in &all_referenced_types {
-            let named_type = pool
-                .shift_remove(type_name)
-                .expect("collected types are in the pool");
+            let named_type = pool.shift_remove(type_name).expect("collected types are in the pool");
             type_map.insert(type_name.clone(), named_type);
         }
         for (type_name, named_type) in &type_map {
@@ -161,23 +157,17 @@ impl GraphQLSchema {
 
     /// graphql-js `getQueryType()`.
     pub fn get_query_type(&self) -> Option<&GraphQLNamedType> {
-        self.query_type
-            .as_deref()
-            .and_then(|name| self.get_type(name))
+        self.query_type.as_deref().and_then(|name| self.get_type(name))
     }
 
     /// graphql-js `getMutationType()`.
     pub fn get_mutation_type(&self) -> Option<&GraphQLNamedType> {
-        self.mutation_type
-            .as_deref()
-            .and_then(|name| self.get_type(name))
+        self.mutation_type.as_deref().and_then(|name| self.get_type(name))
     }
 
     /// graphql-js `getSubscriptionType()`.
     pub fn get_subscription_type(&self) -> Option<&GraphQLNamedType> {
-        self.subscription_type
-            .as_deref()
-            .and_then(|name| self.get_type(name))
+        self.subscription_type.as_deref().and_then(|name| self.get_type(name))
     }
 
     /// graphql-js `getRootType(operation)`.
@@ -260,9 +250,8 @@ fn collect_referenced_types(
     let Some(named_type) = pool.get(type_name) else {
         return Ok(());
     };
-    let collect_type = |ty: &GraphQLType, type_set: &mut IndexSet<String>| {
-        collect_referenced_types(ty.named_type(), pool, type_set)
-    };
+    let collect_type =
+        |ty: &GraphQLType, type_set: &mut IndexSet<String>| collect_referenced_types(ty.named_type(), pool, type_set);
     match named_type {
         GraphQLNamedType::Union(union) => {
             for member_type in union.get_types()? {

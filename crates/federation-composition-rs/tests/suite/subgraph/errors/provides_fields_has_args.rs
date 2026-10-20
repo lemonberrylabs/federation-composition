@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn provides_fields_has_args(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema
               @link(

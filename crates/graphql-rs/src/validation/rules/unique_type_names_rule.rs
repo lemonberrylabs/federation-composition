@@ -19,11 +19,7 @@ impl<'a> UniqueTypeNamesRule<'a> {
         }
     }
 
-    fn check_type_name(
-        &mut self,
-        context: &mut SDLValidationContext<'a>,
-        name: &'a Name,
-    ) -> VisitAction {
+    fn check_type_name(&mut self, context: &mut SDLValidationContext<'a>, name: &'a Name) -> VisitAction {
         let type_name = name.value.as_str();
         if self.known_type_names.contains_key(type_name) {
             context.report_error(GraphQLError::new(format!(

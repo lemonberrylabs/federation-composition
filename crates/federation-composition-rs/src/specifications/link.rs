@@ -1,9 +1,9 @@
 //! Port of `src/specifications/link.ts`.
 
+use crate::utils::collections::IndexMap;
 use graphql_rs::{
     Argument, ConstArgument, ConstDirective, Directive, ListValue, Name, ObjectField, ObjectValue, StringValue, Value,
 };
-use crate::utils::collections::IndexMap;
 
 use crate::graphql::printer::print;
 use crate::utils::js::{parse_float, JsError, JsResult};
@@ -190,7 +190,11 @@ pub fn parse_link_url(url_string: &str) -> LinkUrl {
 /// Throws `Invalid import binding: ${importString}: ${String(error)}`.
 pub fn parse_link_import(import_string: &str) -> JsResult<Vec<LinkImport>> {
     parse_link_import_bindings(import_string).map_err(|error| {
-        JsError::error(format!("Invalid import binding: {}: {}", import_string, error.to_js_string()))
+        JsError::error(format!(
+            "Invalid import binding: {}: {}",
+            import_string,
+            error.to_js_string()
+        ))
     })
 }
 
@@ -324,8 +328,11 @@ pub fn merge_links<'l>(links: impl IntoIterator<Item = &'l Link>) -> Vec<Link> {
     for link in links {
         match group_by_identity.get_mut(&link.identity) {
             None => {
-                let imported_directives: Vec<&LinkImport> =
-                    link.imports.iter().filter(|im| im.kind == LinkImportKind::Directive).collect();
+                let imported_directives: Vec<&LinkImport> = link
+                    .imports
+                    .iter()
+                    .filter(|im| im.kind == LinkImportKind::Directive)
+                    .collect();
 
                 if imported_directives.is_empty() {
                     continue;
@@ -612,7 +619,10 @@ mod json5 {
     }
 
     fn is_space_separator(c: char) -> bool {
-        matches!(c, ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{202f}' | '\u{205f}' | '\u{3000}')
+        matches!(
+            c,
+            ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{202f}' | '\u{205f}' | '\u{3000}'
+        )
     }
 
     fn is_id_start_char(c: char) -> bool {
@@ -704,7 +714,10 @@ mod json5 {
 
         fn invalid_identifier(&mut self) -> JsError {
             self.column = self.column.saturating_sub(5);
-            syntax_error(format!("JSON5: invalid identifier character at {}:{}", self.line, self.column))
+            syntax_error(format!(
+                "JSON5: invalid identifier character at {}:{}",
+                self.line, self.column
+            ))
         }
 
         fn read_invalid(&mut self) -> JsError {
@@ -1430,12 +1443,22 @@ mod tests {
 
         #[test]
         fn https_spec_example_com_a_b_my_schema_v1_0() {
-            check("https://spec.example.com/a/b/mySchema/v1.0/", Some("mySchema"), Some("v1.0"), "https://spec.example.com/a/b/mySchema");
+            check(
+                "https://spec.example.com/a/b/mySchema/v1.0/",
+                Some("mySchema"),
+                Some("v1.0"),
+                "https://spec.example.com/a/b/mySchema",
+            );
         }
 
         #[test]
         fn https_spec_example_com_a_b_my_schema_v1_0_2() {
-            check("https://spec.example.com/a/b/mySchema/v1.0", Some("mySchema"), Some("v1.0"), "https://spec.example.com/a/b/mySchema");
+            check(
+                "https://spec.example.com/a/b/mySchema/v1.0",
+                Some("mySchema"),
+                Some("v1.0"),
+                "https://spec.example.com/a/b/mySchema",
+            );
         }
 
         #[test]
@@ -1445,32 +1468,62 @@ mod tests {
 
         #[test]
         fn https_spec_example_com_my_schema_v0_1_q_v_frag() {
-            check("https://spec.example.com/mySchema/v0.1?q=v#frag", Some("mySchema"), Some("v0.1"), "https://spec.example.com/mySchema");
+            check(
+                "https://spec.example.com/mySchema/v0.1?q=v#frag",
+                Some("mySchema"),
+                Some("v0.1"),
+                "https://spec.example.com/mySchema",
+            );
         }
 
         #[test]
         fn https_spec_example_com_my_schema_not_a_version() {
-            check("https://spec.example.com/mySchema/not-a-version", Some("not-a-version"), None, "https://spec.example.com/mySchema/not-a-version");
+            check(
+                "https://spec.example.com/mySchema/not-a-version",
+                Some("not-a-version"),
+                None,
+                "https://spec.example.com/mySchema/not-a-version",
+            );
         }
 
         #[test]
         fn https_spec_example_com_v1_0() {
-            check("https://spec.example.com/v1.0", None, Some("v1.0"), "https://spec.example.com");
+            check(
+                "https://spec.example.com/v1.0",
+                None,
+                Some("v1.0"),
+                "https://spec.example.com",
+            );
         }
 
         #[test]
         fn https_spec_example_com_v_x() {
-            check("https://spec.example.com/vX", Some("vX"), None, "https://spec.example.com/vX");
+            check(
+                "https://spec.example.com/vX",
+                Some("vX"),
+                None,
+                "https://spec.example.com/vX",
+            );
         }
 
         #[test]
         fn file_extensions_permissions() {
-            check("file:///extensions/permissions", Some("permissions"), None, "file:///extensions/permissions");
+            check(
+                "file:///extensions/permissions",
+                Some("permissions"),
+                None,
+                "file:///extensions/permissions",
+            );
         }
 
         #[test]
         fn https_specs_apollo_dev_federation_not_a_version() {
-            check("https://specs.apollo.dev/federation/not-a-version", Some("not-a-version"), None, "https://specs.apollo.dev/federation/not-a-version");
+            check(
+                "https://specs.apollo.dev/federation/not-a-version",
+                Some("not-a-version"),
+                None,
+                "https://specs.apollo.dev/federation/not-a-version",
+            );
         }
 
         #[test]
@@ -1538,7 +1591,10 @@ mod tests {
         /// `test('[{ name: "@foo"]')`.
         #[test]
         fn name_foo() {
-            assert_eq!(parse_link_import("[{ name: \"@foo\" }]").unwrap(), [import(Directive, "@foo", None)]);
+            assert_eq!(
+                parse_link_import("[{ name: \"@foo\" }]").unwrap(),
+                [import(Directive, "@foo", None)]
+            );
         }
 
         /// `test("[]")`.
@@ -1554,7 +1610,10 @@ mod tests {
         let err = |s: &str| parse_link_import(s).unwrap_err().message().to_string();
         let cases = [
             ("[FOO]", "SyntaxError: JSON5: invalid character 'F' at 1:2"),
-            ("[\"\"\"\nabc\n\"\"\"]", "SyntaxError: JSON5: invalid character '\\\"' at 1:4"),
+            (
+                "[\"\"\"\nabc\n\"\"\"]",
+                "SyntaxError: JSON5: invalid character '\\\"' at 1:4",
+            ),
             ("[nope]", "SyntaxError: JSON5: invalid character 'o' at 1:3"),
             ("", "SyntaxError: JSON5: invalid end of input at 1:1"),
             ("[", "SyntaxError: JSON5: invalid end of input at 1:2"),
@@ -1572,15 +1631,28 @@ mod tests {
             ("[{as: \"@a\"}]", "Error: Syntax"),
             ("[null]", "TypeError: Cannot read properties of null (reading 'name')"),
             ("[{name: 1}]", "TypeError: binding.name.startsWith is not a function"),
-            ("[{name: \"@a\", as: 2}]", "TypeError: binding.as.startsWith is not a function"),
-            ("[{name: \"@a\", as: \"b\"}]", "Error: @a and b must be of the same kind"),
+            (
+                "[{name: \"@a\", as: 2}]",
+                "TypeError: binding.as.startsWith is not a function",
+            ),
+            (
+                "[{name: \"@a\", as: \"b\"}]",
+                "Error: @a and b must be of the same kind",
+            ),
         ];
         for (input, inner) in cases {
-            assert_eq!(err(input), format!("Invalid import binding: {input}: {inner}"), "{input:?}");
+            assert_eq!(
+                err(input),
+                format!("Invalid import binding: {input}: {inner}"),
+                "{input:?}"
+            );
         }
         assert_eq!(
             parse_link_import("[{name: \"@a\", as: \"\"}, // c\n \"b\" /* x */]").unwrap(),
-            [import(LinkImportKind::Directive, "@a", None), import(LinkImportKind::Type, "b", None)]
+            [
+                import(LinkImportKind::Directive, "@a", None),
+                import(LinkImportKind::Type, "b", None)
+            ]
         );
         assert_eq!(
             json5::parse("[0x1F, .5, 5., +Infinity, 1e3, \"\\x41\\u0042\"]").unwrap(),

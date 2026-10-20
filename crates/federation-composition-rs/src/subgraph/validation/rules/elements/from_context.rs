@@ -1,13 +1,15 @@
 //! Port of `src/subgraph/validation/rules/elements/from-context.ts`.
 
-use graphql_rs::{Definition, Directive, GraphQLError, NodeRef, Selection, Value, VisitAction, VisitInfo, Visitor};
 use crate::subgraph::context::parse_context_reference;
-use crate::subgraph::helpers::{named_type_from_type_node, parse_fields, print_output_type, validate_directive_against_original};
+use crate::subgraph::helpers::{
+    named_type_from_type_node, parse_fields, print_output_type, validate_directive_against_original,
+};
 use crate::subgraph::state::{FromContext, SpecName, SubgraphType};
 use crate::subgraph::validation::validation_context::{MarkAsUsedReason, SubgraphRule, SubgraphValidationContext};
-use graphql_rs::{ConstDirective, FieldDefinition, InputValueDefinition, Kind, SelectionSet, Type};
 use crate::utils::collections::{IndexMap, IndexSet};
 use crate::utils::js::JsResult;
+use graphql_rs::{ConstDirective, FieldDefinition, InputValueDefinition, Kind, SelectionSet, Type};
+use graphql_rs::{Definition, Directive, GraphQLError, NodeRef, Selection, Value, VisitAction, VisitInfo, Visitor};
 
 use super::{finish, is_interface_kind, is_object_kind, node_name};
 
@@ -35,7 +37,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for FromContextDirectiveRule
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "fromContext", cx),
             NodeRef::Directive(node) => self.directive(node, cx),
@@ -98,13 +105,24 @@ impl FromContextDirectiveRules {
 
         let object_type = context.get_subgraph_object_or_interface_types().get(type_name).cloned();
 
-        if let Some(object_type) = object_type.as_ref().filter(|object_type| !object_type.interfaces.is_empty()) {
+        if let Some(object_type) = object_type
+            .as_ref()
+            .filter(|object_type| !object_type.interfaces.is_empty())
+        {
             for implemented_interface in &object_type.interfaces {
                 let interface_name = &implemented_interface.name.value;
-                let interface_type = context.get_subgraph_object_or_interface_types().get(interface_name).cloned();
+                let interface_type = context
+                    .get_subgraph_object_or_interface_types()
+                    .get(interface_name)
+                    .cloned();
 
-                if let Some(interface_type) = interface_type.filter(|interface_type| is_interface_kind(interface_type.kind)) {
-                    let implemented_field = interface_type.fields.iter().find(|field| field.name.value == field_name);
+                if let Some(interface_type) =
+                    interface_type.filter(|interface_type| is_interface_kind(interface_type.kind))
+                {
+                    let implemented_field = interface_type
+                        .fields
+                        .iter()
+                        .find(|field| field.name.value == field_name);
 
                     if implemented_field.is_some() {
                         context.report_error(GraphQLError::with_code(
@@ -128,7 +146,11 @@ impl FromContextDirectiveRules {
             ));
         }
 
-        let field_value = node.arguments.iter().find(|arg| arg.name.value == "field").map(|arg| &arg.value);
+        let field_value = node
+            .arguments
+            .iter()
+            .find(|arg| arg.name.value == "field")
+            .map(|arg| &arg.value);
 
         let Some(Value::String(field_value)) = field_value else {
             return Ok(());
@@ -200,9 +222,7 @@ impl FromContextDirectiveRules {
 
         if !has_resolvable_key {
             context.report_error(GraphQLError::with_code(
-                format!(
-                    "Object \"{type_name}\" has no resolvable key but has a field with a contextual argument."
-                ),
+                format!("Object \"{type_name}\" has no resolvable key but has a field with a contextual argument."),
                 "CONTEXT_NO_RESOLVABLE_KEY",
             ));
         }
@@ -267,7 +287,13 @@ impl SelectableType {
 
     /// `type.kind === "OBJECT"`.
     fn is_object(&self) -> bool {
-        matches!(self, SelectableType::ObjectOrInterface { is_interface: false, .. })
+        matches!(
+            self,
+            SelectableType::ObjectOrInterface {
+                is_interface: false,
+                ..
+            }
+        )
     }
 }
 
@@ -275,17 +301,29 @@ impl SelectableType {
 #[derive(Clone, Debug, PartialEq)]
 enum ContextValue {
     /// `{ field, next? }`.
-    Field { field: String, next: Option<Vec<ContextValue>> },
+    Field {
+        field: String,
+        next: Option<Vec<ContextValue>>,
+    },
     /// `{ onType, next }`.
-    OnType { on_type: Option<String>, next: Vec<ContextValue> },
+    OnType {
+        on_type: Option<String>,
+        next: Vec<ContextValue>,
+    },
 }
 
 /// `ContextSelection`.
 #[derive(Clone, Debug, PartialEq)]
 enum ContextSelection {
-    Direct { values: Vec<ContextValue> },
-    Conditional { branches: IndexMap<String, Vec<ContextValue>> },
-    Invalid { reason: String },
+    Direct {
+        values: Vec<ContextValue>,
+    },
+    Conditional {
+        branches: IndexMap<String, Vec<ContextValue>>,
+    },
+    Invalid {
+        reason: String,
+    },
 }
 
 /// `SelectionTypeResult`.
@@ -341,7 +379,11 @@ fn read_context_directive_name(context: &SubgraphValidationContext<'_>, directiv
         return None;
     }
 
-    let name = directive.arguments.iter().find(|arg| arg.name.value == "name").map(|arg| &arg.value);
+    let name = directive
+        .arguments
+        .iter()
+        .find(|arg| arg.name.value == "name")
+        .map(|arg| &arg.value);
 
     match name {
         Some(Value::String(name)) => Some(name.value.clone()),
@@ -456,7 +498,11 @@ impl SelectionValidator<'_> {
         report_invalid_selection(context, self.context_name, reason);
     }
 
-    fn get_selectable_type(&mut self, context: &SubgraphValidationContext<'_>, type_name: &str) -> Option<SelectableType> {
+    fn get_selectable_type(
+        &mut self,
+        context: &SubgraphValidationContext<'_>,
+        type_name: &str,
+    ) -> Option<SelectableType> {
         if !self.type_views.contains_key(type_name) {
             self.type_views
                 .insert(type_name.to_string(), build_selectable_type(context, type_name));
@@ -489,7 +535,8 @@ impl SelectionValidator<'_> {
                 .collect(),
         };
 
-        self.runtime_type_sets.insert(ty.name().to_string(), runtime_types.clone());
+        self.runtime_type_sets
+            .insert(ty.name().to_string(), runtime_types.clone());
         runtime_types
     }
 
@@ -641,7 +688,11 @@ impl SelectionValidator<'_> {
 
     /// Returns whether the selection is valid. NOTE(port): the skeleton returned `()`; the TS
     /// returns a boolean that the callers test.
-    fn validate_selected_type(&mut self, context: &mut SubgraphValidationContext<'_>, result: &SelectionTypeResult) -> bool {
+    fn validate_selected_type(
+        &mut self,
+        context: &mut SubgraphValidationContext<'_>,
+        result: &SelectionTypeResult,
+    ) -> bool {
         match result {
             SelectionTypeResult::UnknownField { owner, field } => {
                 report_unknown_field(context, self.context_name, owner, field);
@@ -728,7 +779,11 @@ impl SelectionValidator<'_> {
 }
 
 /// `current_type` is an object or interface `SelectableType`.
-fn mark_field_as_used(context: &mut SubgraphValidationContext<'_>, current_type: &SelectableType, field_name: &str) -> JsResult<()> {
+fn mark_field_as_used(
+    context: &mut SubgraphValidationContext<'_>,
+    current_type: &SelectableType,
+    field_name: &str,
+) -> JsResult<()> {
     let kind = if current_type.is_object() {
         Kind::ObjectTypeDefinition
     } else {
@@ -954,9 +1009,10 @@ fn compile_context_values(selection_set: &SelectionSet) -> CompiledContextValues
             },
             _ => ContextValue::OnType {
                 on_type: match selection {
-                    Selection::InlineFragment(fragment) => {
-                        fragment.type_condition.as_ref().map(|condition| condition.name.value.clone())
-                    }
+                    Selection::InlineFragment(fragment) => fragment
+                        .type_condition
+                        .as_ref()
+                        .map(|condition| condition.name.value.clone()),
                     _ => None,
                 },
                 next: nested.unwrap_or_default(),
@@ -1029,8 +1085,14 @@ mod tests {
         };
         assert_eq!(reason("{ ...F }"), "fragment spread is not allowed");
         assert_eq!(reason("{ x: a }"), "aliases are not allowed in the selection");
-        assert_eq!(reason("{ a @skip(if: true) }"), "directives are not allowed in the selection");
-        assert_eq!(reason("{ ... on T @x { a } }"), "directives are not allowed in the selection");
+        assert_eq!(
+            reason("{ a @skip(if: true) }"),
+            "directives are not allowed in the selection"
+        );
+        assert_eq!(
+            reason("{ ... on T @x { a } }"),
+            "directives are not allowed in the selection"
+        );
         // Nested errors bubble up.
         assert_eq!(reason("{ a { x: b } }"), "aliases are not allowed in the selection");
     }
@@ -1046,8 +1108,14 @@ mod tests {
             }
         );
         assert_eq!(classify("{ id name }"), invalid("multiple selections are made"));
-        assert_eq!(classify("{ ... on A { id } id }"), invalid("multiple fields could be selected"));
-        assert_eq!(classify("{ ... { id } }"), invalid("inline fragments must have type conditions"));
+        assert_eq!(
+            classify("{ ... on A { id } id }"),
+            invalid("multiple fields could be selected")
+        );
+        assert_eq!(
+            classify("{ ... { id } }"),
+            invalid("inline fragments must have type conditions")
+        );
         assert_eq!(
             classify("{ ... on A { id } ... on A { name } }"),
             invalid("type conditions have same name")

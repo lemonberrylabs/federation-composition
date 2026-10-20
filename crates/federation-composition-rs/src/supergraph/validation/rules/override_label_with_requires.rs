@@ -1,11 +1,11 @@
 //! Port of `src/supergraph/validation/rules/override-label-with-requires.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::supergraph::composition::object_type::{ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::GraphQLError;
 
 /// `OverrideLabelWithRequiresRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeField`.

@@ -40,8 +40,7 @@ impl<'a> Visitor<'a, SDLValidationContext<'a>> for UniqueDirectiveNamesRule<'a> 
                 "There can be only one directive named \"@{directive_name}\"."
             )));
         } else {
-            self.known_directive_names
-                .insert(directive_name, &node.name);
+            self.known_directive_names.insert(directive_name, &node.name);
         }
         VisitAction::Skip
     }

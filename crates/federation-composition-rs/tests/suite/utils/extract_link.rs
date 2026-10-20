@@ -81,7 +81,10 @@ mod extract_link_implementations {
         let type_defs = parse(sdl).unwrap();
         let links = extract_link_implementations(&type_defs).unwrap();
         assert!(links.matches_implementation("https://specs.graphql-hive.com", &LinkVersion::FederationV1));
-        assert_eq!(links.resolve_import_name("https://specs.graphql-hive.com", "@meta"), "meta");
+        assert_eq!(
+            links.resolve_import_name("https://specs.graphql-hive.com", "@meta"),
+            "meta"
+        );
     }
 
     #[test]
@@ -110,7 +113,10 @@ mod extract_link_implementations {
     #[test]
     fn can_resolve_name_of_import() {
         let links = implementations();
-        assert_eq!(links.resolve_import_name("https://specs.graphql-hive.com/metadata", "@meta"), "meta");
+        assert_eq!(
+            links.resolve_import_name("https://specs.graphql-hive.com/metadata", "@meta"),
+            "meta"
+        );
     }
 
     #[test]
@@ -147,10 +153,16 @@ mod extract_link_implementations {
             if let Some(meta) = meta {
                 let argument = |name: &str| meta.arguments.iter().find(|a| a.name.value == name).map(|a| &a.value);
                 meta_data.insert("name".to_string(), Json::String(string_argument(argument("name"))));
-                meta_data.insert("content".to_string(), Json::String(string_argument(argument("content"))));
+                meta_data.insert(
+                    "content".to_string(),
+                    Json::String(string_argument(argument("content"))),
+                );
             }
             if !meta_data.is_empty() {
-                let entry = self.collected_meta.entry(id).or_insert_with(|| Json::Object(Map::new()));
+                let entry = self
+                    .collected_meta
+                    .entry(id)
+                    .or_insert_with(|| Json::Object(Map::new()));
                 if let Json::Object(existing) = entry {
                     existing.extend(meta_data);
                 }
@@ -165,7 +177,10 @@ mod extract_link_implementations {
         let links = extract_link_implementations(&type_defs).unwrap();
         if links.matches_implementation("https://specs.graphql-hive.com/metadata", &v("v0.1")) {
             let meta_name = links.resolve_import_name("https://specs.graphql-hive.com/metadata", "@meta");
-            let mut visitor = CollectMeta { meta_name, collected_meta: Map::new() };
+            let mut visitor = CollectMeta {
+                meta_name,
+                collected_meta: Map::new(),
+            };
             visit(&type_defs, &mut visitor, &mut ());
             to_match_inline_snapshot(
                 Json::Object(visitor.collected_meta),

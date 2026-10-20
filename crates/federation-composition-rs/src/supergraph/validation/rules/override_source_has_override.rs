@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/override-source-has-override.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::utils::collections::IndexSet;
+use graphql_rs::GraphQLError;
 
 use crate::supergraph::composition::object_type::{FieldStateInGraph, ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;

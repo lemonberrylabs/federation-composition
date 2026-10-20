@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn fed_v1_extension_with_no_base(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("products", graphql!(r#"
             type Product @extends @key(fields: "id") {
               id: ID!
@@ -30,7 +30,7 @@ test_versions! {
         );
 
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("products", graphql!(r#"
             type Product @extends @key(fields: "id") {
               id: ID!
@@ -151,7 +151,7 @@ test_versions! {
 
     fn extension_with_no_base(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
             

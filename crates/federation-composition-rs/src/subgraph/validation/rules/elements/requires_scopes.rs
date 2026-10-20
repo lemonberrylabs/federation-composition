@@ -1,11 +1,11 @@
 //! Port of `src/subgraph/validation/rules/elements/requires-scopes.ts`.
 
-use graphql_rs::{Directive, GraphQLError, Kind, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 use crate::graphql::printer::print;
 use crate::subgraph::helpers::validate_directive_against_original;
 use crate::subgraph::state::SpecName;
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use crate::utils::js::{JsError, JsResult};
+use graphql_rs::{Directive, GraphQLError, Kind, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 
 use super::{find_annotated_node, finish, is_interface_kind, is_object_kind, node_name};
 
@@ -29,7 +29,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for RequiresScopesRule {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "requiresScopes", cx),
             NodeRef::Directive(node) => directive(node, cx, info),
@@ -40,7 +45,11 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for RequiresScopesRule {
 }
 
 /// The `Directive(node, _key, _parent, paths, ancestors)` callback.
-fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> JsResult<()> {
+fn directive<'a>(
+    node: &'a Directive,
+    context: &mut SubgraphValidationContext<'a>,
+    info: &VisitInfo<'a, '_>,
+) -> JsResult<()> {
     if !context.is_available_federation_directive("requiresScopes", &node.name.value) {
         return Ok(());
     }
@@ -100,11 +109,11 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
             }
 
             if is_object_kind(type_def.kind()) {
-                context
-                    .state_builder
-                    .object_type()
-                    .field()
-                    .set_scopes(node_name(type_def), node_name(parent), &scopes)?;
+                context.state_builder.object_type().field().set_scopes(
+                    node_name(type_def),
+                    node_name(parent),
+                    &scopes,
+                )?;
             }
         }
         Kind::ObjectTypeDefinition | Kind::ObjectTypeExtension => {
@@ -119,7 +128,10 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
                 return Ok(());
             }
 
-            context.state_builder.object_type().set_scopes(node_name(parent), &scopes)?;
+            context
+                .state_builder
+                .object_type()
+                .set_scopes(node_name(parent), &scopes)?;
         }
         // NOTE(port): the TS lists `Kind.INTERFACE_TYPE_DEFINITION` twice and never
         // `INTERFACE_TYPE_EXTENSION`, so an interface extension matches no case.
@@ -134,10 +146,16 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
             return Ok(());
         }
         Kind::ScalarTypeDefinition | Kind::ScalarTypeExtension => {
-            context.state_builder.scalar_type().set_scopes(node_name(parent), &scopes)?;
+            context
+                .state_builder
+                .scalar_type()
+                .set_scopes(node_name(parent), &scopes)?;
         }
         Kind::EnumTypeDefinition | Kind::EnumTypeExtension => {
-            context.state_builder.enum_type().set_scopes(node_name(parent), &scopes)?;
+            context
+                .state_builder
+                .enum_type()
+                .set_scopes(node_name(parent), &scopes)?;
         }
         _ => {}
     }

@@ -1,15 +1,15 @@
 //! Port of `src/supergraph/composition/scalar-type.ts`.
 
-use graphql_rs::Definition;
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::Definition;
 
 use super::ast::{create_scalar_type_node, CostAst, JoinAst, JoinTypeAst, ScalarTypeAst};
 use super::common::{convert_to_const, get_or_insert_with, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
-use crate::utils::auth::merge_scope_policies;
-use crate::utils::helpers::{ensure_value, math_max};
 use crate::specifications::federation::FederationVersion;
 use crate::subgraph::state::{Ast, Description, ScalarType};
 use crate::supergraph::state::SubgraphStates;
+use crate::utils::auth::merge_scope_policies;
+use crate::utils::helpers::{ensure_value, math_max};
 use crate::utils::js::JsResult;
 
 /// `scalarTypeBuilder()`.
@@ -94,29 +94,31 @@ impl TypeBuilder<ScalarType, ScalarTypeState> for ScalarTypeBuilder {
             None => None,
         };
 
-        Ok(Definition::ScalarTypeDefinition(create_scalar_type_node(ScalarTypeAst {
-            name: scalar_type.name.clone(),
-            tags: scalar_type.tags.iter().cloned().collect(),
-            inaccessible: scalar_type.inaccessible,
-            authenticated: scalar_type.authenticated,
-            policies: scalar_type.policies.clone(),
-            scopes: scalar_type.scopes.clone(),
-            cost,
-            description: scalar_type.description.clone(),
-            specified_by: scalar_type.specified_by.clone(),
-            join: JoinAst {
-                r#type: scalar_type
-                    .by_graph
-                    .keys()
-                    .map(|graph_name| JoinTypeAst {
-                        graph: graph_name.to_uppercase(),
-                        ..Default::default()
-                    })
-                    .collect(),
-                ..Default::default()
+        Ok(Definition::ScalarTypeDefinition(create_scalar_type_node(
+            ScalarTypeAst {
+                name: scalar_type.name.clone(),
+                tags: scalar_type.tags.iter().cloned().collect(),
+                inaccessible: scalar_type.inaccessible,
+                authenticated: scalar_type.authenticated,
+                policies: scalar_type.policies.clone(),
+                scopes: scalar_type.scopes.clone(),
+                cost,
+                description: scalar_type.description.clone(),
+                specified_by: scalar_type.specified_by.clone(),
+                join: JoinAst {
+                    r#type: scalar_type
+                        .by_graph
+                        .keys()
+                        .map(|graph_name| JoinTypeAst {
+                            graph: graph_name.to_uppercase(),
+                            ..Default::default()
+                        })
+                        .collect(),
+                    ..Default::default()
+                },
+                ast: convert_to_const(&scalar_type.ast.directives),
             },
-            ast: convert_to_const(&scalar_type.ast.directives),
-        })))
+        )))
     }
 }
 
@@ -143,7 +145,10 @@ pub struct ScalarTypeStateInGraph {
     pub version: FederationVersion,
 }
 
-fn get_or_create_scalar_type<'s>(state: &'s mut IndexMap<String, ScalarTypeState>, type_name: &str) -> &'s mut ScalarTypeState {
+fn get_or_create_scalar_type<'s>(
+    state: &'s mut IndexMap<String, ScalarTypeState>,
+    type_name: &str,
+) -> &'s mut ScalarTypeState {
     get_or_insert_with(state, type_name, || ScalarTypeState {
         name: type_name.to_string(),
         tags: IndexSet::default(),

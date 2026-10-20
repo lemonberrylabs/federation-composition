@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn override_on_interface(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("billing", graphql!(r#"
+            api.compose_services(&[service("billing", graphql!(r#"
             extend schema
               @link(
                 url: "https://specs.apollo.dev/federation/${version}"

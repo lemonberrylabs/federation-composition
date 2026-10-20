@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/known-root-type-rule.ts`.
 
-use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::IndexSet;
+use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 
@@ -34,7 +34,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for KnownRootTypeRule<'a> {
         VisitKinds::enter(&[Kind::SchemaDefinition])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         if let NodeRef::SchemaDefinition(node) = node {
             for operation_type in &node.operation_types {
                 if !self.type_names.contains(operation_type.ty.name.value.as_str()) {

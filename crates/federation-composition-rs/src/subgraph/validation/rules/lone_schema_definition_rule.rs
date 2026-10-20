@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/lone-schema-definition-rule.ts`.
 
-use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
+use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 /// `LoneSchemaDefinitionRule(context)`.
 /// Visitor callbacks: `SchemaDefinition`.
@@ -28,7 +28,12 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for LoneSchemaDefinitionRule {
         VisitKinds::enter(&[Kind::SchemaDefinition])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         if let NodeRef::SchemaDefinition(_) = node {
             if self.schema_definitions_count > 0 {
                 cx.report_error(GraphQLError::with_code(

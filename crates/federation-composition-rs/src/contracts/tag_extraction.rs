@@ -7,11 +7,11 @@
 
 use std::rc::Rc;
 
+use crate::utils::collections::{IndexMap, IndexSet};
 use graphql_rs::{
     ConstDirective, Definition, Directive as DirectiveNode, Document, EnumValueDefinition, FieldDefinition,
     InputValueDefinition, Name, OperationType, Value,
 };
-use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::types::ServiceDefinition;
 use crate::utils::js::{JsError, JsResult};
@@ -28,7 +28,10 @@ pub struct TransformTagDirectives {
     inaccessible_directive_name: String,
 }
 
-fn create_transform_tag_directives(tag_directive_name: &str, inaccessible_directive_name: &str) -> TransformTagDirectives {
+fn create_transform_tag_directives(
+    tag_directive_name: &str,
+    inaccessible_directive_name: &str,
+) -> TransformTagDirectives {
     TransformTagDirectives {
         tag_directive_name: tag_directive_name.to_string(),
         inaccessible_directive_name: inaccessible_directive_name.to_string(),
@@ -240,10 +243,8 @@ fn collect_tags_by_schema_coordinate_from_subgraph(
             add_tags_per_schema_coordinate(map, &schema_coordinate, tag_values);
 
             for argument_node in &field_node.arguments {
-                let schema_coordinate = format!(
-                    "{}.{}({}:)",
-                    node.name, field_node.name.value, argument_node.name.value
-                );
+                let schema_coordinate =
+                    format!("{}.{}({}:)", node.name, field_node.name.value, argument_node.name.value);
                 sub_coordinates.insert(schema_coordinate.clone());
 
                 let tag_values = get_tags_for_node(&argument_node.directives);
@@ -452,11 +453,8 @@ pub fn apply_tag_filter_to_inaccessible_transform_on_subgraph_schema(
         tracker.insert(name.to_string(), false);
     }
 
-    let has_external = |directives: &[ConstDirective]| {
-        directives
-            .iter()
-            .any(|d| d.name.value == external_directive_name)
-    };
+    let has_external =
+        |directives: &[ConstDirective]| directives.iter().any(|d| d.name.value == external_directive_name);
 
     let field_argument_handler =
         |object_like_name: &str, field_like_name: &str, node: &InputValueDefinition| -> InputValueDefinition {
@@ -598,10 +596,8 @@ pub fn apply_tag_filter_to_inaccessible_transform_on_subgraph_schema(
             }
 
             let new_directives = if !filter.exclude.is_empty() && has_intersection(tags_on_node, &filter.exclude) {
-                let directives = transform_tag_directives.call(
-                    node_directives,
-                    if types_with_inaccessible_applied.contains(type_name) { false } else { true },
-                );
+                let directives = transform_tag_directives
+                    .call(node_directives, !types_with_inaccessible_applied.contains(type_name));
                 types_with_inaccessible_applied.insert(type_name.clone());
                 directives
             } else {
@@ -853,14 +849,18 @@ mod tests {
     use super::*;
 
     fn directives(sdl: &str) -> Vec<ConstDirective> {
-        match graphql_rs::parse(&format!("type T {sdl} {{ a: Int }}")).unwrap().definitions.remove(0) {
+        match graphql_rs::parse(&format!("type T {sdl} {{ a: Int }}"))
+            .unwrap()
+            .definitions
+            .remove(0)
+        {
             Definition::ObjectTypeDefinition(n) => n.directives,
             _ => unreachable!(),
         }
     }
 
     fn names(directives: &[ConstDirective]) -> Vec<String> {
-        directives.iter().map(|d| graphql_rs::print(d)).collect()
+        directives.iter().map(graphql_rs::print).collect()
     }
 
     #[test]
@@ -884,10 +884,7 @@ mod tests {
             "@tag(name: \"a\") @tag(name: \"\") @tag(other: \"x\", name: \"b\") @tag(name: 1) @tag @foo(name: \"c\")",
         );
         let tags: Vec<Option<String>> = input.iter().map(|d| extract(d)).collect();
-        assert_eq!(
-            tags,
-            vec![Some("a".into()), Some("".into()), None, None, None, None]
-        );
+        assert_eq!(tags, vec![Some("a".into()), Some("".into()), None, None, None, None]);
     }
 
     #[test]
@@ -897,7 +894,10 @@ mod tests {
         let empty: IndexSet<String> = IndexSet::default();
         assert!(has_intersection(&a, &b));
         assert!(!has_intersection(&a, &empty));
-        assert_eq!(difference(&a, &b).into_iter().collect::<Vec<_>>(), vec!["x".to_string()]);
+        assert_eq!(
+            difference(&a, &b).into_iter().collect::<Vec<_>>(),
+            vec!["x".to_string()]
+        );
     }
 
     #[test]
@@ -915,7 +915,8 @@ mod tests {
         )
         .unwrap();
         let types: IndexSet<String> = ["A", "E", "U"].iter().map(|s| s.to_string()).collect();
-        let result = make_types_from_set_inaccessible(&doc, &types, &create_transform_tag_directives("tag", "inaccessible"));
+        let result =
+            make_types_from_set_inaccessible(&doc, &types, &create_transform_tag_directives("tag", "inaccessible"));
         assert_eq!(
             graphql_rs::print(&result),
             "type A @inaccessible {\n  a: Int\n}\n\nextend type A {\n  b: Int\n}\n\nenum E @inaccessible {\n  V\n}\n\ntype B {\n  c: Int\n}\n\nunion U = B"

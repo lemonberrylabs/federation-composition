@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/directive-composition-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::GraphQLError;
 
 use crate::specifications::link::LinkImportKind;
 use crate::supergraph::composition::directive::DirectiveState;
@@ -132,11 +132,7 @@ impl<'s> SupergraphRule<'s> for DirectiveCompositionRule {
 }
 
 impl<'s> SupergraphVisitor<'s> for DirectiveCompositionRule {
-    fn directive(
-        &mut self,
-        cx: &mut SupergraphValidationContext,
-        directive_state: &'s DirectiveState,
-    ) -> JsResult<()> {
+    fn directive(&mut self, cx: &mut SupergraphValidationContext, directive_state: &'s DirectiveState) -> JsResult<()> {
         if directive_state.by_graph.len() == 1 || (directive_state.is_executable && !directive_state.composed) {
             return Ok(());
         }

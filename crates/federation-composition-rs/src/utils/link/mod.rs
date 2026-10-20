@@ -20,7 +20,10 @@ use link_url::SupportsVersion;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LinkVersion {
     Str(String),
-    MajorMinor { major: i64, minor: i64 },
+    MajorMinor {
+        major: i64,
+        minor: i64,
+    },
     Null,
     /// The `FEDERATION_V1` symbol.
     FederationV1,
@@ -114,8 +117,14 @@ mod tests {
         .unwrap();
         let li = extract_link_implementations(&doc).unwrap();
         assert_eq!(li.links.len(), 3);
-        assert_eq!(li.resolve_import_name("https://specs.graphql-hive.com/metadata", "@meta"), "meta");
-        assert_eq!(li.resolve_import_name("https://specs.graphql-hive.com/foo", "@bar"), "foo__bar");
+        assert_eq!(
+            li.resolve_import_name("https://specs.graphql-hive.com/metadata", "@meta"),
+            "meta"
+        );
+        assert_eq!(
+            li.resolve_import_name("https://specs.graphql-hive.com/foo", "@bar"),
+            "foo__bar"
+        );
         assert_eq!(li.resolve_import_name("https://unknown.dev", "@bar"), "bar");
         let v = |s: &str| LinkVersion::Str(s.to_string());
         assert!(li.matches_implementation("https://specs.graphql-hive.com/metadata", &v("v0.1")));

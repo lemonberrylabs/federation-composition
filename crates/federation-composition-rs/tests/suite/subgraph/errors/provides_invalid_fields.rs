@@ -8,7 +8,7 @@ mod provides_invalid_fields {
     test_versions! {
         fn cannot_query_field(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     service("users", graphql!(r#"
               extend schema
               @link(

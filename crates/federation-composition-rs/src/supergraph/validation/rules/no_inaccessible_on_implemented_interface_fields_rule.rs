@@ -1,11 +1,11 @@
 //! Port of `src/supergraph/validation/rules/no-inaccessible-on-implemented-interface-fields-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::supergraph::composition::object_type::{ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::GraphQLError;
 
 /// `NoInaccessibleOnImplementedInterfaceFieldsRule(context, supergraphState)`: fail on
 /// `@inaccessible` on object type fields if the corresponding interface field does not have

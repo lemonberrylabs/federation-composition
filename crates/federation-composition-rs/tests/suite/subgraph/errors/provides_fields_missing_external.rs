@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn provides_fields_missing_external(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(
                 url: "https://specs.apollo.dev/federation/${version}"
@@ -36,7 +36,7 @@ test_versions! {
 
     fn provides_fields_missing_external_on_external_historical(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 

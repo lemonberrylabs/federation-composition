@@ -12,9 +12,8 @@ use crate::jsutils::JsValue;
 use crate::parser::parse_type;
 
 use super::definition::{
-    DefaultInput, GraphQLArgumentConfig, GraphQLEnumType, GraphQLEnumTypeConfig,
-    GraphQLEnumValueConfig, GraphQLFieldConfig, GraphQLNamedType, GraphQLObjectType,
-    GraphQLObjectTypeConfig, GraphQLType, Lazy,
+    DefaultInput, GraphQLArgumentConfig, GraphQLEnumType, GraphQLEnumTypeConfig, GraphQLEnumValueConfig,
+    GraphQLFieldConfig, GraphQLNamedType, GraphQLObjectType, GraphQLObjectTypeConfig, GraphQLType, Lazy,
 };
 
 pub use crate::specified::{is_introspection_type, INTROSPECTION_TYPE_NAMES};
@@ -93,9 +92,7 @@ fn enumeration(name: &str, values: &[&str]) -> GraphQLNamedType {
         extension_ast_nodes: Vec::new(),
     })
     .expect("introspection type names are valid");
-    enum_type
-        .get_values()
-        .expect("introspection enum values are valid");
+    enum_type.get_values().expect("introspection enum values are valid");
     GraphQLNamedType::Enum(enum_type)
 }
 

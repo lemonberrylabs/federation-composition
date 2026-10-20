@@ -102,10 +102,7 @@ impl<'de> Deserialize<'de> for ShortStr {
                 f.write_str("a string")
             }
             fn visit_str<E: de::Error>(self, v: &str) -> Result<ShortStr, E> {
-                let mut s = ShortStr {
-                    buf: [0; 32],
-                    len: 0,
-                };
+                let mut s = ShortStr { buf: [0; 32], len: 0 };
                 if v.len() <= s.buf.len() {
                     s.buf[..v.len()].copy_from_slice(v.as_bytes());
                     s.len = v.len();
@@ -150,10 +147,7 @@ fn check_kind<E: de::Error>(found: &ShortStr, expected: Kind) -> Result<(), E> {
 pub(crate) trait KindDispatch: Sized {
     const EXPECTING: &'static str;
     fn from_map_with_kind<'de, A: MapAccess<'de>>(kind: Kind, map: A) -> Result<Self, A::Error>;
-    fn from_value_with_kind(
-        kind: Kind,
-        value: serde_json::Value,
-    ) -> Result<Self, serde_json::Error>;
+    fn from_value_with_kind(kind: Kind, value: serde_json::Value) -> Result<Self, serde_json::Error>;
 }
 
 struct DispatchVisitor<T>(PhantomData<T>);
@@ -169,9 +163,8 @@ impl<'de, T: KindDispatch> de::Visitor<'de> for DispatchVisitor<T> {
         };
         if first.as_str() == "kind" {
             let kind = map.next_value::<ShortStr>()?;
-            let kind = Kind::from_str(kind.as_str()).ok_or_else(|| {
-                de::Error::invalid_value(de::Unexpected::Str(kind.as_str()), &T::EXPECTING)
-            })?;
+            let kind = Kind::from_str(kind.as_str())
+                .ok_or_else(|| de::Error::invalid_value(de::Unexpected::Str(kind.as_str()), &T::EXPECTING))?;
             return T::from_map_with_kind(kind, map);
         }
         // `kind` is not the first key: buffer the object to find it.
@@ -185,8 +178,8 @@ impl<'de, T: KindDispatch> de::Visitor<'de> for DispatchVisitor<T> {
             Some(serde_json::Value::String(kind)) => kind.clone(),
             _ => return Err(de::Error::missing_field("kind")),
         };
-        let kind = Kind::from_str(&kind)
-            .ok_or_else(|| de::Error::invalid_value(de::Unexpected::Str(&kind), &T::EXPECTING))?;
+        let kind =
+            Kind::from_str(&kind).ok_or_else(|| de::Error::invalid_value(de::Unexpected::Str(&kind), &T::EXPECTING))?;
         T::from_value_with_kind(kind, serde_json::Value::Object(object)).map_err(de::Error::custom)
     }
 }
@@ -1228,9 +1221,7 @@ impl From<TypeDefinition> for Definition {
             TypeDefinition::InterfaceTypeDefinition(x) => Definition::InterfaceTypeDefinition(x),
             TypeDefinition::UnionTypeDefinition(x) => Definition::UnionTypeDefinition(x),
             TypeDefinition::EnumTypeDefinition(x) => Definition::EnumTypeDefinition(x),
-            TypeDefinition::InputObjectTypeDefinition(x) => {
-                Definition::InputObjectTypeDefinition(x)
-            }
+            TypeDefinition::InputObjectTypeDefinition(x) => Definition::InputObjectTypeDefinition(x),
         }
     }
 }
@@ -1257,9 +1248,7 @@ impl TryFrom<Definition> for TypeDefinition {
             Definition::InterfaceTypeDefinition(x) => TypeDefinition::InterfaceTypeDefinition(x),
             Definition::UnionTypeDefinition(x) => TypeDefinition::UnionTypeDefinition(x),
             Definition::EnumTypeDefinition(x) => TypeDefinition::EnumTypeDefinition(x),
-            Definition::InputObjectTypeDefinition(x) => {
-                TypeDefinition::InputObjectTypeDefinition(x)
-            }
+            Definition::InputObjectTypeDefinition(x) => TypeDefinition::InputObjectTypeDefinition(x),
             other => return Err(other),
         })
     }
@@ -1391,17 +1380,13 @@ list_elems! {
 
 impl Name {
     pub fn new(value: impl Into<String>) -> Self {
-        Name {
-            value: value.into(),
-        }
+        Name { value: value.into() }
     }
 }
 
 impl NamedType {
     pub fn new(name: impl Into<String>) -> Self {
-        NamedType {
-            name: Name::new(name),
-        }
+        NamedType { name: Name::new(name) }
     }
 }
 
@@ -1416,9 +1401,7 @@ impl StringValue {
 
 impl Variable {
     pub fn new(name: impl Into<String>) -> Self {
-        Variable {
-            name: Name::new(name),
-        }
+        Variable { name: Name::new(name) }
     }
 }
 
@@ -1479,15 +1462,11 @@ impl Value {
     }
 
     pub fn int(value: impl Into<String>) -> Self {
-        Value::Int(IntValue {
-            value: value.into(),
-        })
+        Value::Int(IntValue { value: value.into() })
     }
 
     pub fn float(value: impl Into<String>) -> Self {
-        Value::Float(FloatValue {
-            value: value.into(),
-        })
+        Value::Float(FloatValue { value: value.into() })
     }
 
     pub fn boolean(value: bool) -> Self {
@@ -1499,9 +1478,7 @@ impl Value {
     }
 
     pub fn enum_value(value: impl Into<String>) -> Self {
-        Value::Enum(EnumValue {
-            value: value.into(),
-        })
+        Value::Enum(EnumValue { value: value.into() })
     }
 
     pub fn variable(name: impl Into<String>) -> Self {

@@ -29,8 +29,7 @@ pub use ast::*;
 pub use directive_location::DirectiveLocation;
 pub use error::GraphQLError;
 pub use parser::{
-    parse, parse_const_value, parse_schema_coordinate, parse_type, parse_value, parse_with_options,
-    ParseOptions,
+    parse, parse_const_value, parse_schema_coordinate, parse_type, parse_value, parse_with_options, ParseOptions,
 };
 pub use predicates::*;
 pub use printer::print;
@@ -44,6 +43,6 @@ pub use utilities::build_ast_schema::{build_ast_schema, build_schema};
 pub use utilities::{concat_ast, strip_ignored_characters};
 pub use validation::validate::{assert_valid_sdl, validate_sdl};
 pub use visitor::{
-    visit, visit_edit, visit_in_parallel, visit_in_parallel_edit, Ancestor, EditAction, EditResult,
-    EditVisitor, KindSet, PathKey, VisitAction, VisitInfo, VisitKinds, Visitor,
+    visit, visit_edit, visit_in_parallel, visit_in_parallel_edit, Ancestor, EditAction, EditResult, EditVisitor,
+    KindSet, PathKey, VisitAction, VisitInfo, VisitKinds, Visitor,
 };

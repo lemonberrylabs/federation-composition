@@ -68,11 +68,7 @@ pub(crate) fn number_to_string(n: f64) -> String {
     if k <= point && point <= 21 {
         format!("{digits}{}", "0".repeat((point - k) as usize))
     } else if 0 < point && point <= 21 {
-        format!(
-            "{}.{}",
-            &digits[..point as usize],
-            &digits[point as usize..]
-        )
+        format!("{}.{}", &digits[..point as usize], &digits[point as usize..])
     } else if -6 < point && point <= 0 {
         format!("0.{}{digits}", "0".repeat((-point) as usize))
     } else {

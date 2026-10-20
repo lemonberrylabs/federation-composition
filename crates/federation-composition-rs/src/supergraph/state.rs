@@ -8,8 +8,8 @@
 
 use std::rc::Rc;
 
-use graphql_rs::{strip_ignored_characters, Definition, Selection, SelectionSet};
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::{strip_ignored_characters, Definition, Selection, SelectionSet};
 
 use super::composition::ast::{create_join_graph_enum_type_node, JoinGraphAst};
 use super::composition::common::{ComposeHelpers, TypeBuilder};
@@ -22,8 +22,8 @@ use super::composition::interface_type::{interface_type_builder, InterfaceTypeBu
 use super::composition::object_type::{object_type_builder, ObjectTypeBuilder, ObjectTypeState};
 use super::composition::scalar_type::{scalar_type_builder, ScalarTypeBuilder, ScalarTypeState};
 use super::composition::union_type::{union_type_builder, UnionTypeBuilder, UnionTypeState};
-use crate::specifications::link::Link;
 use crate::graphql::printer::print;
+use crate::specifications::link::Link;
 use crate::subgraph::helpers::parse_fields;
 use crate::subgraph::state::{is_executable_directive_location, CostSpec, CostSpecNames, SubgraphState, SubgraphType};
 use crate::utils::js::{JsError, JsResult};
@@ -165,9 +165,7 @@ impl SupergraphStateBuilder {
         self.subgraph_states
             .insert(subgraph_state.graph.id.clone(), subgraph_state.clone());
         for link in &subgraph_state.links {
-            self.state
-                .links
-                .push(link_with_graph(link, &subgraph_state.graph.id));
+            self.state.links.push(link_with_graph(link, &subgraph_state.graph.id));
         }
 
         let specs = &mut self.state.specs;
@@ -205,7 +203,13 @@ impl SupergraphStateBuilder {
                 specs.cost.names.cost = subgraph_specs.cost.names.cost.clone();
             }
 
-            if subgraph_specs.cost.names.list_size.as_deref().is_some_and(|n| !n.is_empty()) {
+            if subgraph_specs
+                .cost
+                .names
+                .list_size
+                .as_deref()
+                .is_some_and(|n| !n.is_empty())
+            {
                 specs.cost.names.list_size = subgraph_specs.cost.names.list_size.clone();
             }
         }
@@ -302,12 +306,9 @@ impl SupergraphStateBuilder {
                 continue;
             }
 
-            let is_all_directives_identical = directive_state
-                .args
-                .values()
-                .all(|directive_arg_state| {
-                    is_argument_type_identical_in_every_subgraph(directive_arg_state, total_subgraph_size)
-                });
+            let is_all_directives_identical = directive_state.args.values().all(|directive_arg_state| {
+                is_argument_type_identical_in_every_subgraph(directive_arg_state, total_subgraph_size)
+            });
 
             if !is_all_directives_identical {
                 self.state.directives.shift_remove(&directive_name);
@@ -496,7 +497,11 @@ fn create_fields_set(selection_set: &SelectionSet) -> IndexSet<String> {
 
 /// `filterSelectionSetNode(selectionSet, removableFields, currentPath)`: removes removable
 /// leaf fields in place.
-fn filter_selection_set_node(selection_set: &mut SelectionSet, removable_fields: &IndexSet<String>, current_path: &str) {
+fn filter_selection_set_node(
+    selection_set: &mut SelectionSet,
+    removable_fields: &IndexSet<String>,
+    current_path: &str,
+) {
     let mut fields_to_delete: Vec<String> = Vec::new();
     for index in 0..selection_set.selections.len() {
         let Selection::Field(selection) = &mut selection_set.selections[index] else {
@@ -568,7 +573,8 @@ fn visit_type_state(state: &mut SupergraphState, object_type_name: &str) -> JsRe
                 let key_fields = merge_key_fields_collection(&keys)?;
 
                 let new_requires = transform_fields(&key_fields, &requires)?;
-                let field_state_in_graph = &mut state.object_types[type_index].fields[field_index].by_graph[graph_index];
+                let field_state_in_graph =
+                    &mut state.object_types[type_index].fields[field_index].by_graph[graph_index];
                 // NOTE(port): JS `trim()` also strips U+FEFF; the printed selection set never
                 // contains it.
                 field_state_in_graph.requires = if new_requires.trim().is_empty() {
@@ -591,28 +597,32 @@ fn visit_type_state(state: &mut SupergraphState, object_type_name: &str) -> JsRe
 
                 // `objectTypes.get(name) ?? interfaceTypes.get(name) ?? unionTypes.get(name)`
                 let key_fields = if let Some(referenced_type) = state.object_types.get(&referenced_type_name) {
-                    let referenced_type_in_graph = referenced_type
-                        .by_graph
-                        .get(&graph_id)
-                        .ok_or_else(|| JsError::type_error("Cannot read properties of undefined (reading 'extension')"))?;
+                    let referenced_type_in_graph = referenced_type.by_graph.get(&graph_id).ok_or_else(|| {
+                        JsError::type_error("Cannot read properties of undefined (reading 'extension')")
+                    })?;
                     if referenced_type_in_graph.extension {
                         // removes key fields if the referenced type is an extension
-                        let keys: Vec<String> =
-                            referenced_type_in_graph.keys.iter().map(|key| key.fields.clone()).collect();
+                        let keys: Vec<String> = referenced_type_in_graph
+                            .keys
+                            .iter()
+                            .map(|key| key.fields.clone())
+                            .collect();
                         merge_key_fields_collection(&keys)?
                     } else {
                         // preserve all fields if the referenced type is a definition
                         IndexSet::default()
                     }
                 } else if let Some(referenced_type) = state.interface_types.get(&referenced_type_name) {
-                    let referenced_type_in_graph = referenced_type
-                        .by_graph
-                        .get(&graph_id)
-                        .ok_or_else(|| JsError::type_error("Cannot read properties of undefined (reading 'extension')"))?;
+                    let referenced_type_in_graph = referenced_type.by_graph.get(&graph_id).ok_or_else(|| {
+                        JsError::type_error("Cannot read properties of undefined (reading 'extension')")
+                    })?;
                     if referenced_type_in_graph.extension {
                         // removes key fields if the referenced type is an extension
-                        let keys: Vec<String> =
-                            referenced_type_in_graph.keys.iter().map(|key| key.fields.clone()).collect();
+                        let keys: Vec<String> = referenced_type_in_graph
+                            .keys
+                            .iter()
+                            .map(|key| key.fields.clone())
+                            .collect();
                         merge_key_fields_collection(&keys)?
                     } else {
                         // preserve all fields if the referenced type is a definition
@@ -781,7 +791,9 @@ mod tests {
     fn add_subgraph_rejects_duplicate_ids() {
         let mut builder = create_supergraph_state_builder();
         builder.add_subgraph(Rc::new(subgraph("A", "a", vec![]))).unwrap();
-        let err = builder.add_subgraph(Rc::new(subgraph("A", "other", vec![]))).unwrap_err();
+        let err = builder
+            .add_subgraph(Rc::new(subgraph("A", "other", vec![])))
+            .unwrap_err();
         assert_eq!(err.to_js_string(), "Error: Graph with ID \"A\" already exists");
         assert_eq!(builder.get_graph("A").unwrap().graph.name, "a");
     }

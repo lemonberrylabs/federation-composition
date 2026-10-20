@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-argument-definition-names-rule.ts`.
 
-use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::IndexSet;
+use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_rs::{FieldDefinition, InputValueDefinition};
@@ -23,7 +23,12 @@ impl<'a> SimpleRule<'a> for UniqueArgumentDefinitionNamesRule {
 impl UniqueArgumentDefinitionNamesRule {
     /// `checkArgUniquenessPerField(typeNode)` (its `name` and `fields`). Returns `false` in TS,
     /// which skips the node's children for this visitor.
-    fn check_arg_uniqueness_per_field(&mut self, context: &mut SimpleValidationContext<'_>, type_name: &str, fields: &[FieldDefinition]) {
+    fn check_arg_uniqueness_per_field(
+        &mut self,
+        context: &mut SimpleValidationContext<'_>,
+        type_name: &str,
+        fields: &[FieldDefinition],
+    ) {
         for field_def in fields {
             let field_name = &field_def.name.value;
             let argument_nodes = &field_def.arguments;
@@ -44,7 +49,10 @@ impl UniqueArgumentDefinitionNamesRule {
         for arg_def in argument_nodes {
             if visited_argument_names.contains(arg_def.name.value.as_str()) {
                 context.report_error(GraphQLError::with_code(
-                    format!("Argument \"{parent_name}({}:)\" can only be defined once.", arg_def.name.value),
+                    format!(
+                        "Argument \"{parent_name}({}:)\" can only be defined once.",
+                        arg_def.name.value
+                    ),
                     "INVALID_GRAPHQL",
                 ));
             } else {
@@ -58,10 +66,21 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueArgumentDefinitionNa
     /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
     fn kinds(&self) -> graphql_rs::VisitKinds {
         use graphql_rs::{Kind, VisitKinds};
-        VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::InterfaceTypeDefinition, Kind::InterfaceTypeExtension, Kind::ObjectTypeDefinition, Kind::ObjectTypeExtension])
+        VisitKinds::enter(&[
+            Kind::DirectiveDefinition,
+            Kind::InterfaceTypeDefinition,
+            Kind::InterfaceTypeExtension,
+            Kind::ObjectTypeDefinition,
+            Kind::ObjectTypeExtension,
+        ])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         match node {
             NodeRef::DirectiveDefinition(directive_node) => {
                 let argument_nodes = &directive_node.arguments;

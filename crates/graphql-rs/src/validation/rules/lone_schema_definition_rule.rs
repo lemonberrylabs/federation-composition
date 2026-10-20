@@ -34,9 +34,7 @@ impl<'a> Visitor<'a, SDLValidationContext<'a>> for LoneSchemaDefinitionRule {
     ) -> VisitAction {
         if let NodeRef::SchemaDefinition(_) = node {
             if self.schema_definitions_count > 0 {
-                context.report_error(GraphQLError::new(
-                    "Must provide only one schema definition.",
-                ));
+                context.report_error(GraphQLError::new("Must provide only one schema definition."));
             }
             self.schema_definitions_count += 1;
         }

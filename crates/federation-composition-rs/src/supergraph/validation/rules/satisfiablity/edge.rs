@@ -175,7 +175,9 @@ impl<'s> Edge<'s> {
                 error: error.expect("setResolvable(false, ...) is always called with an error"),
             }
         };
-        self.resolvable.borrow_mut().push((graph_names, label_values, result.clone()));
+        self.resolvable
+            .borrow_mut()
+            .push((graph_names, label_values, result.clone()));
         result
     }
 }

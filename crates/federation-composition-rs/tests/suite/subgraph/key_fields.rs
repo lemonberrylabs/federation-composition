@@ -82,7 +82,7 @@ test_versions! {
 
     fn typename_allowed_in_requires(api, version) {
         assert_no_error_matches(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 
@@ -181,7 +181,7 @@ test_versions! {
 
     fn missing_field_set_definition(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("foo", graphql!(r#"
+            api.compose_services(&[service("foo", graphql!(r#"
             directive @key(fields: _FieldSet!) repeatable on OBJECT | INTERFACE
 
             type Query {

@@ -1,6 +1,5 @@
 //! Port of `src/supergraph/validation/rules/extension-with-base.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::specifications::federation::FederationVersion;
 use crate::subgraph::state::ExtensionType;
 use crate::supergraph::composition::object_type::ObjectTypeState;
@@ -8,6 +7,7 @@ use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::{JsError, JsResult};
+use graphql_rs::GraphQLError;
 
 /// `ExtensionWithBaseRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectType`.

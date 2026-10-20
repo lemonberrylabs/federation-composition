@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/only-interface-implementation-rule.ts`.
 
-use graphql_rs::{Definition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::IndexMap;
+use graphql_rs::{Definition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_rs::NamedType;
@@ -88,7 +88,12 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for OnlyInterfaceImplementatio
         VisitKinds::enter(&[Kind::ObjectTypeDefinition, Kind::ObjectTypeExtension])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         match node {
             NodeRef::ObjectTypeDefinition(node) => self.check(cx, &node.interfaces),
             NodeRef::ObjectTypeExtension(node) => self.check(cx, &node.interfaces),

@@ -16,7 +16,11 @@ use crate::utils::js::JsResult;
 /// `'s` is the lifetime of the supergraph state, so rules may keep references into it.
 pub trait SupergraphVisitor<'s> {
     // Object
-    fn object_type(&mut self, _cx: &mut SupergraphValidationContext, _object_state: &'s ObjectTypeState) -> JsResult<()> {
+    fn object_type(
+        &mut self,
+        _cx: &mut SupergraphValidationContext,
+        _object_state: &'s ObjectTypeState,
+    ) -> JsResult<()> {
         Ok(())
     }
     fn object_type_field(
@@ -50,7 +54,11 @@ pub trait SupergraphVisitor<'s> {
         Ok(())
     }
     // Input Object
-    fn input_object_type(&mut self, _cx: &mut SupergraphValidationContext, _input_object_state: &'s InputObjectTypeState) -> JsResult<()> {
+    fn input_object_type(
+        &mut self,
+        _cx: &mut SupergraphValidationContext,
+        _input_object_state: &'s InputObjectTypeState,
+    ) -> JsResult<()> {
         Ok(())
     }
     fn input_object_type_field(
@@ -62,11 +70,19 @@ pub trait SupergraphVisitor<'s> {
         Ok(())
     }
     // Interface
-    fn interface_type(&mut self, _cx: &mut SupergraphValidationContext, _interface_state: &'s InterfaceTypeState) -> JsResult<()> {
+    fn interface_type(
+        &mut self,
+        _cx: &mut SupergraphValidationContext,
+        _interface_state: &'s InterfaceTypeState,
+    ) -> JsResult<()> {
         Ok(())
     }
     // Directive
-    fn directive(&mut self, _cx: &mut SupergraphValidationContext, _directive_state: &'s DirectiveState) -> JsResult<()> {
+    fn directive(
+        &mut self,
+        _cx: &mut SupergraphValidationContext,
+        _directive_state: &'s DirectiveState,
+    ) -> JsResult<()> {
         Ok(())
     }
     fn directive_field_arg(

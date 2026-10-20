@@ -19,10 +19,10 @@ use std::fmt;
 use std::sync::{Arc, OnceLock};
 
 use crate::ast::{
-    EnumTypeDefinition, EnumTypeExtension, EnumValueDefinition, FieldDefinition,
-    InputObjectTypeDefinition, InputObjectTypeExtension, InputValueDefinition,
-    InterfaceTypeDefinition, InterfaceTypeExtension, ObjectTypeDefinition, ObjectTypeExtension,
-    ScalarTypeDefinition, ScalarTypeExtension, UnionTypeDefinition, UnionTypeExtension, Value,
+    EnumTypeDefinition, EnumTypeExtension, EnumValueDefinition, FieldDefinition, InputObjectTypeDefinition,
+    InputObjectTypeExtension, InputValueDefinition, InterfaceTypeDefinition, InterfaceTypeExtension,
+    ObjectTypeDefinition, ObjectTypeExtension, ScalarTypeDefinition, ScalarTypeExtension, UnionTypeDefinition,
+    UnionTypeExtension, Value,
 };
 use crate::collections::IndexMap;
 use crate::error::GraphQLError;
@@ -71,10 +71,7 @@ impl<T> Lazy<T> {
         if let Some(value) = self.value.get() {
             return Ok(value);
         }
-        let thunk = self
-            .thunk
-            .as_ref()
-            .expect("a Lazy without a value has a thunk");
+        let thunk = self.thunk.as_ref().expect("a Lazy without a value has a thunk");
         let value = thunk()?;
         Ok(self.value.get_or_init(|| value))
     }
@@ -82,9 +79,7 @@ impl<T> Lazy<T> {
     /// The value of a thunk known to be resolved: `GraphQLSchema::new`
     /// resolves every `fields`, `interfaces` and `types` thunk of its types.
     pub fn resolved(&self) -> &T {
-        self.value
-            .get()
-            .expect("resolved when the schema was constructed")
+        self.value.get().expect("resolved when the schema was constructed")
     }
 }
 
@@ -203,11 +198,7 @@ pub fn is_input_type(types: &dyn TypeLookup, ty: &GraphQLType) -> bool {
     match ty {
         GraphQLType::Named(_) => matches!(
             named(types, ty),
-            Some(
-                GraphQLNamedType::Scalar(_)
-                    | GraphQLNamedType::Enum(_)
-                    | GraphQLNamedType::InputObject(_)
-            )
+            Some(GraphQLNamedType::Scalar(_) | GraphQLNamedType::Enum(_) | GraphQLNamedType::InputObject(_))
         ),
         GraphQLType::List(of_type) | GraphQLType::NonNull(of_type) => is_input_type(types, of_type),
     }
@@ -226,9 +217,7 @@ pub fn is_output_type(types: &dyn TypeLookup, ty: &GraphQLType) -> bool {
                     | GraphQLNamedType::Enum(_)
             )
         ),
-        GraphQLType::List(of_type) | GraphQLType::NonNull(of_type) => {
-            is_output_type(types, of_type)
-        }
+        GraphQLType::List(of_type) | GraphQLType::NonNull(of_type) => is_output_type(types, of_type),
     }
 }
 
@@ -288,27 +277,19 @@ impl GraphQLNamedType {
 
     /// graphql-js `isAbstractType`.
     pub fn is_abstract_type(&self) -> bool {
-        matches!(
-            self,
-            GraphQLNamedType::Interface(_) | GraphQLNamedType::Union(_)
-        )
+        matches!(self, GraphQLNamedType::Interface(_) | GraphQLNamedType::Union(_))
     }
 
     /// graphql-js `isLeafType`.
     pub fn is_leaf_type(&self) -> bool {
-        matches!(
-            self,
-            GraphQLNamedType::Scalar(_) | GraphQLNamedType::Enum(_)
-        )
+        matches!(self, GraphQLNamedType::Scalar(_) | GraphQLNamedType::Enum(_))
     }
 
     /// graphql-js `isCompositeType`.
     pub fn is_composite_type(&self) -> bool {
         matches!(
             self,
-            GraphQLNamedType::Object(_)
-                | GraphQLNamedType::Interface(_)
-                | GraphQLNamedType::Union(_)
+            GraphQLNamedType::Object(_) | GraphQLNamedType::Interface(_) | GraphQLNamedType::Union(_)
         )
     }
 }
@@ -367,10 +348,7 @@ impl GraphQLScalarType {
         Self::with_kind(config, ScalarKind::Custom)
     }
 
-    pub(crate) fn with_kind(
-        config: GraphQLScalarTypeConfig,
-        kind: ScalarKind,
-    ) -> Result<Self, GraphQLError> {
+    pub(crate) fn with_kind(config: GraphQLScalarTypeConfig, kind: ScalarKind) -> Result<Self, GraphQLError> {
         assert_name(&config.name)?;
         Ok(GraphQLScalarType {
             name: config.name,
@@ -521,11 +499,7 @@ pub struct GraphQLField {
 }
 
 impl GraphQLField {
-    pub fn new(
-        parent_type: &str,
-        name: &str,
-        config: GraphQLFieldConfig,
-    ) -> Result<Self, GraphQLError> {
+    pub fn new(parent_type: &str, name: &str, config: GraphQLFieldConfig) -> Result<Self, GraphQLError> {
         assert_name(name)?;
         let mut args = Vec::with_capacity(config.args.len());
         for (arg_name, arg_config) in config.args {
@@ -570,10 +544,7 @@ pub enum ArgumentParent {
 impl fmt::Display for ArgumentParent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ArgumentParent::Field {
-                type_name,
-                field_name,
-            } => write!(f, "{type_name}.{field_name}"),
+            ArgumentParent::Field { type_name, field_name } => write!(f, "{type_name}.{field_name}"),
             ArgumentParent::Directive(name) => write!(f, "@{name}"),
         }
     }
@@ -593,11 +564,7 @@ pub struct GraphQLArgument {
 }
 
 impl GraphQLArgument {
-    pub fn new(
-        parent: ArgumentParent,
-        name: &str,
-        config: GraphQLArgumentConfig,
-    ) -> Result<Self, GraphQLError> {
+    pub fn new(parent: ArgumentParent, name: &str, config: GraphQLArgumentConfig) -> Result<Self, GraphQLError> {
         assert_name(name)?;
         Ok(GraphQLArgument {
             parent,
@@ -770,19 +737,11 @@ impl GraphQLEnumType {
     pub fn get_value(&self, name: &str) -> Result<Option<&GraphQLEnumValue>, GraphQLError> {
         // NOTE(port): `_nameLookup ??= keyMap(values, v => v.name)`: the last
         // value of a name wins.
-        Ok(self
-            .get_values()?
-            .iter()
-            .rev()
-            .find(|value| value.name == name))
+        Ok(self.get_values()?.iter().rev().find(|value| value.name == name))
     }
 
     /// graphql-js `coerceInputValue(inputValue, hideSuggestions)`.
-    pub fn coerce_input_value(
-        &self,
-        input_value: &JsValue,
-        hide_suggestions: bool,
-    ) -> Result<JsValue, GraphQLError> {
+    pub fn coerce_input_value(&self, input_value: &JsValue, hide_suggestions: bool) -> Result<JsValue, GraphQLError> {
         let JsValue::String(input_value) = input_value else {
             let value_str = inspect(input_value);
             let suggestion = if hide_suggestions {
@@ -810,11 +769,7 @@ impl GraphQLEnumType {
     }
 
     /// graphql-js `coerceInputLiteral(valueNode, hideSuggestions)`.
-    pub fn coerce_input_literal(
-        &self,
-        value_node: &Value,
-        hide_suggestions: bool,
-    ) -> Result<JsValue, GraphQLError> {
+    pub fn coerce_input_literal(&self, value_node: &Value, hide_suggestions: bool) -> Result<JsValue, GraphQLError> {
         let Value::Enum(enum_node) = value_node else {
             let value_str = print(value_node);
             let suggestion = if hide_suggestions {
@@ -853,21 +808,14 @@ fn define_enum_values(
         let value_map = values.get()?;
         let mut out = Vec::with_capacity(value_map.len());
         for (value_name, value_config) in value_map {
-            out.push(GraphQLEnumValue::new(
-                &parent_enum,
-                value_name,
-                value_config.clone(),
-            )?);
+            out.push(GraphQLEnumValue::new(&parent_enum, value_name, value_config.clone())?);
         }
         Ok(out)
     }))
 }
 
 /// graphql-js `didYouMeanEnumValue`.
-fn did_you_mean_enum_value(
-    enum_type: &GraphQLEnumType,
-    unknown_value_str: &str,
-) -> Result<String, GraphQLError> {
+fn did_you_mean_enum_value(enum_type: &GraphQLEnumType, unknown_value_str: &str) -> Result<String, GraphQLError> {
     let all_names: Vec<&str> = enum_type
         .get_values()?
         .iter()
@@ -890,19 +838,13 @@ pub struct GraphQLEnumValue {
 }
 
 impl GraphQLEnumValue {
-    pub fn new(
-        parent_enum: &str,
-        name: &str,
-        config: GraphQLEnumValueConfig,
-    ) -> Result<Self, GraphQLError> {
+    pub fn new(parent_enum: &str, name: &str, config: GraphQLEnumValueConfig) -> Result<Self, GraphQLError> {
         assert_enum_value_name(name)?;
         Ok(GraphQLEnumValue {
             parent_enum: parent_enum.to_string(),
             name: name.to_string(),
             description: config.description,
-            value: config
-                .value
-                .unwrap_or_else(|| JsValue::String(name.to_string())),
+            value: config.value.unwrap_or_else(|| JsValue::String(name.to_string())),
             deprecation_reason: config.deprecation_reason,
             ast_node: config.ast_node,
         })
@@ -1004,11 +946,7 @@ pub struct GraphQLInputField {
 }
 
 impl GraphQLInputField {
-    pub fn new(
-        parent_type: &str,
-        name: &str,
-        config: GraphQLInputFieldConfig,
-    ) -> Result<Self, GraphQLError> {
+    pub fn new(parent_type: &str, name: &str, config: GraphQLInputFieldConfig) -> Result<Self, GraphQLError> {
         // NOTE(port): the `'resolve' in config` devAssert cannot fail: the
         // config type has no `resolve`.
         assert_name(name)?;

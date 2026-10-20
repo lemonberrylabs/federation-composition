@@ -1,10 +1,10 @@
 //! Port of `src/subgraph/validation/rules/elements/extends.ts`.
 
-use graphql_rs::{Directive, Kind, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::subgraph::helpers::validate_directive_against_original;
 use crate::subgraph::state::ExtensionType;
 use crate::subgraph::validation::validation_context::{MarkAsUsedReason, SubgraphRule, SubgraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::{Directive, Kind, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use super::finish;
 
@@ -28,7 +28,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for ExtendsRules {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "extends", cx),
             NodeRef::Directive(node) => directive(node, cx),
@@ -55,7 +60,10 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
             (Kind::ObjectTypeDefinition, &type_def.name.value, &type_def.fields)
         }
         Some(NodeRef::InterfaceTypeDefinition(type_def)) => {
-            context.state_builder.interface_type().set_extension(&type_def.name.value)?;
+            context
+                .state_builder
+                .interface_type()
+                .set_extension(&type_def.name.value)?;
             (Kind::InterfaceTypeDefinition, &type_def.name.value, &type_def.fields)
         }
         // Let regular validation handle this, it should be applied on a field

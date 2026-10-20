@@ -138,19 +138,18 @@ pub fn known_spec_schema(version: &str) -> JsResult<&'static SpecSchema> {
     let Some(known_version) = FederationVersion::from_str(version) else {
         return create_spec_schema(version, None).map(|_| unreachable!("the version is unknown"));
     };
-    Ok(CACHE[known_version as usize].get_or_init(|| {
-        create_spec_schema(version, None).expect("createSpecSchema accepts every FederationVersion")
-    }))
+    Ok(CACHE[known_version as usize]
+        .get_or_init(|| create_spec_schema(version, None).expect("createSpecSchema accepts every FederationVersion")))
 }
 
 /// `federationSpecFactory[version](prefix, imports)`.
-fn federation_spec_factory(
-    version: FederationVersion,
-    prefix: &str,
-    imports: Option<&[LinkImport]>,
-) -> SpecSchema {
+fn federation_spec_factory(version: FederationVersion, prefix: &str, imports: Option<&[LinkImport]>) -> SpecSchema {
     // The v1.0 factory takes no imports.
-    let imports = if version == FederationVersion::V1_0 { None } else { imports };
+    let imports = if version == FederationVersion::V1_0 {
+        None
+    } else {
+        imports
+    };
     create_type_definitions(version, prefix, imports)
 }
 
@@ -534,7 +533,11 @@ fn create_type_definitions(version: FederationVersion, prefix: &str, imports: Op
             })
             .cloned()
             .collect(),
-        types: types.iter().filter(|t| to_include.contains(&t.name().value)).cloned().collect(),
+        types: types
+            .iter()
+            .filter(|t| to_include.contains(&t.name().value))
+            .cloned()
+            .collect(),
     }
 }
 
@@ -677,9 +680,18 @@ mod tests {
         assert_eq!(
             names(&v1),
             (
-                ["key", "requires", "provides", "external", "extends", "override", "tag", "inaccessible"]
-                    .map(String::from)
-                    .to_vec(),
+                [
+                    "key",
+                    "requires",
+                    "provides",
+                    "external",
+                    "extends",
+                    "override",
+                    "tag",
+                    "inaccessible"
+                ]
+                .map(String::from)
+                .to_vec(),
                 vec![]
             )
         );
@@ -694,11 +706,18 @@ mod tests {
         assert_eq!(directives[1], "federation__authenticated");
         assert!(directives.contains(&"federation__key".to_string()));
         assert_eq!(types, ["federation__FieldSet"]);
-        let key = v25.directives.iter().find(|d| d.name.value == "federation__key").unwrap();
+        let key = v25
+            .directives
+            .iter()
+            .find(|d| d.name.value == "federation__key")
+            .unwrap();
         assert_eq!(crate::graphql::printer::print(key), "directive @federation__key(fields: federation__FieldSet!, resolvable: Boolean = true) repeatable on OBJECT | INTERFACE");
 
         let err = create_spec_schema("v3.0", None).unwrap_err().into_graphql_error();
-        assert_eq!(err.message, "Invalid version v3.0 for the federation feature in @link directive on schema");
+        assert_eq!(
+            err.message,
+            "Invalid version v3.0 for the federation feature in @link directive on schema"
+        );
         assert_eq!(err.code(), Some("UNKNOWN_FEDERATION_LINK_VERSION"));
     }
 
@@ -711,12 +730,20 @@ mod tests {
         .unwrap();
         assert_eq!(d.version, FederationVersion::V2_3);
         assert_eq!(d.imports.len(), 2);
-        assert_eq!(detect("type Query { a: Int }").unwrap().version, FederationVersion::V1_0);
         assert_eq!(
-            detect(r#"extend schema @link(url: "https://specs.apollo.dev/federation/v2.99")"#).unwrap_err().message(),
+            detect("type Query { a: Int }").unwrap().version,
+            FederationVersion::V1_0
+        );
+        assert_eq!(
+            detect(r#"extend schema @link(url: "https://specs.apollo.dev/federation/v2.99")"#)
+                .unwrap_err()
+                .message(),
             "Unsupported federation version: v2.99"
         );
-        assert_eq!(detect("extend schema @link(import: [])").unwrap_err().message(), "Invalid @link directive");
+        assert_eq!(
+            detect("extend schema @link(import: [])").unwrap_err().message(),
+            "Invalid @link directive"
+        );
         assert_eq!(
             detect(r#"extend schema @link(url: true) @link(url: "https://specs.apollo.dev/federation/v2.0")"#)
                 .unwrap()

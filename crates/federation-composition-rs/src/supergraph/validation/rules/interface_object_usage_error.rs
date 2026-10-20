@@ -1,11 +1,11 @@
 //! Port of `src/supergraph/validation/rules/interface-object-usage-error.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::supergraph::composition::interface_type::InterfaceTypeState;
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::GraphQLError;
 
 /// `InterfaceObjectUsageErrorRule(context, supergraph)`.
 /// Visitor callbacks: `InterfaceType`.

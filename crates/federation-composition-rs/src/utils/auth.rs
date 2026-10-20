@@ -9,7 +9,11 @@ use crate::utils::js::locale_compare;
 /// ASCII) and the final list with `localeCompare` (`crate::utils::js::locale_compare`).
 pub fn merge_scope_policies(policy_a: &[Vec<String>], policy_b: &[Vec<String>]) -> Vec<Vec<String>> {
     if policy_a.is_empty() || policy_b.is_empty() {
-        return if !policy_a.is_empty() { policy_a.to_vec() } else { policy_b.to_vec() };
+        return if !policy_a.is_empty() {
+            policy_a.to_vec()
+        } else {
+            policy_b.to_vec()
+        };
     }
 
     let mut group_map: IndexMap<String, Vec<String>> = IndexMap::default();
@@ -32,7 +36,7 @@ pub fn merge_scope_policies(policy_a: &[Vec<String>], policy_b: &[Vec<String>]) 
 
     // Prune redundant groups, keep only minimal groups (subsets eliminate their supersets)
     let mut candidates: Vec<Vec<String>> = group_map.into_values().collect();
-    candidates.sort_by(|a, b| a.len().cmp(&b.len()));
+    candidates.sort_by_key(|a| a.len());
 
     let mut final_groups: Vec<Vec<String>> = Vec::new();
     for candidate in candidates {
@@ -64,7 +68,10 @@ mod tests {
     use super::*;
 
     fn p(groups: &[&[&str]]) -> Vec<Vec<String>> {
-        groups.iter().map(|g| g.iter().map(|s| s.to_string()).collect()).collect()
+        groups
+            .iter()
+            .map(|g| g.iter().map(|s| s.to_string()).collect())
+            .collect()
     }
 
     /// Expected values generated with the TS function.

@@ -7,9 +7,7 @@ use crate::error::GraphQLError;
 use crate::jsutils::inspect::inspect;
 use crate::jsutils::JsValue;
 use crate::printer::print;
-use crate::specified::{
-    js_parse_float, js_parse_int, specified_scalar_type, GRAPHQL_MAX_INT, GRAPHQL_MIN_INT,
-};
+use crate::specified::{js_parse_float, js_parse_int, specified_scalar_type, GRAPHQL_MAX_INT, GRAPHQL_MIN_INT};
 
 use super::definition::{GraphQLScalarType, GraphQLScalarTypeConfig, ScalarKind};
 
@@ -76,10 +74,7 @@ fn is_integer(value: f64) -> bool {
 }
 
 /// The `coerceInputValue` of the specified scalar `kind`.
-pub(crate) fn coerce_input_value(
-    kind: ScalarKind,
-    input_value: &JsValue,
-) -> Result<JsValue, GraphQLError> {
+pub(crate) fn coerce_input_value(kind: ScalarKind, input_value: &JsValue) -> Result<JsValue, GraphQLError> {
     match kind {
         ScalarKind::Int => {
             if let JsValue::Number(value) = input_value {
@@ -126,10 +121,7 @@ pub(crate) fn coerce_input_value(
 }
 
 /// The `coerceInputLiteral` of the specified scalar `kind`.
-pub(crate) fn coerce_input_literal(
-    kind: ScalarKind,
-    value_node: &Value,
-) -> Result<JsValue, GraphQLError> {
+pub(crate) fn coerce_input_literal(kind: ScalarKind, value_node: &Value) -> Result<JsValue, GraphQLError> {
     match kind {
         ScalarKind::Int => {
             let Value::Int(int) = value_node else {

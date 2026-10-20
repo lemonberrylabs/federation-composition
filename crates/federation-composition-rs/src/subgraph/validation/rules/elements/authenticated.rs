@@ -1,10 +1,10 @@
 //! Port of `src/subgraph/validation/rules/elements/authenticated.ts`.
 
-use graphql_rs::{Directive, GraphQLError, Kind, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::subgraph::helpers::validate_directive_against_original;
 use crate::subgraph::state::SpecName;
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use crate::utils::js::{JsError, JsResult};
+use graphql_rs::{Directive, GraphQLError, Kind, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use super::{find_annotated_node, finish, is_interface_kind, is_object_kind, node_name};
 
@@ -28,7 +28,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for AuthenticatedRule {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "authenticated", cx),
             NodeRef::Directive(node) => directive(node, cx, info),
@@ -39,7 +44,11 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for AuthenticatedRule {
 }
 
 /// The `Directive(node, _key, _parent, paths, ancestors)` callback.
-fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> JsResult<()> {
+fn directive<'a>(
+    node: &'a Directive,
+    context: &mut SubgraphValidationContext<'a>,
+    info: &VisitInfo<'a, '_>,
+) -> JsResult<()> {
     if !context.is_available_federation_directive("authenticated", &node.name.value) {
         return Ok(());
     }
@@ -88,7 +97,10 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
                 ));
                 return Ok(());
             }
-            context.state_builder.object_type().set_authenticated(node_name(parent))?;
+            context
+                .state_builder
+                .object_type()
+                .set_authenticated(node_name(parent))?;
         }
         // NOTE(port): the TS lists `Kind.INTERFACE_TYPE_DEFINITION` twice and never
         // `INTERFACE_TYPE_EXTENSION`, so an interface extension matches no case.
@@ -103,7 +115,10 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
             return Ok(());
         }
         Kind::ScalarTypeDefinition | Kind::ScalarTypeExtension => {
-            context.state_builder.scalar_type().set_authenticated(node_name(parent))?;
+            context
+                .state_builder
+                .scalar_type()
+                .set_authenticated(node_name(parent))?;
         }
         Kind::EnumTypeDefinition | Kind::EnumTypeExtension => {
             context.state_builder.enum_type().set_authenticated(node_name(parent))?;

@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/known-directives-rule.ts`.
 
-use graphql_rs::{Definition, GraphQLError, Name, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::IndexMap;
+use graphql_rs::{Definition, GraphQLError, Name, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_rs::{Ancestor, DirectiveLocation, OperationType};
@@ -51,7 +51,12 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for KnownDirectivesVisitor<'a>
         VisitKinds::enter(&[Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let NodeRef::Directive(node) = node else {
             return VisitAction::Continue;
         };
@@ -67,7 +72,10 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for KnownDirectivesVisitor<'a>
 
         let candidate_location = get_directive_location_for_ast_path(info.ancestors);
         if let Some(candidate_location) = candidate_location {
-            if !locations.iter().any(|location| location.value == candidate_location.as_str()) {
+            if !locations
+                .iter()
+                .any(|location| location.value == candidate_location.as_str())
+            {
                 cx.report_error(GraphQLError::with_code(
                     format!(
                         "Directive \"@{name}\" may not be used on {}.",
@@ -87,10 +95,7 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for KnownDirectivesVisitor<'a>
 /// NOTE(port): the TS throws `Expected a node` when that ancestor is a list; a directive's
 /// last ancestor is always the node holding its `directives` list.
 fn get_directive_location_for_ast_path(ancestors: &[Ancestor<'_>]) -> Option<DirectiveLocation> {
-    let applied_to = ancestors
-        .last()
-        .and_then(|a| a.as_node())
-        .expect("Expected a node");
+    let applied_to = ancestors.last().and_then(|a| a.as_node()).expect("Expected a node");
 
     match applied_to {
         NodeRef::OperationDefinition(op) => Some(get_directive_location_for_operation(op.operation)),
@@ -103,9 +108,7 @@ fn get_directive_location_for_ast_path(ancestors: &[Ancestor<'_>]) -> Option<Dir
         NodeRef::ScalarTypeDefinition(_) | NodeRef::ScalarTypeExtension(_) => Some(DirectiveLocation::Scalar),
         NodeRef::ObjectTypeDefinition(_) | NodeRef::ObjectTypeExtension(_) => Some(DirectiveLocation::Object),
         NodeRef::FieldDefinition(_) => Some(DirectiveLocation::FieldDefinition),
-        NodeRef::InterfaceTypeDefinition(_) | NodeRef::InterfaceTypeExtension(_) => {
-            Some(DirectiveLocation::Interface)
-        }
+        NodeRef::InterfaceTypeDefinition(_) | NodeRef::InterfaceTypeExtension(_) => Some(DirectiveLocation::Interface),
         NodeRef::UnionTypeDefinition(_) | NodeRef::UnionTypeExtension(_) => Some(DirectiveLocation::Union),
         NodeRef::EnumTypeDefinition(_) | NodeRef::EnumTypeExtension(_) => Some(DirectiveLocation::Enum),
         NodeRef::EnumValueDefinition(_) => Some(DirectiveLocation::EnumValue),

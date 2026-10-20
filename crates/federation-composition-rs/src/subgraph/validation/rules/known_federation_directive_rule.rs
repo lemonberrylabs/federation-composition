@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/known-federation-directive-rule.ts`.
 
-use graphql_rs::{Definition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::IndexSet;
+use graphql_rs::{Definition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 
@@ -51,7 +51,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for KnownFederationDirective
         VisitKinds::enter(&[Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let NodeRef::Directive(node) = node else {
             return VisitAction::Continue;
         };

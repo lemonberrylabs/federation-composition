@@ -10,7 +10,10 @@ mod join_spec_version {
         // The row comes from `federationVersionToJoinSpecVersion`.
         assert_eq!(federation_version_to_join_spec_version(fed_version), join_version);
 
-        let result = api.compose_services(&[service("a", graphql!(r#"
+        let result = api.compose_services(&[service(
+            "a",
+            graphql!(
+                r#"
             extend schema
               @link(url: "https://specs.apollo.dev/federation/${fed_version}" import: ["@key"])
 
@@ -22,13 +25,22 @@ mod join_spec_version {
             type Query {
               users: [User]
             }
-          "#, fed_version))]);
+          "#,
+                fed_version
+            ),
+        )]);
 
         assert_composition_success(&result);
 
-        let expected = tpl!(r#"@link(url: "https://specs.apollo.dev/join/${join_version}", for: EXECUTION)"#, join_version);
+        let expected = tpl!(
+            r#"@link(url: "https://specs.apollo.dev/join/${join_version}", for: EXECUTION)"#,
+            join_version
+        );
         let sdl = result.supergraph_sdl().expect("supergraphSdl is undefined");
-        assert!(sdl.contains(&expected), "expected supergraphSdl to match:\n{expected}\nsupergraphSdl:\n{sdl}");
+        assert!(
+            sdl.contains(&expected),
+            "expected supergraphSdl to match:\n{expected}\nsupergraphSdl:\n{sdl}"
+        );
     }
 
     test_implementations! {

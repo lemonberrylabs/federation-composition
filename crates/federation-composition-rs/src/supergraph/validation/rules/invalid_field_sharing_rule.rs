@@ -1,6 +1,5 @@
 //! Port of `src/supergraph/validation/rules/invalid-field-sharing-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::specifications::federation::FederationVersion;
 use crate::supergraph::composition::interface_type::{InterfaceTypeFieldState, InterfaceTypeState};
 use crate::supergraph::composition::object_type::{ObjectTypeFieldState, ObjectTypeState};
@@ -9,6 +8,7 @@ use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::format::and_list;
 use crate::utils::js::JsResult;
+use graphql_rs::GraphQLError;
 
 /// `InvalidFieldSharingRule(context, supergraphState)`.
 /// Visitor callbacks: `ObjectTypeField`, `InterfaceTypeField`.
@@ -34,16 +34,18 @@ impl<'s> SupergraphRule<'s> for InvalidFieldSharingRule<'s> {
 impl<'s> InvalidFieldSharingRule<'s> {
     /// `objectTypeState.byGraph.keys().some(graph => subgraph(graph).schema.subscriptionType === name)`,
     /// memoized for consecutive fields of the same object type.
-    fn is_subscription_type(&mut self, cx: &SupergraphValidationContext, object_type_state: &'s ObjectTypeState) -> bool {
+    fn is_subscription_type(
+        &mut self,
+        cx: &SupergraphValidationContext,
+        object_type_state: &'s ObjectTypeState,
+    ) -> bool {
         if let Some((last, is_subscription)) = self.last_subscription_check {
             if std::ptr::eq(last, object_type_state) {
                 return is_subscription;
             }
         }
         let is_subscription = object_type_state.by_graph.keys().any(|graph| {
-            cx.subgraph_states
-                .get(graph)
-                .and_then(|s| s.schema.subscription_type())
+            cx.subgraph_states.get(graph).and_then(|s| s.schema.subscription_type())
                 == Some(object_type_state.name.as_str())
         });
         self.last_subscription_check = Some((object_type_state, is_subscription));
@@ -103,7 +105,9 @@ impl<'s> SupergraphVisitor<'s> for InvalidFieldSharingRule<'s> {
                 continue;
             }
 
-            if is_effective_override(cx, field.r#override.as_deref(), |id| field_state.by_graph.contains_key(id)) {
+            if is_effective_override(cx, field.r#override.as_deref(), |id| {
+                field_state.by_graph.contains_key(id)
+            }) {
                 // if a field tries to override some graph, check if it actually exists there.
                 // if it does, exclude it from invalid-field-sharing rule as override is effective.
                 continue;
@@ -111,7 +115,8 @@ impl<'s> SupergraphVisitor<'s> for InvalidFieldSharingRule<'s> {
 
             let fed_v1_field_in_extension = field.version == FederationVersion::V1_0 && field.extension;
 
-            if field_is_shareable || field_is_used_as_key || (object_type_state.is_entity && fed_v1_field_in_extension) {
+            if field_is_shareable || field_is_used_as_key || (object_type_state.is_entity && fed_v1_field_in_extension)
+            {
                 resolvable_in.push(graph_id);
                 continue;
             }
@@ -158,7 +163,9 @@ impl<'s> SupergraphVisitor<'s> for InvalidFieldSharingRule<'s> {
                         continue;
                     }
 
-                    if is_effective_override(cx, field.r#override.as_deref(), |id| field_state.by_graph.contains_key(id)) {
+                    if is_effective_override(cx, field.r#override.as_deref(), |id| {
+                        field_state.by_graph.contains_key(id)
+                    }) {
                         // if a field tries to override some graph, check if it actually exists there.
                         // if it does, exclude it from invalid-field-sharing rule as override is effective.
                         continue;
@@ -202,7 +209,11 @@ impl<'s> SupergraphVisitor<'s> for InvalidFieldSharingRule<'s> {
                 format!(
                     "subgraph{} {}",
                     if non_sharable_in.len() > 1 { "s" } else { "" },
-                    and_list(&cx.graph_ids_to_names(non_sharable_in.iter().copied())?, true, Some("\""))
+                    and_list(
+                        &cx.graph_ids_to_names(non_sharable_in.iter().copied())?,
+                        true,
+                        Some("\"")
+                    )
                 )
             };
 
@@ -251,7 +262,9 @@ impl<'s> SupergraphVisitor<'s> for InvalidFieldSharingRule<'s> {
                 continue;
             }
 
-            if is_effective_override(cx, field.r#override.as_deref(), |id| field_state.by_graph.contains_key(id)) {
+            if is_effective_override(cx, field.r#override.as_deref(), |id| {
+                field_state.by_graph.contains_key(id)
+            }) {
                 // if a field tries to override some graph, check if it actually exists there.
                 // if it does, exclude it from invalid-field-sharing rule as override is effective.
                 continue;
@@ -282,7 +295,11 @@ impl<'s> SupergraphVisitor<'s> for InvalidFieldSharingRule<'s> {
                 format!(
                     "subgraph{} {}",
                     if non_sharable_in.len() > 1 { "s" } else { "" },
-                    and_list(&cx.graph_ids_to_names(non_sharable_in.iter().copied())?, true, Some("\""))
+                    and_list(
+                        &cx.graph_ids_to_names(non_sharable_in.iter().copied())?,
+                        true,
+                        Some("\"")
+                    )
                 )
             };
 

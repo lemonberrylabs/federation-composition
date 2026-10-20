@@ -1,11 +1,11 @@
 //! Port of `src/supergraph/validation/rules/contextual-argument-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::supergraph::composition::object_type::{ObjectTypeFieldArgState, ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::GraphQLError;
 
 /// `ContextualArgumentRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeFieldArg`.
@@ -35,7 +35,7 @@ impl<'s> SupergraphVisitor<'s> for ContextualArgumentRule {
             arg_in_graph.from_context.is_none()
                 && arg_in_graph.r#type.ends_with('!')
                 // `!argInGraph.defaultValue`: `""` is falsy too.
-                && arg_in_graph.default_value.as_deref().map_or(true, str::is_empty)
+                && arg_in_graph.default_value.as_deref().is_none_or(str::is_empty)
         });
 
         if !is_required_somewhere {

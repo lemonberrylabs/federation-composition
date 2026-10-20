@@ -5,17 +5,12 @@ use crate::ast::{Kind, NodeRef, OperationDefinition, OperationType};
 /// graphql-js `isDefinitionNode`.
 pub fn is_definition_node<'a>(node: impl Into<NodeRef<'a>>) -> bool {
     let node = node.into();
-    is_executable_definition_node(node)
-        || is_type_system_definition_node(node)
-        || is_type_system_extension_node(node)
+    is_executable_definition_node(node) || is_type_system_definition_node(node) || is_type_system_extension_node(node)
 }
 
 /// graphql-js `isExecutableDefinitionNode`.
 pub fn is_executable_definition_node<'a>(node: impl Into<NodeRef<'a>>) -> bool {
-    matches!(
-        node.into().kind(),
-        Kind::OperationDefinition | Kind::FragmentDefinition
-    )
+    matches!(node.into().kind(), Kind::OperationDefinition | Kind::FragmentDefinition)
 }
 
 /// graphql-js `isSubscriptionOperationDefinitionNode`.
@@ -61,18 +56,13 @@ pub fn is_const_value_node<'a>(node: impl Into<NodeRef<'a>>) -> bool {
 
 /// graphql-js `isTypeNode`.
 pub fn is_type_node<'a>(node: impl Into<NodeRef<'a>>) -> bool {
-    matches!(
-        node.into().kind(),
-        Kind::NamedType | Kind::ListType | Kind::NonNullType
-    )
+    matches!(node.into().kind(), Kind::NamedType | Kind::ListType | Kind::NonNullType)
 }
 
 /// graphql-js `isTypeSystemDefinitionNode`.
 pub fn is_type_system_definition_node<'a>(node: impl Into<NodeRef<'a>>) -> bool {
     let node = node.into();
-    node.kind() == Kind::SchemaDefinition
-        || is_type_definition_node(node)
-        || node.kind() == Kind::DirectiveDefinition
+    node.kind() == Kind::SchemaDefinition || is_type_definition_node(node) || node.kind() == Kind::DirectiveDefinition
 }
 
 /// graphql-js `isTypeDefinitionNode`.
@@ -91,9 +81,7 @@ pub fn is_type_definition_node<'a>(node: impl Into<NodeRef<'a>>) -> bool {
 /// graphql-js `isTypeSystemExtensionNode`.
 pub fn is_type_system_extension_node<'a>(node: impl Into<NodeRef<'a>>) -> bool {
     let node = node.into();
-    node.kind() == Kind::SchemaExtension
-        || node.kind() == Kind::DirectiveExtension
-        || is_type_extension_node(node)
+    node.kind() == Kind::SchemaExtension || node.kind() == Kind::DirectiveExtension || is_type_extension_node(node)
 }
 
 /// graphql-js `isTypeExtensionNode`.

@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn key_fields_has_args(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 
             type Query {
@@ -25,7 +25,7 @@ test_versions! {
         );
 
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             type Query {
               users: [User]
             }
@@ -43,7 +43,7 @@ test_versions! {
         );
 
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             type Query {
               users: [User]
             }

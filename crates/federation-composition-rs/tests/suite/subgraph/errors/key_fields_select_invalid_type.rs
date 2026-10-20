@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn key_fields_select_invalid_type(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("serviceA", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 

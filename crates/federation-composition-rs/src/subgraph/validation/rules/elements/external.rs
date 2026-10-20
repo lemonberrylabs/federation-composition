@@ -1,10 +1,10 @@
 //! Port of `src/subgraph/validation/rules/elements/external.ts`.
 
-use graphql_rs::{Directive, FieldDefinition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::graphql::printer::print;
 use crate::subgraph::helpers::validate_directive_against_original;
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::{Directive, FieldDefinition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use super::finish;
 
@@ -31,7 +31,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for ExternalRules {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "external", cx),
             NodeRef::Directive(node) => directive(node, cx),

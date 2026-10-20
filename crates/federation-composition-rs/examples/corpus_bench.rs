@@ -49,11 +49,18 @@ const MIN_RUNS: usize = 5;
 const MIN_TIME: Duration = Duration::from_millis(50);
 const MAX_RUNS: usize = 200;
 
-const LABEL: &str = if cfg!(feature = "mimalloc") { "guild-rust-mimalloc" } else { "guild-rust" };
+const LABEL: &str = if cfg!(feature = "mimalloc") {
+    "guild-rust-mimalloc"
+} else {
+    "guild-rust"
+};
 
 fn main() {
-    let out_file = std::env::args().nth(1).unwrap_or_else(|| format!("bench/results-{LABEL}.json"));
-    let corpus = std::fs::read_to_string("bench/corpus.jsonl").expect("bench/corpus.jsonl is missing: run `pnpm bench:capture`");
+    let out_file = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| format!("bench/results-{LABEL}.json"));
+    let corpus =
+        std::fs::read_to_string("bench/corpus.jsonl").expect("bench/corpus.jsonl is missing: run `pnpm bench:capture`");
 
     let started = Instant::now();
     let mut results = Vec::new();
@@ -62,9 +69,15 @@ fn main() {
         let services: Vec<ServiceDefinition> = case
             .services
             .iter()
-            .map(|s| ServiceDefinition { name: s.name.clone(), url: s.url.clone(), type_defs: s.type_defs.clone() })
+            .map(|s| ServiceDefinition {
+                name: s.name.clone(),
+                url: s.url.clone(),
+                type_defs: s.type_defs.clone(),
+            })
             .collect();
-        let internal = case.internal.as_ref().map(|i| InternalOptions { disable_validation_rules: i.disable_validation_rules.clone() });
+        let internal = case.internal.as_ref().map(|i| InternalOptions {
+            disable_validation_rules: i.disable_validation_rules.clone(),
+        });
         let sdl_bytes: usize = services.iter().map(|s| graphql_rs::print(&s.type_defs).len()).sum();
 
         let run = || compose_services(black_box(&services), internal.as_ref()).expect("composition does not throw");
@@ -97,8 +110,13 @@ fn main() {
     let wall_ms = started.elapsed().as_secs_f64() * 1000.0;
     std::fs::write(
         &out_file,
-        serde_json::to_string_pretty(&json!({ "label": LABEL, "node": null, "wallMs": wall_ms, "results": results })).unwrap(),
+        serde_json::to_string_pretty(&json!({ "label": LABEL, "node": null, "wallMs": wall_ms, "results": results }))
+            .unwrap(),
     )
     .unwrap();
-    println!("{LABEL}: {} cases in {:.1}s -> {out_file}", results.len(), wall_ms / 1000.0);
+    println!(
+        "{LABEL}: {} cases in {:.1}s -> {out_file}",
+        results.len(),
+        wall_ms / 1000.0
+    );
 }

@@ -6,14 +6,20 @@ use crate::shared::*;
 #[track_caller]
 fn assert_supergraph_contains(result: &CompositionResult, substring: &str) {
     let sdl = result.supergraph_sdl().expect("supergraphSdl is undefined");
-    assert!(sdl.contains(substring), "expected supergraphSdl to contain:\n{substring}\nsupergraphSdl:\n{sdl}");
+    assert!(
+        sdl.contains(substring),
+        "expected supergraphSdl to contain:\n{substring}\nsupergraphSdl:\n{sdl}"
+    );
 }
 
 /// `expect(result.supergraphSdl).not.toContain(substring)`; `undefined` fails, as in vitest.
 #[track_caller]
 fn assert_supergraph_not_contains(result: &CompositionResult, substring: &str) {
     let sdl = result.supergraph_sdl().expect("supergraphSdl is undefined");
-    assert!(!sdl.contains(substring), "expected supergraphSdl not to contain:\n{substring}\nsupergraphSdl:\n{sdl}");
+    assert!(
+        !sdl.contains(substring),
+        "expected supergraphSdl not to contain:\n{substring}\nsupergraphSdl:\n{sdl}"
+    );
 }
 
 test_versions! {

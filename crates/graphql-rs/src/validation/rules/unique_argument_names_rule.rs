@@ -41,9 +41,7 @@ impl<'a> Visitor<'a, SDLValidationContext<'a>> for UniqueArgumentNamesRule {
     ) -> VisitAction {
         match node {
             NodeRef::Field(parent_node) => check_arg_uniqueness(context, &parent_node.arguments),
-            NodeRef::Directive(parent_node) => {
-                check_arg_uniqueness(context, &parent_node.arguments)
-            }
+            NodeRef::Directive(parent_node) => check_arg_uniqueness(context, &parent_node.arguments),
             _ => {}
         }
         VisitAction::Continue

@@ -42,12 +42,22 @@ mod federated_link_url {
 
     #[test]
     fn from_url_correctly_parses_the_identity_name_and_version_4() {
-        from_url_parses("https://spec.example.com/v1.0", "https://spec.example.com", None, Some("v1.0"));
+        from_url_parses(
+            "https://spec.example.com/v1.0",
+            "https://spec.example.com",
+            None,
+            Some("v1.0"),
+        );
     }
 
     #[test]
     fn from_url_correctly_parses_the_identity_name_and_version_5() {
-        from_url_parses("https://spec.example.com/vX", "https://spec.example.com/vX", Some("vX"), None);
+        from_url_parses(
+            "https://spec.example.com/vX",
+            "https://spec.example.com/vX",
+            Some("vX"),
+            None,
+        );
     }
 
     #[test]
@@ -68,7 +78,9 @@ mod federated_link_url {
     /// `FederatedLinkUrl.fromUrl(url0).supports(FederatedLinkUrl.fromUrl(url1))`.
     fn supports(url0: &str, url1: &str) -> bool {
         let other = FederatedLinkUrl::from_url(url1).unwrap();
-        FederatedLinkUrl::from_url(url0).unwrap().supports(SupportsVersion::Url(&other))
+        FederatedLinkUrl::from_url(url0)
+            .unwrap()
+            .supports(SupportsVersion::Url(&other))
     }
 
     #[test]
@@ -94,7 +106,10 @@ mod federated_link_url {
 
     #[test]
     fn supports_returns_true_for_specs_with_the_same_identity_and_compatible_versions_4() {
-        assert!(supports("https://spec.example.com/v1.100", "https://spec.example.com/v1.0"));
+        assert!(supports(
+            "https://spec.example.com/v1.100",
+            "https://spec.example.com/v1.0"
+        ));
     }
 
     #[test]
@@ -120,7 +135,10 @@ mod federated_link_url {
 
     #[test]
     fn supports_returns_false_for_specs_with_the_same_identity_and_incompatible_versions_3() {
-        assert!(!supports("https://spec.example.com/v1.0", "https://spec.example.com/v1.100"));
+        assert!(!supports(
+            "https://spec.example.com/v1.0",
+            "https://spec.example.com/v1.100"
+        ));
     }
 
     /// The body of "toString returns the normalized url".

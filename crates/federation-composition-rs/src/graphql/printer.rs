@@ -410,7 +410,9 @@ impl Printer {
                 let mut any = false;
                 self.part(&mut any, " ", |p| p.push("type"));
                 self.part(&mut any, " ", |p| p.print((&node.name).into()));
-                self.part(&mut any, " ", |p| p.wrap("implements ", |p| p.join(&node.interfaces, " & "), ""));
+                self.part(&mut any, " ", |p| {
+                    p.wrap("implements ", |p| p.join(&node.interfaces, " & "), "")
+                });
                 self.part(&mut any, " ", |p| p.join(&node.directives, " "));
                 self.part(&mut any, " ", |p| p.block(&node.fields));
             }
@@ -419,7 +421,9 @@ impl Printer {
                 let mut any = false;
                 self.part(&mut any, " ", |p| p.push("interface"));
                 self.part(&mut any, " ", |p| p.print((&node.name).into()));
-                self.part(&mut any, " ", |p| p.wrap("implements ", |p| p.join(&node.interfaces, " & "), ""));
+                self.part(&mut any, " ", |p| {
+                    p.wrap("implements ", |p| p.join(&node.interfaces, " & "), "")
+                });
                 self.part(&mut any, " ", |p| p.join(&node.directives, " "));
                 self.part(&mut any, " ", |p| p.block(&node.fields));
             }
@@ -511,7 +515,10 @@ mod tests {
 
     #[test]
     fn strings() {
-        assert_eq!(print_string("a\"b\\c\n\t\u{1}\u{7f}é"), "\"a\\\"b\\\\c\\n\\t\\u0001\u{7f}é\"");
+        assert_eq!(
+            print_string("a\"b\\c\n\t\u{1}\u{7f}é"),
+            "\"a\\\"b\\\\c\\n\\t\\u0001\u{7f}é\""
+        );
         assert_eq!(print_block_string("a\"\"\"b"), "\"\"\"\na\\\"\"\"b\n\"\"\"");
     }
 
@@ -550,7 +557,10 @@ schema @s { query: Q mutation: M }
             "query Q($a : Int  = 1 ) @d{\n  x: a(b: $a)\n  ... F\n  ... on T {\n    c\n  }\n}"
         );
         assert_eq!(p("fragment F on T { a }"), "fragmentFonT{\n  a\n}");
-        assert_eq!(p("{ a(o: {k: null, l: [true, 1.5, E]}) }"), "{\n  a(o: {k: null, l: [true, 1.5, E]})\n}");
+        assert_eq!(
+            p("{ a(o: {k: null, l: [true, 1.5, E]}) }"),
+            "{\n  a(o: {k: null, l: [true, 1.5, E]})\n}"
+        );
         // 79 UTF-16 code units (139 bytes): stays on one line.
         let e = "é".repeat(60);
         assert_eq!(

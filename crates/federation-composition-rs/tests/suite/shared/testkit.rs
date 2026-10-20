@@ -6,17 +6,19 @@
 //! Its GraphQL-validity part is kept, using the graphql-js port (see [`try_compose_services`]);
 //! the federation-specific part and the `console.warn` about unported error codes are dropped.
 
-use federation_composition_rs::contracts::tag_extraction::SchemaContractFilter;
 use federation_composition_rs::compose::{
     compose_services as library_compose_services, CompositionFailure, CompositionResult, CompositionSuccess,
 };
+use federation_composition_rs::contracts::tag_extraction::SchemaContractFilter;
 use federation_composition_rs::subgraph::validation::validate_subgraph::InternalOptions;
 use federation_composition_rs::types::ServiceDefinition;
 use federation_composition_rs::utils::js::{parse_float, JsError, JsResult};
 use graphql_rs::{assert_valid_schema, build_schema, Document, GraphQLError};
 
 /// `versions`.
-pub const VERSIONS: [&str; 10] = ["v2.0", "v2.1", "v2.2", "v2.3", "v2.4", "v2.5", "v2.6", "v2.7", "v2.8", "v2.9"];
+pub const VERSIONS: [&str; 10] = [
+    "v2.0", "v2.1", "v2.2", "v2.3", "v2.4", "v2.5", "v2.6", "v2.7", "v2.8", "v2.9",
+];
 
 /// `federationVersionToJoinSpecVersion`, in `Object.entries` order.
 pub const FEDERATION_VERSION_TO_JOIN_SPEC_VERSION: [(&str, &str); 10] = [
@@ -43,7 +45,9 @@ pub fn federation_version_to_join_spec_version(version: &str) -> &'static str {
 
 /// `satisfiesVersionRange(range, version)`, `range` being `"< v2.3"`, `">= v2.3"` or `"> v2.3"`.
 pub fn satisfies_version_range(range: &str, version: &str) -> bool {
-    let (sign, ver) = range.split_once(' ').unwrap_or_else(|| panic!("invalid version range {range:?}"));
+    let (sign, ver) = range
+        .split_once(' ')
+        .unwrap_or_else(|| panic!("invalid version range {range:?}"));
     let version_in_range = parse_float(&ver.replacen('v', "", 1));
     let detected_version = parse_float(&version.replacen('v', "", 1));
     match sign {
@@ -55,12 +59,20 @@ pub fn satisfies_version_range(range: &str, version: &str) -> bool {
 
 /// `{ name, typeDefs }`.
 pub fn service(name: &str, type_defs: Document) -> ServiceDefinition {
-    ServiceDefinition { name: name.to_string(), url: None, type_defs }
+    ServiceDefinition {
+        name: name.to_string(),
+        url: None,
+        type_defs,
+    }
 }
 
 /// `{ name, url, typeDefs }`.
 pub fn service_with_url(name: &str, url: &str, type_defs: Document) -> ServiceDefinition {
-    ServiceDefinition { name: name.to_string(), url: Some(url.to_string()), type_defs }
+    ServiceDefinition {
+        name: name.to_string(),
+        url: Some(url.to_string()),
+        type_defs,
+    }
 }
 
 /// The library's `composeServices(services, __internal)`. A throw (the `Err`) panics with the
@@ -80,14 +92,19 @@ pub fn compose_services(services: &[ServiceDefinition], internal: Option<Interna
 /// schema, or this throws with the message `ApolloSupergraph.buildForTests` throws for it:
 /// `@apollo/federation-internals` wraps the validation errors as
 /// `"The schema is not a valid GraphQL schema.. Caused by:\n"` followed by the messages.
-pub fn try_compose_services(services: &[ServiceDefinition], internal: Option<InternalOptions>) -> JsResult<CompositionResult> {
+pub fn try_compose_services(
+    services: &[ServiceDefinition],
+    internal: Option<InternalOptions>,
+) -> JsResult<CompositionResult> {
     let result = library_compose_services(services, internal.as_ref())?;
     if let CompositionResult::Success(success) = &result {
         let validation = build_schema(success.supergraph_sdl())
             .map_err(|error| error.message)
             .and_then(|schema| assert_valid_schema(&schema));
         if let Err(message) = validation {
-            return Err(JsError::error(format!("The schema is not a valid GraphQL schema.. Caused by:\n{message}")));
+            return Err(JsError::error(format!(
+                "The schema is not a valid GraphQL schema.. Caused by:\n{message}"
+            )));
         }
     }
     Ok(result)
@@ -111,7 +128,11 @@ impl Api {
 
     /// `api.composeServices(services, __internal)`.
     #[track_caller]
-    pub fn compose_services_with_internal(&self, services: &[ServiceDefinition], internal: Option<InternalOptions>) -> CompositionResult {
+    pub fn compose_services_with_internal(
+        &self,
+        services: &[ServiceDefinition],
+        internal: Option<InternalOptions>,
+    ) -> CompositionResult {
         compose_services(services, internal)
     }
 
@@ -201,7 +222,10 @@ pub fn assert_composition_success(result: &CompositionResult) -> &CompositionSuc
 /// `assertCompositionSuccess(result, message)`: fails with `message || "Unexpected test failure"`
 /// (followed by the errors), then checks that `supergraphSdl` and `publicSdl` are valid schemas.
 #[track_caller]
-pub fn assert_composition_success_with_message<'r>(result: &'r CompositionResult, message: Option<&str>) -> &'r CompositionSuccess {
+pub fn assert_composition_success_with_message<'r>(
+    result: &'r CompositionResult,
+    message: Option<&str>,
+) -> &'r CompositionSuccess {
     let success = match result {
         CompositionResult::Success(success) => success,
         CompositionResult::Failure(failure) => panic!(
@@ -224,7 +248,10 @@ pub fn assert_composition_failure(result: &CompositionResult) -> &CompositionFai
 
 /// `assertCompositionFailure(result, message)`: fails with `message || "Unexpected test failure"`.
 #[track_caller]
-pub fn assert_composition_failure_with_message<'r>(result: &'r CompositionResult, message: Option<&str>) -> &'r CompositionFailure {
+pub fn assert_composition_failure_with_message<'r>(
+    result: &'r CompositionResult,
+    message: Option<&str>,
+) -> &'r CompositionFailure {
     match result {
         CompositionResult::Failure(failure) => failure,
         CompositionResult::Success(success) => panic!(
@@ -318,7 +345,9 @@ impl ErrorMatcher {
         let extensions_match = match &self.extensions {
             None => true,
             Some(ExtensionsMatcher::CodeContaining(code)) => error.code() == Some(code.as_str()),
-            Some(ExtensionsMatcher::ExactlyCode(code)) => error.extensions.len() == 1 && error.code() == Some(code.as_str()),
+            Some(ExtensionsMatcher::ExactlyCode(code)) => {
+                error.extensions.len() == 1 && error.code() == Some(code.as_str())
+            }
         };
         message_matches && extensions_match
     }
@@ -378,11 +407,18 @@ pub fn assert_errors_contain(errors: impl ErrorsSource, expected: &[ErrorMatcher
     let Some(errors) = errors.errors_or_none() else {
         panic!("expected errors, received no `errors` (composition succeeded)");
     };
-    let missing: Vec<&ErrorMatcher> = expected.iter().filter(|m| !errors.iter().any(|e| m.matches(e))).collect();
+    let missing: Vec<&ErrorMatcher> = expected
+        .iter()
+        .filter(|m| !errors.iter().any(|e| m.matches(e)))
+        .collect();
     if !missing.is_empty() {
         panic!(
             "no error matches:\n{}\nreceived errors:\n{}",
-            missing.iter().map(|m| format!("  {m:?}")).collect::<Vec<_>>().join("\n"),
+            missing
+                .iter()
+                .map(|m| format!("  {m:?}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
             describe_errors(errors)
         );
     }
@@ -399,7 +435,11 @@ pub fn assert_errors_equal(errors: impl ErrorsSource, expected: &[ErrorMatcher])
     if !all_match {
         panic!(
             "errors differ\nexpected:\n{}\nreceived errors:\n{}",
-            expected.iter().map(|m| format!("  {m:?}")).collect::<Vec<_>>().join("\n"),
+            expected
+                .iter()
+                .map(|m| format!("  {m:?}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
             describe_errors(errors)
         );
     }
@@ -439,7 +479,10 @@ pub fn assert_does_not_throw<T>(result: Result<T, JsError>) -> T {
 #[track_caller]
 pub fn assert_not_to_match_string(received: Option<&str>, substring: &str) {
     let received = received.unwrap_or_else(|| panic!("expected a string, received undefined"));
-    assert!(!received.contains(substring), "expected not to contain {substring:?}\n--- received ---\n{received}\n");
+    assert!(
+        !received.contains(substring),
+        "expected not to contain {substring:?}\n--- received ---\n{received}\n"
+    );
 }
 
 /// `expect(result).not.toEqual(expect.objectContaining({ errors: expect.arrayContaining([m]) }))`
@@ -449,7 +492,10 @@ pub fn assert_not_to_match_string(received: Option<&str>, substring: &str) {
 pub fn assert_no_error_matches(errors: impl ErrorsSource, matcher: &ErrorMatcher) {
     if let Some(errors) = errors.errors_or_none() {
         let matching: Vec<&GraphQLError> = errors.iter().filter(|e| matcher.matches(e)).collect();
-        assert!(matching.is_empty(), "expected no error to match {matcher:?}, matching: {matching:?}");
+        assert!(
+            matching.is_empty(),
+            "expected no error to match {matcher:?}, matching: {matching:?}"
+        );
     }
 }
 

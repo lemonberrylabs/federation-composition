@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/composition/common.ts`.
 
-use graphql_rs::{ConstDirective, Definition, Directive as DirectiveNode};
 use crate::utils::collections::IndexMap;
+use graphql_rs::{ConstDirective, Definition, Directive as DirectiveNode};
 
 use crate::supergraph::state::{SubgraphStates, SupergraphState};
 use crate::utils::js::JsResult;

@@ -1,12 +1,12 @@
 //! Port of `src/supergraph/validation/rules/required-argument-or-field-is-not-inaccessible-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::supergraph::composition::input_object_type::{InputObjectTypeFieldState, InputObjectTypeState};
 use crate::supergraph::composition::object_type::{ObjectTypeFieldArgState, ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::GraphQLError;
 
 /// `RequiredArgumentOrFieldIsNotInaccessibleRule(context, supergraph)`.
 /// Visitor callbacks: `InputObjectTypeField`, `ObjectTypeFieldArg`.

@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/root-type-used-rule.ts`.
 
-use graphql_rs::{GraphQLError, NodeRef, OperationType, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::IndexSet;
+use graphql_rs::{GraphQLError, NodeRef, OperationType, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use graphql_rs::{Definition, OperationTypeDefinition};
@@ -30,7 +30,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for RootTypeUsedRule<'a> {
         VisitKinds::enter(&[Kind::SchemaDefinition, Kind::SchemaExtension])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         match node {
             NodeRef::SchemaDefinition(node) => validate_schema_node(&node.operation_types, self.definitions, cx),
             NodeRef::SchemaExtension(node) => validate_schema_node(&node.operation_types, self.definitions, cx),

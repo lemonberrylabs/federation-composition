@@ -58,14 +58,7 @@ fn validate_input_value_impl(
             }
             Some(_) => {}
         }
-        return validate_input_value_impl(
-            input_value,
-            of_type,
-            on_error,
-            hide_suggestions,
-            path,
-            types,
-        );
+        return validate_input_value_impl(input_value, of_type, on_error, hide_suggestions, path, types);
     }
     let input_value = match input_value {
         None | Some(JsValue::Null) => return,
@@ -85,14 +78,7 @@ fn validate_input_value_impl(
                     );
                 }
             }
-            _ => validate_input_value_impl(
-                Some(input_value),
-                of_type,
-                on_error,
-                hide_suggestions,
-                path,
-                types,
-            ),
+            _ => validate_input_value_impl(Some(input_value), of_type, on_error, hide_suggestions, path, types),
         }
         return;
     }
@@ -166,11 +152,7 @@ fn validate_input_value_impl(
             }
             if input_object.is_one_of {
                 if fields.len() != 1 {
-                    report_invalid_value(
-                        on_error,
-                        get_one_of_input_object_error_message(input_object),
-                        path,
-                    );
+                    report_invalid_value(on_error, get_one_of_input_object_error_message(input_object), path);
                 }
                 // `inputValue[fields[0]]`; with no field it is `undefined`.
                 if let Some(field) = fields.first() {
@@ -238,14 +220,7 @@ fn validate_input_literal_impl(
             );
             return;
         }
-        return validate_input_literal_impl(
-            value_node,
-            of_type,
-            on_error,
-            hide_suggestions,
-            path,
-            types,
-        );
+        return validate_input_literal_impl(value_node, of_type, on_error, hide_suggestions, path, types);
     }
     if let Value::Null(_) = value_node {
         return;
@@ -264,14 +239,7 @@ fn validate_input_literal_impl(
                     );
                 }
             }
-            _ => validate_input_literal_impl(
-                value_node,
-                of_type,
-                on_error,
-                hide_suggestions,
-                path,
-                types,
-            ),
+            _ => validate_input_literal_impl(value_node, of_type, on_error, hide_suggestions, path, types),
         }
         return;
     }
@@ -351,11 +319,7 @@ fn validate_input_literal_impl(
             }
             if input_object.is_one_of {
                 if known_fields.len() != 1 {
-                    report_invalid_literal(
-                        on_error,
-                        get_one_of_input_object_error_message(input_object),
-                        path,
-                    );
+                    report_invalid_literal(on_error, get_one_of_input_object_error_message(input_object), path);
                     return;
                 }
                 if let Value::Null(_) = known_fields[0].value {
@@ -380,10 +344,7 @@ fn validate_input_literal_impl(
                 Err(error) => on_error(error, path.to_vec()),
                 Ok(None) => report_invalid_literal(
                     on_error,
-                    format!(
-                        "Expected value of type \"{ty}\", found: {}.",
-                        print(value_node)
-                    ),
+                    format!("Expected value of type \"{ty}\", found: {}.", print(value_node)),
                     path,
                 ),
                 Ok(Some(_)) => {}

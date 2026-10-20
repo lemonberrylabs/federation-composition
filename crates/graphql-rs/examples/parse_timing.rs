@@ -8,8 +8,7 @@ use std::time::Instant;
 fn main() {
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/corpus.json");
     let corpus: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(path)
-            .expect("run `node crates/graphql-rs/tests/gen-corpus.mjs` first"),
+        &std::fs::read_to_string(path).expect("run `node crates/graphql-rs/tests/gen-corpus.mjs` first"),
     )
     .unwrap();
     // The same selection as gen-corpus.mjs: documents that parse, except the

@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn input_field_default_mismatch(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}" import: ["@key"])
             
@@ -37,7 +37,7 @@ test_versions! {
         );
 
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}" import: ["@key"])
             

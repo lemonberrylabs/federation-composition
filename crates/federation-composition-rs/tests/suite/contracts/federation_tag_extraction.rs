@@ -4,14 +4,11 @@ use crate::shared::*;
 
 use federation_composition_rs::contracts::tag_extraction::{
     apply_tag_filter_on_subgraphs, apply_tag_filter_to_inaccessible_transform_on_subgraph_schema,
-    build_schema_coordinate_tag_register, SchemaCoordinateToTagsRegistry,
-    TagFilterTransformResult,
+    build_schema_coordinate_tag_register, SchemaCoordinateToTagsRegistry, TagFilterTransformResult,
 };
 
 /// `Array.from(output.typesWithAllFieldsInaccessible.entries())`.
-fn types_with_all_fields_inaccessible_entries(
-    output: &TagFilterTransformResult,
-) -> Vec<(String, bool)> {
+fn types_with_all_fields_inaccessible_entries(output: &TagFilterTransformResult) -> Vec<(String, bool)> {
     output
         .types_with_all_fields_inaccessible
         .iter()
@@ -606,8 +603,7 @@ mod apply_tag_filter_to_inaccessible_transform_on_subgraph_schema {
         }
 
         #[test]
-        fn mutation_object_type_is_returned_in_types_with_all_fields_inaccessible_if_all_its_fields_are_excluded(
-        ) {
+        fn mutation_object_type_is_returned_in_types_with_all_fields_inaccessible_if_all_its_fields_are_excluded() {
             let filter = contract_filter(&[], &["exclude"]);
             let sdl = parse(
                 r#"
@@ -2385,8 +2381,7 @@ mod apply_tag_filter_on_subgraphs {
         )
         .unwrap();
 
-        let result =
-            apply_tag_filter_on_subgraphs(&[service("subgraph1", type_defs)], &filter).unwrap();
+        let result = apply_tag_filter_on_subgraphs(&[service("subgraph1", type_defs)], &filter).unwrap();
 
         to_match_inline_snapshot(
             print(&result[0].type_defs),
@@ -2435,10 +2430,7 @@ mod apply_tag_filter_on_subgraphs {
         .unwrap();
 
         let result = apply_tag_filter_on_subgraphs(
-            &[
-                service("subgraph1", type_defs1),
-                service("subgraph2", type_defs2),
-            ],
+            &[service("subgraph1", type_defs1), service("subgraph2", type_defs2)],
             &filter,
         )
         .unwrap();
@@ -2470,8 +2462,7 @@ mod apply_tag_filter_on_subgraphs {
     }
 
     #[test]
-    fn object_types_are_accessible_because_at_least_one_field_is_accessible_in_one_subgraph_but_not_in_another(
-    ) {
+    fn object_types_are_accessible_because_at_least_one_field_is_accessible_in_one_subgraph_but_not_in_another() {
         let filter = contract_filter(&["tag1"], &[]);
         let type_defs1 = parse(
             r#"
@@ -2497,10 +2488,7 @@ mod apply_tag_filter_on_subgraphs {
         .unwrap();
 
         let result = apply_tag_filter_on_subgraphs(
-            &[
-                service("subgraph1", type_defs1),
-                service("subgraph1", type_defs2),
-            ],
+            &[service("subgraph1", type_defs1), service("subgraph1", type_defs2)],
             &filter,
         )
         .unwrap();
@@ -2549,8 +2537,7 @@ mod apply_tag_filter_on_subgraphs {
         )
         .unwrap();
 
-        let result =
-            apply_tag_filter_on_subgraphs(&[service("subgraph1", type_defs1)], &filter).unwrap();
+        let result = apply_tag_filter_on_subgraphs(&[service("subgraph1", type_defs1)], &filter).unwrap();
 
         to_match_inline_snapshot(
             print(&result[0].type_defs),
@@ -2592,8 +2579,7 @@ mod apply_tag_filter_on_subgraphs {
         )
         .unwrap();
 
-        let result =
-            apply_tag_filter_on_subgraphs(&[service("subgraph1", type_defs1)], &filter).unwrap();
+        let result = apply_tag_filter_on_subgraphs(&[service("subgraph1", type_defs1)], &filter).unwrap();
 
         to_match_inline_snapshot(
             print(&result[0].type_defs),
@@ -2634,8 +2620,7 @@ mod apply_tag_filter_on_subgraphs {
         )
         .unwrap();
 
-        let result =
-            apply_tag_filter_on_subgraphs(&[service("subgraph1", type_defs)], &filter).unwrap();
+        let result = apply_tag_filter_on_subgraphs(&[service("subgraph1", type_defs)], &filter).unwrap();
 
         to_match_inline_snapshot(
             print(&result[0].type_defs),
@@ -2656,8 +2641,7 @@ mod apply_tag_filter_on_subgraphs {
     }
 
     #[test]
-    fn interface_types_are_accessible_because_at_least_one_field_is_accessible_in_one_subgraph_but_not_in_another(
-    ) {
+    fn interface_types_are_accessible_because_at_least_one_field_is_accessible_in_one_subgraph_but_not_in_another() {
         let filter = contract_filter(&["tag1"], &[]);
         let type_defs1 = parse(
             r#"
@@ -2695,10 +2679,7 @@ mod apply_tag_filter_on_subgraphs {
         .unwrap();
 
         let result = apply_tag_filter_on_subgraphs(
-            &[
-                service("subgraph1", type_defs1),
-                service("subgraph1", type_defs2),
-            ],
+            &[service("subgraph1", type_defs1), service("subgraph1", type_defs2)],
             &filter,
         )
         .unwrap();
@@ -2754,8 +2735,7 @@ mod apply_tag_filter_on_subgraphs {
         )
         .unwrap();
 
-        let result =
-            apply_tag_filter_on_subgraphs(&[service("subgraph1", type_defs)], &filter).unwrap();
+        let result = apply_tag_filter_on_subgraphs(&[service("subgraph1", type_defs)], &filter).unwrap();
 
         to_match_inline_snapshot(
             print(&result[0].type_defs),
@@ -2772,8 +2752,7 @@ mod apply_tag_filter_on_subgraphs {
     }
 
     #[test]
-    fn input_types_are_accessible_because_at_least_one_field_is_accessible_in_one_subgraph_but_not_in_another(
-    ) {
+    fn input_types_are_accessible_because_at_least_one_field_is_accessible_in_one_subgraph_but_not_in_another() {
         let filter = contract_filter(&["tag1"], &[]);
         let type_defs1 = parse(
             r#"
@@ -2802,10 +2781,7 @@ mod apply_tag_filter_on_subgraphs {
         .unwrap();
 
         let result = apply_tag_filter_on_subgraphs(
-            &[
-                service("subgraph1", type_defs1),
-                service("subgraph1", type_defs2),
-            ],
+            &[service("subgraph1", type_defs1), service("subgraph1", type_defs2)],
             &filter,
         )
         .unwrap();
@@ -2852,8 +2828,7 @@ mod apply_tag_filter_on_subgraphs {
         )
         .unwrap();
 
-        let result =
-            apply_tag_filter_on_subgraphs(&[service("subgraph1", type_defs)], &filter).unwrap();
+        let result = apply_tag_filter_on_subgraphs(&[service("subgraph1", type_defs)], &filter).unwrap();
 
         to_match_inline_snapshot(
             print(&result[0].type_defs),
@@ -2870,8 +2845,7 @@ mod apply_tag_filter_on_subgraphs {
     }
 
     #[test]
-    fn enum_types_are_accessible_because_at_least_one_field_is_accessible_in_one_subgraph_but_not_in_another(
-    ) {
+    fn enum_types_are_accessible_because_at_least_one_field_is_accessible_in_one_subgraph_but_not_in_another() {
         let filter = contract_filter(&["tag1"], &[]);
         let type_defs1 = parse(
             r#"
@@ -2900,10 +2874,7 @@ mod apply_tag_filter_on_subgraphs {
         .unwrap();
 
         let result = apply_tag_filter_on_subgraphs(
-            &[
-                service("subgraph1", type_defs1),
-                service("subgraph1", type_defs2),
-            ],
+            &[service("subgraph1", type_defs1), service("subgraph1", type_defs2)],
             &filter,
         )
         .unwrap();

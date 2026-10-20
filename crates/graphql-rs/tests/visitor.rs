@@ -84,12 +84,7 @@ struct Context<'a> {
 struct WithTypeNodeInfo<V>(V);
 
 impl<'a, V: Visitor<'a, Context<'a>>> Visitor<'a, Context<'a>> for WithTypeNodeInfo<V> {
-    fn enter(
-        &mut self,
-        node: NodeRef<'a>,
-        cx: &mut Context<'a>,
-        info: &VisitInfo<'a, '_>,
-    ) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut Context<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
         cx.type_info.enter(node);
         let result = self.0.enter(node, cx, info);
         if result != VisitAction::Continue {
@@ -98,12 +93,7 @@ impl<'a, V: Visitor<'a, Context<'a>>> Visitor<'a, Context<'a>> for WithTypeNodeI
         result
     }
 
-    fn leave(
-        &mut self,
-        node: NodeRef<'a>,
-        cx: &mut Context<'a>,
-        info: &VisitInfo<'a, '_>,
-    ) -> VisitAction {
+    fn leave(&mut self, node: NodeRef<'a>, cx: &mut Context<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
         let result = self.0.leave(node, cx, info);
         cx.type_info.leave(node);
         result
@@ -114,12 +104,7 @@ impl<'a, V: Visitor<'a, Context<'a>>> Visitor<'a, Context<'a>> for WithTypeNodeI
 struct DirectiveCoordinates;
 
 impl<'a> Visitor<'a, Context<'a>> for DirectiveCoordinates {
-    fn enter(
-        &mut self,
-        node: NodeRef<'a>,
-        cx: &mut Context<'a>,
-        _: &VisitInfo<'a, '_>,
-    ) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut Context<'a>, _: &VisitInfo<'a, '_>) -> VisitAction {
         if let NodeRef::Directive(d) = node {
             let ti = &cx.type_info;
             let mut coordinate = ti
@@ -136,8 +121,7 @@ impl<'a> Visitor<'a, Context<'a>> for DirectiveCoordinates {
             if let Some(value) = ti.value {
                 coordinate = format!("{coordinate}.{}", value.name.value);
             }
-            cx.reports
-                .push(format!("@{} on {coordinate}", d.name.value));
+            cx.reports.push(format!("@{} on {coordinate}", d.name.value));
         }
         VisitAction::Continue
     }
@@ -147,12 +131,7 @@ impl<'a> Visitor<'a, Context<'a>> for DirectiveCoordinates {
 struct CollectDeprecated;
 
 impl<'a> Visitor<'a, Context<'a>> for CollectDeprecated {
-    fn enter(
-        &mut self,
-        node: NodeRef<'a>,
-        cx: &mut Context<'a>,
-        _: &VisitInfo<'a, '_>,
-    ) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, cx: &mut Context<'a>, _: &VisitInfo<'a, '_>) -> VisitAction {
         if let NodeRef::FieldDefinition(f) = node {
             if f.directives.iter().any(|d| d.name.value == "deprecated") {
                 cx.deprecated_fields.push(f);
@@ -193,11 +172,7 @@ fn type_node_info_keeps_references() {
             "@tag on d.arg",
         ]
     );
-    let deprecated: Vec<&str> = cx
-        .deprecated_fields
-        .iter()
-        .map(|f| f.name.value.as_str())
-        .collect();
+    let deprecated: Vec<&str> = cx.deprecated_fields.iter().map(|f| f.name.value.as_str()).collect();
     assert_eq!(deprecated, ["a"]);
     assert!(cx.type_info.ty.is_none() && cx.type_info.field.is_none());
 }
@@ -209,9 +184,7 @@ fn ancestors_give_schema_coordinates() {
     fn schema_coordinate(path: &[PathKey], ancestors: &[Ancestor<'_>]) -> String {
         let mut coordinate = String::new();
         for i in 0..path.len().max(ancestors.len()) {
-            if let (Some(PathKey::Index(index)), Some(Ancestor::List(list))) =
-                (path.get(i), ancestors.get(i))
-            {
+            if let (Some(PathKey::Index(index)), Some(Ancestor::List(list))) = (path.get(i), ancestors.get(i)) {
                 let name = list.get(*index).unwrap().name().unwrap().value.clone();
                 if coordinate.is_empty() {
                     coordinate = name;

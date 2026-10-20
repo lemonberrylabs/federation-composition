@@ -101,11 +101,7 @@ pub fn print_block_string(value: &str, minimize: bool) -> String {
             || force_leading_new_line
             || has_trailing_triple_quotes);
     let mut result = String::with_capacity(escaped_value.len() + 8);
-    let skip_leading_new_line = is_single_line
-        && value
-            .as_bytes()
-            .first()
-            .is_some_and(|&b| is_white_space(b as u32));
+    let skip_leading_new_line = is_single_line && value.as_bytes().first().is_some_and(|&b| is_white_space(b as u32));
     if (print_as_multiple_lines && !skip_leading_new_line) || force_leading_new_line {
         result.push('\n');
     }
@@ -126,11 +122,7 @@ fn split_lines(s: &str) -> Vec<&str> {
         match bytes[i] {
             b'\r' => {
                 lines.push(&s[start..i]);
-                i += if bytes.get(i + 1) == Some(&b'\n') {
-                    2
-                } else {
-                    1
-                };
+                i += if bytes.get(i + 1) == Some(&b'\n') { 2 } else { 1 };
                 start = i;
             }
             b'\n' => {

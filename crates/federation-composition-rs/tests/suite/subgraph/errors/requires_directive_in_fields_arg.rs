@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn requires_directive_in_fields_arg(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(
                 url: "https://specs.apollo.dev/federation/${version}"

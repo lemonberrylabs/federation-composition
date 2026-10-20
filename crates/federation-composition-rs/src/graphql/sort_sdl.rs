@@ -4,8 +4,8 @@
 use std::cmp::Ordering;
 
 use graphql_rs::{
-    parse, strip_ignored_characters, visit_edit, AsNodeRef, Definition, Document, EditAction, EditResult,
-    EditVisitor, Kind, Node, NodeRef, SelectionSet, Value, VisitInfo,
+    parse, strip_ignored_characters, visit_edit, AsNodeRef, Definition, Document, EditAction, EditResult, EditVisitor,
+    Kind, Node, NodeRef, SelectionSet, Value, VisitInfo,
 };
 
 use super::contains_supergraph_spec::js_trim;

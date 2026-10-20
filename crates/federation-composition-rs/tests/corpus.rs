@@ -42,9 +42,15 @@ fn run(case: &Case) -> Value {
     let services: Vec<ServiceDefinition> = case
         .services
         .iter()
-        .map(|s| ServiceDefinition { name: s.name.clone(), url: s.url.clone(), type_defs: s.type_defs.clone() })
+        .map(|s| ServiceDefinition {
+            name: s.name.clone(),
+            url: s.url.clone(),
+            type_defs: s.type_defs.clone(),
+        })
         .collect();
-    let internal = case.internal.as_ref().map(|i| InternalOptions { disable_validation_rules: i.disable_validation_rules.clone() });
+    let internal = case.internal.as_ref().map(|i| InternalOptions {
+        disable_validation_rules: i.disable_validation_rules.clone(),
+    });
     match compose_services(&services, internal.as_ref()) {
         Err(thrown) => json!({ "thrown": thrown.to_js_string() }),
         Ok(CompositionResult::Failure(failure)) => json!({
@@ -85,10 +91,20 @@ fn rust_matches_typescript_on_test_suite_compositions() {
         if actual == case.expected {
             matched += 1;
         } else {
-            writeln!(out, "{}", json!({ "id": case.id, "expected": case.expected, "actual": actual })).unwrap();
+            writeln!(
+                out,
+                "{}",
+                json!({ "id": case.id, "expected": case.expected, "actual": actual })
+            )
+            .unwrap();
         }
     }
     let _ = std::panic::take_hook();
     println!("{matched}/{total} compositions match TypeScript ({panicked} panicked); mismatches in target/corpus-mismatches.jsonl");
-    assert_eq!(matched, total, "{} of {total} compositions differ from TypeScript", total - matched);
+    assert_eq!(
+        matched,
+        total,
+        "{} of {total} compositions differ from TypeScript",
+        total - matched
+    );
 }

@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-type-names-rule.ts`.
 
-use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::IndexSet;
+use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 
@@ -44,10 +44,22 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueTypeNamesVisitor<'a>
     /// PERF: the kinds the callbacks below act on, so `visit_in_parallel` skips the others.
     fn kinds(&self) -> graphql_rs::VisitKinds {
         use graphql_rs::{Kind, VisitKinds};
-        VisitKinds::enter(&[Kind::ScalarTypeDefinition, Kind::ObjectTypeDefinition, Kind::InterfaceTypeDefinition, Kind::UnionTypeDefinition, Kind::EnumTypeDefinition, Kind::InputObjectTypeDefinition])
+        VisitKinds::enter(&[
+            Kind::ScalarTypeDefinition,
+            Kind::ObjectTypeDefinition,
+            Kind::InterfaceTypeDefinition,
+            Kind::UnionTypeDefinition,
+            Kind::EnumTypeDefinition,
+            Kind::InputObjectTypeDefinition,
+        ])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         if graphql_rs::is_type_definition_node(node) {
             if let Some(name) = node.name() {
                 self.check_type_name(cx, &name.value);

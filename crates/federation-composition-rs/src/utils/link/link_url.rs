@@ -26,7 +26,11 @@ fn version_match(text: &str) -> Option<(&str, &str)> {
             continue;
         }
         let minor_start = dot + 1;
-        let minor_len = bytes[minor_start..].iter().take_while(|b| b.is_ascii_digit()).count().min(4);
+        let minor_len = bytes[minor_start..]
+            .iter()
+            .take_while(|b| b.is_ascii_digit())
+            .count()
+            .min(4);
         if minor_len == 0 {
             continue;
         }
@@ -102,7 +106,11 @@ impl FederatedLinkUrl {
         };
         if let Some(version_or_name) = version_or_name {
             if version_match(version_or_name).is_some() {
-                let maybe_name = if parts.len() >= 2 { Some(parts[parts.len() - 2]) } else { None };
+                let maybe_name = if parts.len() >= 2 {
+                    Some(parts[parts.len() - 2])
+                } else {
+                    None
+                };
                 let identity = match maybe_name {
                     Some(_) => format!("{}/{}", origin, parts[..parts.len() - 1].join("/")),
                     None => origin,
@@ -217,7 +225,10 @@ pub(crate) mod whatwg_url {
             let (host, port, path_input): (Option<String>, Option<u32>, &[char]) = if scheme == "file" {
                 if rest.len() >= 2 && is_slash(rest[0]) && is_slash(rest[1]) {
                     let after = &rest[2..];
-                    let end = after.iter().position(|c| matches!(c, '/' | '\\' | '?' | '#')).unwrap_or(after.len());
+                    let end = after
+                        .iter()
+                        .position(|c| matches!(c, '/' | '\\' | '?' | '#'))
+                        .unwrap_or(after.len());
                     let buffer: String = after[..end].iter().collect();
                     let host = if buffer.is_empty() {
                         String::new()
@@ -237,19 +248,28 @@ pub(crate) mod whatwg_url {
                 // Special authority ignore slashes.
                 let start = rest.iter().position(|c| *c != '/' && *c != '\\').unwrap_or(rest.len());
                 let after = &rest[start..];
-                let end = after.iter().position(|c| matches!(c, '/' | '\\' | '?' | '#')).unwrap_or(after.len());
+                let end = after
+                    .iter()
+                    .position(|c| matches!(c, '/' | '\\' | '?' | '#'))
+                    .unwrap_or(after.len());
                 let (host, port) = parse_authority(&after[..end], &scheme, true)?;
                 (Some(host), port, &after[end..])
             } else if rest.len() >= 2 && rest[0] == '/' && rest[1] == '/' {
                 let after = &rest[2..];
-                let end = after.iter().position(|c| matches!(c, '/' | '?' | '#')).unwrap_or(after.len());
+                let end = after
+                    .iter()
+                    .position(|c| matches!(c, '/' | '?' | '#'))
+                    .unwrap_or(after.len());
                 let (host, port) = parse_authority(&after[..end], &scheme, false)?;
                 (Some(host), port, &after[end..])
             } else {
                 (None, None, rest)
             };
 
-            let path_end = path_input.iter().position(|c| matches!(c, '?' | '#')).unwrap_or(path_input.len());
+            let path_end = path_input
+                .iter()
+                .position(|c| matches!(c, '?' | '#'))
+                .unwrap_or(path_input.len());
             let path_input = &path_input[..path_end];
 
             let pathname = if host.is_none() && path_input.first() != Some(&'/') {
@@ -270,7 +290,7 @@ pub(crate) mod whatwg_url {
                     let mut idx = 0;
                     loop {
                         let c = input.get(idx).copied();
-                        let at_separator = c.is_none_or(&is_slash);
+                        let at_separator = c.is_none_or(is_slash);
                         if at_separator {
                             if is_double_dot(&buffer) {
                                 segments.pop();
@@ -324,7 +344,7 @@ pub(crate) mod whatwg_url {
 
     fn in_path_percent_encode_set(c: char) -> bool {
         let n = c as u32;
-        n < 0x20 || n > 0x7e || matches!(c, ' ' | '"' | '#' | '<' | '>' | '?' | '^' | '`' | '{' | '}')
+        !(0x20..=0x7e).contains(&n) || matches!(c, ' ' | '"' | '#' | '<' | '>' | '?' | '^' | '`' | '{' | '}')
     }
 
     fn percent_encode_char(c: char, in_set: impl Fn(char) -> bool, out: &mut String) {
@@ -386,7 +406,11 @@ pub(crate) mod whatwg_url {
                 if digits.len() > 5 {
                     return Err(invalid());
                 }
-                let value: u32 = if digits.is_empty() { 0 } else { digits.parse().map_err(|_| invalid())? };
+                let value: u32 = if digits.is_empty() {
+                    0
+                } else {
+                    digits.parse().map_err(|_| invalid())?
+                };
                 if value > 65535 {
                     return Err(invalid());
                 }
@@ -410,7 +434,22 @@ pub(crate) mod whatwg_url {
             if input.chars().any(|c| {
                 matches!(
                     c,
-                    '\0' | '\t' | '\n' | '\r' | ' ' | '#' | '/' | ':' | '<' | '>' | '?' | '@' | '[' | '\\' | ']' | '^' | '|'
+                    '\0' | '\t'
+                        | '\n'
+                        | '\r'
+                        | ' '
+                        | '#'
+                        | '/'
+                        | ':'
+                        | '<'
+                        | '>'
+                        | '?'
+                        | '@'
+                        | '['
+                        | '\\'
+                        | ']'
+                        | '^'
+                        | '|'
                 )
             }) {
                 return Err(invalid());
@@ -429,7 +468,10 @@ pub(crate) mod whatwg_url {
         if ascii_domain.chars().any(|c| {
             (c as u32) <= 0x1f
                 || c == '\u{7f}'
-                || matches!(c, ' ' | '#' | '%' | '/' | ':' | '<' | '>' | '?' | '@' | '[' | '\\' | ']' | '^' | '|')
+                || matches!(
+                    c,
+                    ' ' | '#' | '%' | '/' | ':' | '<' | '>' | '?' | '@' | '[' | '\\' | ']' | '^' | '|'
+                )
         }) {
             return Err(invalid());
         }
@@ -451,7 +493,11 @@ pub(crate) mod whatwg_url {
         let mut out = Vec::with_capacity(bytes.len());
         let mut i = 0;
         while i < bytes.len() {
-            if bytes[i] == b'%' && i + 2 < bytes.len() && bytes[i + 1].is_ascii_hexdigit() && bytes[i + 2].is_ascii_hexdigit() {
+            if bytes[i] == b'%'
+                && i + 2 < bytes.len()
+                && bytes[i + 1].is_ascii_hexdigit()
+                && bytes[i + 2].is_ascii_hexdigit()
+            {
                 let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or("00");
                 out.push(u8::from_str_radix(hex, 16).unwrap_or(0));
                 i += 3;
@@ -754,23 +800,36 @@ pub(crate) mod whatwg_url {
             let cases: &[(&str, Option<(&str, &str, &str)>)] = &[
                 (
                     "https://a.com/a^b|c\"d<e>f`g{h}i j~k%41/é",
-                    Some(("https:", "https://a.com", "/a%5Eb|c%22d%3Ce%3Ef%60g%7Bh%7Di%20j~k%41/%C3%A9")),
+                    Some((
+                        "https:",
+                        "https://a.com",
+                        "/a%5Eb|c%22d%3Ce%3Ef%60g%7Bh%7Di%20j~k%41/%C3%A9",
+                    )),
                 ),
-                ("https://a.com/x/./y/../z/%2e%2E/w/.", Some(("https:", "https://a.com", "/x/w/"))),
+                (
+                    "https://a.com/x/./y/../z/%2e%2E/w/.",
+                    Some(("https:", "https://a.com", "/x/w/")),
+                ),
                 ("https:a.com\\b\\c", Some(("https:", "https://a.com", "/b/c"))),
                 ("https://A.CoM:443/x", Some(("https:", "https://a.com", "/x"))),
                 ("https://a.com:0080/x", Some(("https:", "https://a.com:80", "/x"))),
                 ("http://a.com:80/x", Some(("http:", "http://a.com", "/x"))),
                 ("https://0x7f.1/", Some(("https:", "https://127.0.0.1", "/"))),
                 ("https://[::1]:8080/", Some(("https:", "https://[::1]:8080", "/"))),
-                ("https://[1:0:0:2:0:0:0:3]/", Some(("https:", "https://[1:0:0:2::3]", "/"))),
+                (
+                    "https://[1:0:0:2:0:0:0:3]/",
+                    Some(("https:", "https://[1:0:0:2::3]", "/")),
+                ),
                 ("https://ex%41mple.com/", Some(("https:", "https://example.com", "/"))),
                 ("foo://host/a/b", Some(("foo:", "null", "/a/b"))),
                 ("urn:a/b/c", Some(("urn:", "null", "a/b/c"))),
                 ("file://host/a/b", Some(("file:", "null", "/a/b"))),
                 ("file:/a", Some(("file:", "null", "/a"))),
                 ("file:a/b", Some(("file:", "null", "/a/b"))),
-                ("file:///extensions/permissions", Some(("file:", "null", "/extensions/permissions"))),
+                (
+                    "file:///extensions/permissions",
+                    Some(("file:", "null", "/extensions/permissions")),
+                ),
                 ("https://u:p@h.com/", Some(("https:", "https://h.com", "/"))),
                 ("https:///a.com/b", Some(("https:", "https://a.com", "/b"))),
                 ("https://a.com.", Some(("https:", "https://a.com.", "/"))),
@@ -779,11 +838,17 @@ pub(crate) mod whatwg_url {
                 ("https://a b.com", None),
                 ("https://a.com:65536", None),
                 ("https://1.2.3", Some(("https:", "https://1.2.0.3", "/"))),
-                ("https://[::ffff:1.2.3.4]/", Some(("https:", "https://[::ffff:102:304]", "/"))),
+                (
+                    "https://[::ffff:1.2.3.4]/",
+                    Some(("https:", "https://[::ffff:102:304]", "/")),
+                ),
                 ("HTTPS://x.com/V1.0", Some(("https:", "https://x.com", "/V1.0"))),
                 ("  https://a.com/\t x  ", Some(("https:", "https://a.com", "/%20x"))),
                 ("https://bücher.de/", Some(("https:", "https://xn--bcher-kva.de", "/"))),
-                ("https://spec.example.com/mySchema/v0.1?q=v#frag", Some(("https:", "https://spec.example.com", "/mySchema/v0.1"))),
+                (
+                    "https://spec.example.com/mySchema/v0.1?q=v#frag",
+                    Some(("https:", "https://spec.example.com", "/mySchema/v0.1")),
+                ),
                 ("spec.example.com", None),
                 ("https://", None),
                 ("", None),
@@ -818,13 +883,22 @@ mod tests {
             parts("https://spec.example.com/a/b/mySchema/v1.0/"),
             ("https://spec.example.com/a/b/mySchema".into(), s("mySchema"), s("v1.0"))
         );
-        assert_eq!(parts("https://spec.example.com"), ("https://spec.example.com".into(), None, None));
+        assert_eq!(
+            parts("https://spec.example.com"),
+            ("https://spec.example.com".into(), None, None)
+        );
         assert_eq!(
             parts("https://spec.example.com/mySchema/v0.1?q=v#frag"),
             ("https://spec.example.com/mySchema".into(), s("mySchema"), s("v0.1"))
         );
-        assert_eq!(parts("https://spec.example.com/v1.0"), ("https://spec.example.com".into(), None, s("v1.0")));
-        assert_eq!(parts("https://spec.example.com/vX"), ("https://spec.example.com/vX".into(), s("vX"), None));
+        assert_eq!(
+            parts("https://spec.example.com/v1.0"),
+            ("https://spec.example.com".into(), None, s("v1.0"))
+        );
+        assert_eq!(
+            parts("https://spec.example.com/vX"),
+            ("https://spec.example.com/vX".into(), s("vX"), None)
+        );
         assert_eq!(
             parts("file:///extensions/permissions"),
             ("file:///extensions/permissions".into(), s("permissions"), None)
@@ -839,9 +913,15 @@ mod tests {
     fn supports() {
         let url = |u: &str| FederatedLinkUrl::from_url(u).unwrap();
         let yes = [
-            ("https://spec.example.com/a/b/mySchema/v1.2/", "https://spec.example.com/a/b/mySchema/v1.0/"),
+            (
+                "https://spec.example.com/a/b/mySchema/v1.2/",
+                "https://spec.example.com/a/b/mySchema/v1.0/",
+            ),
             ("https://spec.example.com", "https://spec.example.com"),
-            ("https://spec.example.com/mySchema/v0.1?q=v#frag", "https://spec.example.com/mySchema/v0.1"),
+            (
+                "https://spec.example.com/mySchema/v0.1?q=v#frag",
+                "https://spec.example.com/mySchema/v0.1",
+            ),
             ("https://spec.example.com/v1.100", "https://spec.example.com/v1.0"),
             ("https://spec.example.com/vX", "https://spec.example.com/vX"),
         ];
@@ -849,8 +929,14 @@ mod tests {
             assert!(url(a).supports(SupportsVersion::Url(&url(b))), "{a} {b}");
         }
         let no = [
-            ("https://spec.example.com/a/b/mySchema/v1.0/", "https://spec.example.com/a/b/mySchema/v1.2/"),
-            ("https://spec.example.com/mySchema/v0.1?q=v#frag", "https://spec.example.com/mySchema/v0.2"),
+            (
+                "https://spec.example.com/a/b/mySchema/v1.0/",
+                "https://spec.example.com/a/b/mySchema/v1.2/",
+            ),
+            (
+                "https://spec.example.com/mySchema/v0.1?q=v#frag",
+                "https://spec.example.com/mySchema/v0.2",
+            ),
             ("https://spec.example.com/v1.0", "https://spec.example.com/v1.100"),
         ];
         for (a, b) in no {
@@ -867,9 +953,15 @@ mod tests {
     #[test]
     fn to_string() {
         let cases = [
-            ("https://spec.example.com/a/b/mySchema/v1.0/", "https://spec.example.com/a/b/mySchema/v1.0"),
+            (
+                "https://spec.example.com/a/b/mySchema/v1.0/",
+                "https://spec.example.com/a/b/mySchema/v1.0",
+            ),
             ("https://spec.example.com", "https://spec.example.com"),
-            ("https://spec.example.com/mySchema/v0.1?q=v#frag", "https://spec.example.com/mySchema/v0.1"),
+            (
+                "https://spec.example.com/mySchema/v0.1?q=v#frag",
+                "https://spec.example.com/mySchema/v0.1",
+            ),
             ("https://spec.example.com/v1.0", "https://spec.example.com/v1.0"),
             ("https://spec.example.com/vX", "https://spec.example.com/vX"),
         ];

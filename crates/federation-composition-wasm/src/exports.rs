@@ -17,9 +17,7 @@
 use std::cell::RefCell;
 
 use fc::contracts::reachable_type_filter::AddDirectiveOnTypesArgs;
-use fc::contracts::tag_extraction::{
-    SchemaContractFilter, SchemaCoordinateToTagsRegistry, TagFilterTransformResult,
-};
+use fc::contracts::tag_extraction::{SchemaContractFilter, SchemaCoordinateToTagsRegistry, TagFilterTransformResult};
 use fc::specifications::federation::FederationVersion;
 use fc::subgraph::validation::validate_subgraph::InternalOptions;
 use fc::supergraph::composition::ast as core_ast;
@@ -122,19 +120,14 @@ fn with_supports_version<R>(args: &str, f: impl FnOnce(SupportsVersion<'_>) -> R
     let other_url: FederatedLinkUrl;
     let version = match args {
         SupportsArgs::String { ref version } => SupportsVersion::Str(version),
-        SupportsArgs::Numbers { major, minor } => {
-            SupportsVersion::MajorMinor(major as i64, version_part(minor))
-        }
+        SupportsArgs::Numbers { major, minor } => SupportsVersion::MajorMinor(major as i64, version_part(minor)),
         SupportsArgs::Url { url } => {
             other_url = url.into();
             SupportsVersion::Url(&other_url)
         }
         SupportsArgs::Null => SupportsVersion::Null,
         SupportsArgs::Invalid { json } => {
-            return Err(ThrownError::error(format!(
-                "Unsupported version argument: {json} [object]."
-            ))
-            .into())
+            return Err(ThrownError::error(format!("Unsupported version argument: {json} [object].")).into())
         }
     };
     Ok(f(version))
@@ -178,8 +171,7 @@ fn composition_out(result: CompositionResult) -> JsValue {
     match result {
         CompositionResult::Failure(failure) => JsValue::from_str(&to_json(&failure.errors)),
         CompositionResult::Success(success) => {
-            js_sys::Uint8Array::from(to_json_bytes(&success.supergraph_document_node).as_slice())
-                .into()
+            js_sys::Uint8Array::from(to_json_bytes(&success.supergraph_document_node).as_slice()).into()
         }
     }
 }
@@ -252,9 +244,7 @@ pub fn validate(subgraphs_json: &[u8], internal_json: Option<String>) -> JsResul
 pub fn validate_subgraph(subgraph_json: &[u8]) -> JsResult<String> {
     let subgraph: ServiceDefinition = from_json::<Service>("subgraph", subgraph_json)?.into();
     let errors = fc::validate_subgraph(&subgraph).map_err(thrown)?;
-    Ok(to_json(
-        &errors.iter().map(graphql_error_json).collect::<Vec<_>>(),
-    ))
+    Ok(to_json(&errors.iter().map(graphql_error_json).collect::<Vec<_>>()))
 }
 
 // graphql/
@@ -292,8 +282,7 @@ pub fn compose_schema_contract(
 ) -> JsResult<JsValue> {
     let services = services(services_json)?;
     let filter = tag_filter(tag_filter_json)?;
-    let result = fc::compose_schema_contract(&services, &filter, remove_unreachable_types)
-        .map_err(thrown)?;
+    let result = fc::compose_schema_contract(&services, &filter, remove_unreachable_types).map_err(thrown)?;
     Ok(composition_out(result))
 }
 
@@ -314,17 +303,11 @@ pub fn add_inaccessible_to_unreachable_types(
         if callback_error.borrow().is_some() {
             return String::new();
         }
-        match resolve_name.call2(
-            &JsValue::NULL,
-            &JsValue::from_str(identity),
-            &JsValue::from_str(name),
-        ) {
+        match resolve_name.call2(&JsValue::NULL, &JsValue::from_str(identity), &JsValue::from_str(name)) {
             // `resolveName` returns a string; anything else is stringified as JS would when using it.
-            Ok(v) => v.as_string().unwrap_or_else(|| {
-                js_sys::JSON::stringify(&v)
-                    .map(String::from)
-                    .unwrap_or_default()
-            }),
+            Ok(v) => v
+                .as_string()
+                .unwrap_or_else(|| js_sys::JSON::stringify(&v).map(String::from).unwrap_or_default()),
             Err(e) => {
                 *callback_error.borrow_mut() = Some(e);
                 String::new()
@@ -335,17 +318,14 @@ pub fn add_inaccessible_to_unreachable_types(
     if let Some(e) = callback_error.into_inner() {
         return Err(e);
     }
-    Ok(to_json_bytes(
-        &result.map_err(thrown)?.supergraph_document_node,
-    ))
+    Ok(to_json_bytes(&result.map_err(thrown)?.supergraph_document_node))
 }
 
 /// `getReachableTypes(documentNode)` → `string[]` (the `Set`, in order).
 #[wasm_bindgen]
 pub fn get_reachable_types(document_json: &[u8]) -> JsResult<String> {
     let document = document("documentNode", document_json)?;
-    let types =
-        fc::contracts::reachable_type_filter::get_reachable_types(&document).map_err(thrown)?;
+    let types = fc::contracts::reachable_type_filter::get_reachable_types(&document).map_err(thrown)?;
     Ok(to_json(&types.iter().collect::<Vec<_>>()))
 }
 
@@ -354,13 +334,13 @@ pub fn get_reachable_types(document_json: &[u8]) -> JsResult<String> {
 pub fn add_directive_on_types(args_json: &[u8]) -> JsResult<String> {
     let args: AddDirectiveOnTypesIn = from_json("args", args_json)?;
     let excluded: IndexSet<String> = args.excluded_type_names.into_iter().collect();
-    Ok(to_json(
-        &fc::contracts::reachable_type_filter::add_directive_on_types(AddDirectiveOnTypesArgs {
+    Ok(to_json(&fc::contracts::reachable_type_filter::add_directive_on_types(
+        AddDirectiveOnTypesArgs {
             document_node: &args.document_node,
             excluded_type_names: &excluded,
             directive_name: &args.directive_name,
-        }),
-    ))
+        },
+    )))
 }
 
 fn tag_register_json(register: &SchemaCoordinateToTagsRegistry) -> String {
@@ -377,8 +357,7 @@ fn tag_register_json(register: &SchemaCoordinateToTagsRegistry) -> String {
 pub fn build_schema_coordinate_tag_register(document_nodes_json: &[u8]) -> JsResult<String> {
     let documents: Vec<Document> = from_json("documentNodes", document_nodes_json)?;
     let refs: Vec<&Document> = documents.iter().collect();
-    let register = fc::contracts::tag_extraction::build_schema_coordinate_tag_register(&refs)
-        .map_err(thrown)?;
+    let register = fc::contracts::tag_extraction::build_schema_coordinate_tag_register(&refs).map_err(thrown)?;
     Ok(tag_register_json(&register))
 }
 
@@ -403,8 +382,7 @@ pub fn apply_tag_filter_to_inaccessible_transform_on_subgraph_schema(
     filter_json: &str,
 ) -> JsResult<String> {
     let document = document("documentNode", document_json)?;
-    let register: Vec<(String, Vec<String>)> =
-        from_json("tagRegister", tag_register_json.as_bytes())?;
+    let register: Vec<(String, Vec<String>)> = from_json("tagRegister", tag_register_json.as_bytes())?;
     let register: SchemaCoordinateToTagsRegistry = register
         .into_iter()
         .map(|(coordinate, tags)| (coordinate, tags.into_iter().collect()))
@@ -426,14 +404,8 @@ pub fn apply_tag_filter_on_subgraphs(type_defs_json: &[u8], filter_json: &str) -
     let refs: Vec<&Document> = documents.iter().collect();
     let filter = tag_filter(filter_json)?;
     let results =
-        fc::contracts::tag_extraction::apply_tag_filter_on_subgraph_type_defs(&refs, &filter)
-            .map_err(thrown)?;
-    Ok(to_json(
-        &results
-            .iter()
-            .map(tag_filter_result_json)
-            .collect::<Vec<_>>(),
-    ))
+        fc::contracts::tag_extraction::apply_tag_filter_on_subgraph_type_defs(&refs, &filter).map_err(thrown)?;
+    Ok(to_json(&results.iter().map(tag_filter_result_json).collect::<Vec<_>>()))
 }
 
 /// The `transformTagDirectives(node, includeInaccessibleDirective)` function
@@ -452,10 +424,8 @@ pub fn transform_tag_directives(
         directives: Option<Vec<Directive>>,
     }
     let node: WithDirectives = from_json("node", node_json.as_bytes())?;
-    let transform = fc::contracts::tag_extraction::TransformTagDirectives::new(
-        tag_directive_name,
-        inaccessible_directive_name,
-    );
+    let transform =
+        fc::contracts::tag_extraction::TransformTagDirectives::new(tag_directive_name, inaccessible_directive_name);
     Ok(to_json(&transform.call(
         node.directives.as_deref().unwrap_or_default(),
         include_inaccessible_directive,
@@ -483,18 +453,14 @@ pub fn create_object_type_node(input: &str) -> JsResult<String> {
 #[wasm_bindgen]
 pub fn create_interface_type_node(input: &str) -> JsResult<String> {
     let input: convert::ObjectLikeIn = from_json("createInterfaceTypeNode", input.as_bytes())?;
-    Ok(to_json(&core_ast::create_interface_type_node(
-        &input.into(),
-    )))
+    Ok(to_json(&core_ast::create_interface_type_node(&input.into())))
 }
 
 /// `createInputObjectTypeNode(inputObjectType)` → `InputObjectTypeDefinition`.
 #[wasm_bindgen]
 pub fn create_input_object_type_node(input: &str) -> JsResult<String> {
     let input: convert::InputObjectIn = from_json("createInputObjectTypeNode", input.as_bytes())?;
-    Ok(to_json(&core_ast::create_input_object_type_node(
-        &input.into(),
-    )))
+    Ok(to_json(&core_ast::create_input_object_type_node(&input.into())))
 }
 
 /// `createUnionTypeNode(unionType)` → `UnionTypeDefinition`.
@@ -521,12 +487,9 @@ pub fn create_scalar_type_node(input: &str) -> JsResult<String> {
 /// `createJoinGraphEnumTypeNode(graphs)` → `EnumTypeDefinition`.
 #[wasm_bindgen]
 pub fn create_join_graph_enum_type_node(input: &str) -> JsResult<String> {
-    let input: Vec<convert::JoinGraphIn> =
-        from_json("createJoinGraphEnumTypeNode", input.as_bytes())?;
+    let input: Vec<convert::JoinGraphIn> = from_json("createJoinGraphEnumTypeNode", input.as_bytes())?;
     let graphs: Vec<core_ast::JoinGraphAst> = input.into_iter().map(Into::into).collect();
-    Ok(to_json(&core_ast::create_join_graph_enum_type_node(
-        &graphs,
-    )))
+    Ok(to_json(&core_ast::create_join_graph_enum_type_node(&graphs)))
 }
 
 /// `stripFederation(supergraph)` → `Document`.
@@ -541,11 +504,8 @@ pub fn strip_federation(supergraph_json: &[u8]) -> JsResult<String> {
 /// `join.sdl(version)` → SDL string.
 #[wasm_bindgen]
 pub fn join_sdl(version: &str) -> JsResult<String> {
-    let version = FederationVersion::from_str(version).ok_or_else(|| {
-        ThrownError::error(format!(
-            "composition-wasm: unknown federation version {version:?}"
-        ))
-    })?;
+    let version = FederationVersion::from_str(version)
+        .ok_or_else(|| ThrownError::error(format!("composition-wasm: unknown federation version {version:?}")))?;
     Ok(fc::specifications::join::sdl(version))
 }
 
@@ -564,9 +524,9 @@ pub fn tag_directive() -> String {
 /// `parseLinkUrl(urlString)` → `{ name, version, identity }`.
 #[wasm_bindgen]
 pub fn parse_link_url(url: &str) -> String {
-    to_json(&convert::spec_link_url_json(
-        &fc::specifications::link::parse_link_url(url),
-    ))
+    to_json(&convert::spec_link_url_json(&fc::specifications::link::parse_link_url(
+        url,
+    )))
 }
 
 /// `parseLinkImport(importString)` → `{ kind, name, alias? }[]`; throws `Error`.
@@ -574,10 +534,7 @@ pub fn parse_link_url(url: &str) -> String {
 pub fn parse_link_import(import: &str) -> JsResult<String> {
     let imports = fc::specifications::link::parse_link_import(import).map_err(thrown)?;
     Ok(to_json(
-        &imports
-            .iter()
-            .map(convert::spec_link_import_json)
-            .collect::<Vec<_>>(),
+        &imports.iter().map(convert::spec_link_import_json).collect::<Vec<_>>(),
     ))
 }
 
@@ -603,16 +560,14 @@ pub fn link_url_from_url(url: &str) -> JsResult<String> {
 /// `linkUrl.supports(...args)`.
 #[wasm_bindgen]
 pub fn link_url_supports(link_url: &str, args: &str) -> JsResult<bool> {
-    let link_url: FederatedLinkUrl =
-        from_json::<LinkUrlIn>("FederatedLinkUrl", link_url.as_bytes())?.into();
+    let link_url: FederatedLinkUrl = from_json::<LinkUrlIn>("FederatedLinkUrl", link_url.as_bytes())?.into();
     with_supports_version(args, |version| link_url.supports(version))
 }
 
 /// `linkUrl.toString()`.
 #[wasm_bindgen]
 pub fn link_url_to_string(link_url: &str) -> JsResult<String> {
-    let link_url: FederatedLinkUrl =
-        from_json::<LinkUrlIn>("FederatedLinkUrl", link_url.as_bytes())?.into();
+    let link_url: FederatedLinkUrl = from_json::<LinkUrlIn>("FederatedLinkUrl", link_url.as_bytes())?.into();
     Ok(link_url.to_string())
 }
 
@@ -620,8 +575,7 @@ pub fn link_url_to_string(link_url: &str) -> JsResult<String> {
 #[wasm_bindgen]
 pub fn link_import_to_string(link_import: &str) -> JsResult<String> {
     let link_import: FederatedLinkImport =
-        from_json::<convert::LinkImportClassIn>("FederatedLinkImport", link_import.as_bytes())?
-            .into();
+        from_json::<convert::LinkImportClassIn>("FederatedLinkImport", link_import.as_bytes())?.into();
     Ok(link_import.to_string())
 }
 
@@ -631,10 +585,7 @@ pub fn link_import_from_typedefs(node: &str) -> JsResult<String> {
     let node: Value = from_json("ConstValueNode", node.as_bytes())?;
     let imports = FederatedLinkImport::from_typedefs(&node).map_err(thrown)?;
     Ok(to_json(
-        &imports
-            .iter()
-            .map(convert::link_import_class_json)
-            .collect::<Vec<_>>(),
+        &imports.iter().map(convert::link_import_class_json).collect::<Vec<_>>(),
     ))
 }
 
@@ -643,12 +594,7 @@ pub fn link_import_from_typedefs(node: &str) -> JsResult<String> {
 pub fn link_from_typedefs(type_defs: &[u8]) -> JsResult<String> {
     let document = document("typeDefs", type_defs)?;
     let links = FederatedLink::from_typedefs(&document).map_err(thrown)?;
-    Ok(to_json(
-        &links
-            .iter()
-            .map(convert::link_class_json)
-            .collect::<Vec<_>>(),
-    ))
+    Ok(to_json(&links.iter().map(convert::link_class_json).collect::<Vec<_>>()))
 }
 
 fn link(json: &str) -> JsResult<FederatedLink> {
@@ -698,21 +644,13 @@ fn link_implementations(links_json: &str) -> JsResult<LinkImplementations> {
 
 /// `extractLinkImplementations(...).resolveImportName(identity, name)`.
 #[wasm_bindgen]
-pub fn extract_link_resolve_import_name(
-    links_json: &str,
-    identity: &str,
-    name: &str,
-) -> JsResult<String> {
+pub fn extract_link_resolve_import_name(links_json: &str, identity: &str, name: &str) -> JsResult<String> {
     Ok(link_implementations(links_json)?.resolve_import_name(identity, name))
 }
 
 /// `extractLinkImplementations(...).matchesImplementation(identity, version)`.
 #[wasm_bindgen]
-pub fn extract_link_matches_implementation(
-    links_json: &str,
-    identity: &str,
-    version: &str,
-) -> JsResult<bool> {
+pub fn extract_link_matches_implementation(links_json: &str, identity: &str, version: &str) -> JsResult<bool> {
     let implementations = link_implementations(links_json)?;
     let version = match from_json::<LinkVersionIn>("version", version.as_bytes())? {
         LinkVersionIn::String { version } => LinkVersion::Str(version),

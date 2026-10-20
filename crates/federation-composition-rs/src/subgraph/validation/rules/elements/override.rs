@@ -1,11 +1,11 @@
 //! Port of `src/subgraph/validation/rules/elements/override.ts`.
 
-use graphql_rs::{Directive, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::graphql::printer::print;
 use crate::subgraph::helpers::validate_directive_against_original;
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use crate::utils::js::{parse_float, JsResult};
 use graphql_rs::Value;
+use graphql_rs::{Directive, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use super::{finish, is_interface_kind, is_object_kind, node_name};
 
@@ -32,7 +32,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for OverrideRules {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "override", cx),
             NodeRef::Directive(node) => directive(node, cx),
@@ -140,17 +145,19 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
     }
 
     if is_object_kind(type_def.kind()) {
-        context
-            .state_builder
-            .object_type()
-            .field()
-            .set_override(type_name, field_name, &from_value.value, label_value)?;
+        context.state_builder.object_type().field().set_override(
+            type_name,
+            field_name,
+            &from_value.value,
+            label_value,
+        )?;
     } else {
-        context
-            .state_builder
-            .interface_type()
-            .field()
-            .set_override(type_name, field_name, &from_value.value, label_value)?;
+        context.state_builder.interface_type().field().set_override(
+            type_name,
+            field_name,
+            &from_value.value,
+            label_value,
+        )?;
     }
 
     Ok(())
@@ -282,6 +289,8 @@ mod tests {
 
     #[test]
     fn non_string_values_are_invalid() {
-        assert!(!is_valid_label(&Value::Boolean(graphql_rs::BooleanValue { value: true })));
+        assert!(!is_valid_label(&Value::Boolean(graphql_rs::BooleanValue {
+            value: true
+        })));
     }
 }

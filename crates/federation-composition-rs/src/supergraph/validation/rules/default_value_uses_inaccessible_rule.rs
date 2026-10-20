@@ -1,15 +1,15 @@
 //! Port of `src/supergraph/validation/rules/default-value-uses-inaccessible-rule.ts`.
 
-use graphql_rs::GraphQLError;
+use crate::supergraph::composition::enum_type::EnumTypeState;
 use crate::supergraph::composition::input_object_type::{InputObjectTypeFieldState, InputObjectTypeState};
 use crate::supergraph::composition::object_type::{ObjectTypeFieldArgState, ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
+use crate::utils::collections::IndexMap;
 use crate::utils::js::JsResult;
 use crate::utils::state::strip_type_modifiers;
-use crate::utils::collections::IndexMap;
-use crate::supergraph::composition::enum_type::EnumTypeState;
+use graphql_rs::GraphQLError;
 
 /// `DefaultValueUsesInaccessibleRule(context, supergraph)`.
 /// Visitor callbacks: `InputObjectTypeField`, `ObjectTypeFieldArg`.

@@ -22,10 +22,7 @@ pub mod unique_type_names_rule;
 use crate::collections::IndexMap;
 
 /// graphql-js `groupBy(list, keyFn)` (an `AccumulatorMap`).
-pub(crate) fn group_by<'a, T>(
-    list: &'a [T],
-    key_fn: impl Fn(&'a T) -> &'a str,
-) -> IndexMap<&'a str, Vec<&'a T>> {
+pub(crate) fn group_by<'a, T>(list: &'a [T], key_fn: impl Fn(&'a T) -> &'a str) -> IndexMap<&'a str, Vec<&'a T>> {
     let mut result: IndexMap<&'a str, Vec<&'a T>> = IndexMap::default();
     for item in list {
         result.entry(key_fn(item)).or_default().push(item);

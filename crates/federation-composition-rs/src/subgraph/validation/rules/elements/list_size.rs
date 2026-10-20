@@ -1,11 +1,11 @@
 //! Port of `src/subgraph/validation/rules/elements/list-size.ts`.
 
-use graphql_rs::{Argument, Directive, GraphQLError, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 use crate::subgraph::helpers::{named_type_from_type_node, validate_directive_against_original};
 use crate::subgraph::state::{CostSpecDirective, ListSize};
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use crate::utils::js::{parse_int, JsError, JsResult};
 use graphql_rs::Type;
+use graphql_rs::{Argument, Directive, GraphQLError, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 
 use super::{find_annotated_node, finish, is_interface_kind, is_object_kind, node_name};
 
@@ -29,7 +29,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for ListSizeRule {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "listSize", cx),
             NodeRef::Directive(node) => directive(node, cx, info),
@@ -51,7 +56,11 @@ fn string_values(values: &[Value]) -> Option<Vec<String>> {
 }
 
 /// The `Directive(node, _key, _parent, paths, ancestors)` callback.
-fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> JsResult<()> {
+fn directive<'a>(
+    node: &'a Directive,
+    context: &mut SubgraphValidationContext<'a>,
+    info: &VisitInfo<'a, '_>,
+) -> JsResult<()> {
     if !context.is_available_federation_directive("listSize", &node.name.value) {
         return Ok(());
     }
@@ -336,7 +345,10 @@ mod tests {
             string_values(&[Value::string("a"), Value::string("b")]),
             Some(vec!["a".to_string(), "b".to_string()])
         );
-        assert_eq!(string_values(&[Value::string("a"), Value::Null(Default::default())]), None);
+        assert_eq!(
+            string_values(&[Value::string("a"), Value::Null(Default::default())]),
+            None
+        );
         assert_eq!(string_values(&[]), Some(vec![]));
     }
 }

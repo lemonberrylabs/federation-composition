@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/validation-context.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::utils::collections::IndexMap;
+use graphql_rs::GraphQLError;
 
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::{SubgraphStates, SupergraphState};

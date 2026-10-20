@@ -36,9 +36,7 @@ pub fn assert_name(name: &str) -> Result<&str, GraphQLError> {
 /// graphql-js `assertEnumValueName`.
 pub fn assert_enum_value_name(name: &str) -> Result<&str, GraphQLError> {
     if name == "true" || name == "false" || name == "null" {
-        return Err(GraphQLError::new(format!(
-            "Enum values cannot be named: {name}"
-        )));
+        return Err(GraphQLError::new(format!("Enum values cannot be named: {name}")));
     }
     assert_name(name)
 }

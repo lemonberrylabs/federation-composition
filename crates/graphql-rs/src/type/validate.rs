@@ -17,9 +17,9 @@ use crate::utilities::type_comparators::{is_equal_type, is_type_sub_type_of};
 use crate::utilities::validate_input_value::{validate_input_literal, validate_input_value};
 
 use super::definition::{
-    is_input_type, is_output_type, is_required_argument, is_required_input_field, DefaultInput,
-    GraphQLEnumType, GraphQLField, GraphQLInputObjectType, GraphQLInputValue, GraphQLNamedType,
-    GraphQLType, GraphQLUnionType, TypeLookup,
+    is_input_type, is_output_type, is_required_argument, is_required_input_field, DefaultInput, GraphQLEnumType,
+    GraphQLField, GraphQLInputObjectType, GraphQLInputValue, GraphQLNamedType, GraphQLType, GraphQLUnionType,
+    TypeLookup,
 };
 use super::introspection::is_introspection_type;
 use super::schema::GraphQLSchema;
@@ -83,28 +83,20 @@ fn validate_root_types(context: &mut SchemaValidationContext<'_>) {
                 let operation_type_str = capitalize(operation_type.as_str());
                 let root_type_str = root_type.name();
                 context.report_error(if operation_type == OperationType::Query {
-                    format!(
-                        "{operation_type_str} root type must be Object type, it cannot be {root_type_str}."
-                    )
+                    format!("{operation_type_str} root type must be Object type, it cannot be {root_type_str}.")
                 } else {
                     format!(
                         "{operation_type_str} root type must be Object type if provided, it cannot be {root_type_str}."
                     )
                 });
             } else {
-                root_types_map
-                    .entry(root_type.name())
-                    .or_default()
-                    .push(operation_type);
+                root_types_map.entry(root_type.name()).or_default().push(operation_type);
             }
         }
     }
     for (root_type, operation_types) in root_types_map {
         if operation_types.len() > 1 {
-            let operations: Vec<String> = operation_types
-                .iter()
-                .map(|o| o.as_str().to_string())
-                .collect();
+            let operations: Vec<String> = operation_types.iter().map(|o| o.as_str().to_string()).collect();
             let operation_list = and_list(&operations);
             context.report_error(format!(
                 "All root types must be different, \"{root_type}\" type is used as {operation_list} root types."
@@ -120,17 +112,12 @@ fn validate_directives(context: &mut SchemaValidationContext<'_>) {
         // `isDirective` check never fails.
         validate_name(context, &directive.name);
         if directive.locations.is_empty() {
-            context.report_error(format!(
-                "Directive {directive} must include 1 or more locations."
-            ));
+            context.report_error(format!("Directive {directive} must include 1 or more locations."));
         }
         for arg in &directive.args {
             validate_name(context, &arg.name);
             if !is_input_type(schema, &arg.ty) {
-                context.report_error(format!(
-                    "The type of {arg} must be Input Type but got: {}.",
-                    arg.ty
-                ));
+                context.report_error(format!("The type of {arg} must be Input Type but got: {}.", arg.ty));
             }
             if is_required_argument(arg) && arg.deprecation_reason.is_some() {
                 context.report_error(format!("Required argument {arg} cannot be deprecated."));
@@ -140,10 +127,7 @@ fn validate_directives(context: &mut SchemaValidationContext<'_>) {
     }
 }
 
-fn validate_default_value(
-    context: &mut SchemaValidationContext<'_>,
-    input_value: &dyn GraphQLInputValue,
-) {
+fn validate_default_value(context: &mut SchemaValidationContext<'_>, input_value: &dyn GraphQLInputValue) {
     let Some(default_input) = input_value.default_input() else {
         return;
     };
@@ -185,9 +169,7 @@ pub fn validate_default_input(
         DefaultInput::Literal(literal) => {
             validate_input_literal(literal, input_type, on_error, hide_suggestions, types)
         }
-        DefaultInput::Value(value) => {
-            validate_input_value(Some(value), input_type, on_error, hide_suggestions, types)
-        }
+        DefaultInput::Value(value) => validate_input_value(Some(value), input_type, on_error, hide_suggestions, types),
     }
 }
 
@@ -212,8 +194,7 @@ struct FiniteValueState<'s> {
 
 fn validate_types(context: &mut SchemaValidationContext<'_>) -> Result<(), GraphQLError> {
     let schema = context.schema;
-    let mut validate_input_object_default_value_circular_refs =
-        InputObjectDefaultValueCircularRefsValidator::default();
+    let mut validate_input_object_default_value_circular_refs = InputObjectDefaultValueCircularRefsValidator::default();
     let type_map = schema.get_type_map();
     let mut finite_value_states: IndexMap<&str, FiniteValueState<'_>> = IndexMap::default();
     for named_type in type_map.values() {
@@ -227,12 +208,7 @@ fn validate_types(context: &mut SchemaValidationContext<'_>) -> Result<(), Graph
             }
             GraphQLNamedType::Interface(interface) => {
                 validate_fields(context, &interface.name, interface.fields());
-                validate_interfaces(
-                    context,
-                    named_type,
-                    interface.interfaces(),
-                    interface.fields(),
-                );
+                validate_interfaces(context, named_type, interface.interfaces(), interface.fields());
             }
             GraphQLNamedType::Union(union) => validate_union_members(context, union),
             GraphQLNamedType::Enum(enum_type) => validate_enum_values(context, enum_type)?,
@@ -277,10 +253,7 @@ fn validate_fields(
         for arg in &field.args {
             validate_name(context, &arg.name);
             if !is_input_type(schema, &arg.ty) {
-                context.report_error(format!(
-                    "The type of {arg} must be Input Type but got: {}.",
-                    arg.ty
-                ));
+                context.report_error(format!("The type of {arg} must be Input Type but got: {}.", arg.ty));
             }
             if is_required_argument(arg) && arg.deprecation_reason.is_some() {
                 context.report_error(format!("Required argument {arg} cannot be deprecated."));
@@ -291,9 +264,7 @@ fn validate_fields(
 }
 
 /// The `getInterfaces()` and `getFields()` of an object or interface type.
-fn interfaces_and_fields(
-    named_type: &GraphQLNamedType,
-) -> Option<(&[String], &IndexMap<String, GraphQLField>)> {
+fn interfaces_and_fields(named_type: &GraphQLNamedType) -> Option<(&[String], &IndexMap<String, GraphQLField>)> {
     match named_type {
         GraphQLNamedType::Object(t) => Some((t.interfaces(), t.fields())),
         GraphQLNamedType::Interface(t) => Some((t.interfaces(), t.fields())),
@@ -310,9 +281,7 @@ fn validate_interfaces(
     let schema = context.schema;
     let mut iface_type_names: IndexSet<&str> = IndexSet::default();
     for iface_name in interfaces {
-        let iface = schema
-            .get_type(iface_name)
-            .expect("interfaces are in the type map");
+        let iface = schema.get_type(iface_name).expect("interfaces are in the type map");
         if !iface.is_interface_type() {
             context.report_error(format!(
                 "Type {named_type} must only implement Interface types, it cannot implement {iface}."
@@ -326,9 +295,7 @@ fn validate_interfaces(
             continue;
         }
         if iface_type_names.contains(iface.name()) {
-            context.report_error(format!(
-                "Type {named_type} can only implement {iface} once."
-            ));
+            context.report_error(format!("Type {named_type} can only implement {iface} once."));
             continue;
         }
         iface_type_names.insert(iface.name());
@@ -359,11 +326,7 @@ fn validate_type_implements_interface(
             ));
         }
         for iface_arg in &iface_field.args {
-            let Some(type_arg) = type_field
-                .args
-                .iter()
-                .find(|arg| arg.name == iface_arg.name)
-            else {
+            let Some(type_arg) = type_field.args.iter().find(|arg| arg.name == iface_arg.name) else {
                 context.report_error(format!(
                     "Interface field argument {iface_arg} expected but {type_field} does not provide it."
                 ));
@@ -378,10 +341,7 @@ fn validate_type_implements_interface(
         }
         for type_arg in &type_field.args {
             if is_required_argument(type_arg) {
-                let iface_arg = iface_field
-                    .args
-                    .iter()
-                    .find(|arg| arg.name == type_arg.name);
+                let iface_arg = iface_field.args.iter().find(|arg| arg.name == type_arg.name);
                 if iface_arg.is_none() {
                     context.report_error(format!(
                         "Argument \"{type_arg}\" must not be required type \"{}\" if not provided by the Interface field \"{iface_field}\".",
@@ -412,13 +372,9 @@ fn validate_type_implements_ancestors(
     for transitive in transitives {
         if !iface_interfaces.contains(transitive) {
             context.report_error(if transitive == named_type.name() {
-                format!(
-                    "Type {named_type} cannot implement {iface} because it would create a circular reference."
-                )
+                format!("Type {named_type} cannot implement {iface} because it would create a circular reference.")
             } else {
-                format!(
-                    "Type {named_type} must implement {transitive} because it is implemented by {iface}."
-                )
+                format!("Type {named_type} must implement {transitive} because it is implemented by {iface}.")
             });
         }
     }
@@ -461,10 +417,7 @@ fn validate_enum_values(
 ) -> Result<(), GraphQLError> {
     let enum_values = enum_type.get_values()?;
     if enum_values.is_empty() {
-        context.report_error(format!(
-            "Enum type {} must define one or more values.",
-            enum_type.name
-        ));
+        context.report_error(format!("Enum type {} must define one or more values.", enum_type.name));
     }
     for enum_value in enum_values {
         validate_name(context, &enum_value.name);
@@ -472,10 +425,7 @@ fn validate_enum_values(
     Ok(())
 }
 
-fn validate_input_fields(
-    context: &mut SchemaValidationContext<'_>,
-    input_obj: &GraphQLInputObjectType,
-) {
+fn validate_input_fields(context: &mut SchemaValidationContext<'_>, input_obj: &GraphQLInputObjectType) {
     let schema = context.schema;
     let fields = input_obj.fields();
     if fields.is_empty() {
@@ -487,15 +437,10 @@ fn validate_input_fields(
     for field in fields.values() {
         validate_name(context, &field.name);
         if !is_input_type(schema, &field.ty) {
-            context.report_error(format!(
-                "The type of {field} must be Input Type but got: {}.",
-                field.ty
-            ));
+            context.report_error(format!("The type of {field} must be Input Type but got: {}.", field.ty));
         }
         if is_required_input_field(field) && field.deprecation_reason.is_some() {
-            context.report_error(format!(
-                "Required input field {field} cannot be deprecated."
-            ));
+            context.report_error(format!("Required input field {field} cannot be deprecated."));
         }
         validate_default_value(context, field);
         if input_obj.is_one_of {
@@ -547,9 +492,7 @@ fn detect_input_object_non_finite_values<'s>(
             let Some(target) = get_finite_value_target(schema, input_obj, &field.ty) else {
                 continue;
             };
-            finite_value_states[index]
-                .targets
-                .push((field.name.as_str(), target));
+            finite_value_states[index].targets.push((field.name.as_str(), target));
             if let Some(target_state) = finite_value_states.get_mut(target) {
                 target_state.dependents.push(index);
             }
@@ -575,9 +518,7 @@ fn detect_input_object_non_finite_values<'s>(
         }
     }
     while let Some(next_finite_value_state) = input_objects_with_finite_values.pop() {
-        let dependents = finite_value_states[next_finite_value_state]
-            .dependents
-            .clone();
+        let dependents = finite_value_states[next_finite_value_state].dependents.clone();
         for dependent_state in dependents {
             if finite_value_states[dependent_state].has_finite_value {
                 continue;
@@ -636,8 +577,7 @@ impl<'s> CycleReporter<'_, 's> {
             return;
         }
         self.visited_types.insert(name);
-        self.field_path_index_by_type
-            .insert(name, self.field_path.len());
+        self.field_path_index_by_type.insert(name, self.field_path.len());
         for &(field_name, target) in &state.targets {
             let Some(target_index) = self.states.get_index_of(target) else {
                 continue;
@@ -704,16 +644,8 @@ struct InputObjectDefaultValueCircularRefsValidator {
 }
 
 impl InputObjectDefaultValueCircularRefsValidator {
-    fn validate(
-        &mut self,
-        context: &mut SchemaValidationContext<'_>,
-        input_obj: &GraphQLInputObjectType,
-    ) {
-        self.detect_value_default_value_cycle(
-            context,
-            input_obj,
-            &JsValue::Object(IndexMap::default()),
-        );
+    fn validate(&mut self, context: &mut SchemaValidationContext<'_>, input_obj: &GraphQLInputObjectType) {
+        self.detect_value_default_value_cycle(context, input_obj, &JsValue::Object(IndexMap::default()));
     }
 
     fn input_object_of<'s>(
@@ -747,9 +679,7 @@ impl InputObjectDefaultValueCircularRefsValidator {
                 continue;
             };
             match object.get(&field.name) {
-                Some(field_value) => {
-                    self.detect_value_default_value_cycle(context, named_field_type, field_value)
-                }
+                Some(field_value) => self.detect_value_default_value_cycle(context, named_field_type, field_value),
                 None => self.detect_field_default_value_cycle(
                     context,
                     field,
@@ -786,11 +716,9 @@ impl InputObjectDefaultValueCircularRefsValidator {
                 continue;
             };
             match field_nodes.get(field.name.as_str()) {
-                Some(field_node) => self.detect_literal_default_value_cycle(
-                    context,
-                    named_field_type,
-                    &field_node.value,
-                ),
+                Some(field_node) => {
+                    self.detect_literal_default_value_cycle(context, named_field_type, &field_node.value)
+                }
                 None => self.detect_field_default_value_cycle(
                     context,
                     field,
@@ -828,15 +756,10 @@ impl InputObjectDefaultValueCircularRefsValidator {
         if !self.visited_fields.contains(&field_str) {
             self.visited_fields.insert(field_str.clone());
             self.field_path.push(field_str.clone());
-            self.field_path_index
-                .insert(field_str.clone(), self.field_path.len());
+            self.field_path_index.insert(field_str.clone(), self.field_path.len());
             match default_input {
-                DefaultInput::Literal(literal) => {
-                    self.detect_literal_default_value_cycle(context, field_type, literal)
-                }
-                DefaultInput::Value(value) => {
-                    self.detect_value_default_value_cycle(context, field_type, value)
-                }
+                DefaultInput::Literal(literal) => self.detect_literal_default_value_cycle(context, field_type, literal),
+                DefaultInput::Value(value) => self.detect_value_default_value_cycle(context, field_type, value),
             }
             self.field_path.pop();
             // `fieldPathIndex[fieldStr] = undefined`.

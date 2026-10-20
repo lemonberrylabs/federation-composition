@@ -7,7 +7,7 @@
 //! are of `slicingArguments.length` being non-zero, and a replacement list is never empty
 //! (an empty one is an error instead of a write).
 
-use graphql_rs::GraphQLError;
+use crate::subgraph::state::ListSize;
 use crate::supergraph::composition::interface_type::{InterfaceTypeFieldState, InterfaceTypeState};
 use crate::supergraph::composition::object_type::{ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
@@ -16,7 +16,7 @@ use crate::supergraph::validation::validation_context::{
     SupergraphRule, SupergraphStateUpdate, SupergraphValidationContext,
 };
 use crate::utils::js::{JsError, JsResult};
-use crate::subgraph::state::ListSize;
+use graphql_rs::GraphQLError;
 
 /// `ListSizeSlicingArgumentsRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeField`, `InterfaceTypeField`.
@@ -219,14 +219,8 @@ mod tests {
     #[test]
     fn keeps_arguments_defined_in_every_graph_of_the_field() {
         let ls = list_size(Some(&["first", "last"]));
-        let r = ensure_slicing_arguments_exist(
-            "T",
-            "f",
-            Some(&ls),
-            |a| Some(if a == "first" { 2 } else { 1 }),
-            2,
-        )
-        .unwrap();
+        let r =
+            ensure_slicing_arguments_exist("T", "f", Some(&ls), |a| Some(if a == "first" { 2 } else { 1 }), 2).unwrap();
         match r {
             SlicingArgumentsCheck::Replace(args) => assert_eq!(args, vec!["first".to_string()]),
             other => panic!("unexpected {other:?}"),

@@ -1,12 +1,12 @@
 //! Port of `src/supergraph/validation/rules/referenced-inaccessible-rule.ts`.
 
-use graphql_rs::GraphQLError;
+use super::fields_of_the_same_type_rule::strip_all_modifiers;
 use crate::supergraph::composition::object_type::{ObjectTypeFieldArgState, ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
-use super::fields_of_the_same_type_rule::strip_all_modifiers;
+use graphql_rs::GraphQLError;
 
 /// `ReferencedInaccessibleRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeField`, `ObjectTypeFieldArg`.
@@ -92,19 +92,29 @@ struct FoundType {
 /// `enumTypes || objectTypes || interfaceTypes || unionTypes || scalarTypes`.
 fn find_output_type(supergraph: &SupergraphState, type_name: &str) -> Option<FoundType> {
     if let Some(t) = supergraph.enum_types.get(type_name) {
-        return Some(FoundType { inaccessible: t.inaccessible });
+        return Some(FoundType {
+            inaccessible: t.inaccessible,
+        });
     }
     if let Some(t) = supergraph.object_types.get(type_name) {
-        return Some(FoundType { inaccessible: t.inaccessible });
+        return Some(FoundType {
+            inaccessible: t.inaccessible,
+        });
     }
     if let Some(t) = supergraph.interface_types.get(type_name) {
-        return Some(FoundType { inaccessible: t.inaccessible });
+        return Some(FoundType {
+            inaccessible: t.inaccessible,
+        });
     }
     if let Some(t) = supergraph.union_types.get(type_name) {
-        return Some(FoundType { inaccessible: t.inaccessible });
+        return Some(FoundType {
+            inaccessible: t.inaccessible,
+        });
     }
     if let Some(t) = supergraph.scalar_types.get(type_name) {
-        return Some(FoundType { inaccessible: t.inaccessible });
+        return Some(FoundType {
+            inaccessible: t.inaccessible,
+        });
     }
     None
 }
@@ -112,10 +122,14 @@ fn find_output_type(supergraph: &SupergraphState, type_name: &str) -> Option<Fou
 /// `enumTypes || inputObjectTypes`.
 fn find_input_type(supergraph: &SupergraphState, type_name: &str) -> Option<FoundType> {
     if let Some(t) = supergraph.enum_types.get(type_name) {
-        return Some(FoundType { inaccessible: t.inaccessible });
+        return Some(FoundType {
+            inaccessible: t.inaccessible,
+        });
     }
     if let Some(t) = supergraph.input_object_types.get(type_name) {
-        return Some(FoundType { inaccessible: t.inaccessible });
+        return Some(FoundType {
+            inaccessible: t.inaccessible,
+        });
     }
     None
 }

@@ -1,9 +1,9 @@
 //! Port of `src/supergraph/validation/rules/types-of-the-same-kind-rule.ts`.
 
-use graphql_rs::GraphQLError;
+use crate::subgraph::state::{SubgraphType, TypeKind};
 use crate::supergraph::validation::validation_context::SupergraphValidationContext;
 use crate::utils::collections::{IndexMap, IndexSet};
-use crate::subgraph::state::{SubgraphType, TypeKind};
+use graphql_rs::GraphQLError;
 
 /// `TypesOfTheSameKindRule(context)`: a pre-supergraph rule (runs before the subgraphs are merged).
 pub fn types_of_the_same_kind_rule(context: &mut SupergraphValidationContext) {

@@ -29,7 +29,12 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for ProvidedArgumentsOnDirecti
     }
 
     // Validate on leave to allow for deeper errors to appear first.
-    fn leave(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn leave(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let NodeRef::Directive(directive_node) = node else {
             return VisitAction::Continue;
         };

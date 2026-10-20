@@ -2,8 +2,8 @@
 
 use std::rc::Rc;
 
-use graphql_rs::{Definition, Document, GraphQLError};
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::{Definition, Document, GraphQLError};
 
 use crate::graphql::helpers::move_schema_and_directive_definitions_to_top;
 use crate::specifications::federation::{detect_federation_version, DetectedFederation, FederationVersion};
@@ -273,17 +273,15 @@ fn validate_subgraphs(
     // Validate each subgraph
     let mut subgraph_errors: Vec<GraphQLError> = Vec::new();
     for graph in graphs.iter_mut() {
-        let GraphListEntry { id, name, type_defs, .. } = graph;
+        let GraphListEntry {
+            id, name, type_defs, ..
+        } = graph;
         let builder = subgraph_state_builders
             .get_mut(id.as_str())
             .expect("a state builder exists for every graph");
         let federation = &detected_federation_spec[id.as_str()];
         subgraph_errors.extend(internal_validate_subgraph(
-            SubgraphInput {
-                name,
-                id,
-                type_defs,
-            },
+            SubgraphInput { name, id, type_defs },
             builder,
             federation,
             internal,
@@ -323,7 +321,10 @@ pub enum ValidationResult {
 }
 
 /// `validate(subgraphs, __internal?)`.
-pub fn validate(subgraphs: &[SubgraphInputDefinition], internal: Option<&InternalOptions>) -> JsResult<ValidationResult> {
+pub fn validate(
+    subgraphs: &[SubgraphInputDefinition],
+    internal: Option<&InternalOptions>,
+) -> JsResult<ValidationResult> {
     let ValidatedSubgraphs {
         subgraph_errors,
         detected_federation_spec,
@@ -349,9 +350,9 @@ pub fn validate(subgraphs: &[SubgraphInputDefinition], internal: Option<&Interna
         .map(|(id, builder)| {
             (
                 id,
-                Rc::new(clean_subgraph_state_from_federation_spec(clean_subgraph_state_from_link_spec(
-                    builder.into_state(),
-                ))),
+                Rc::new(clean_subgraph_state_from_federation_spec(
+                    clean_subgraph_state_from_link_spec(builder.into_state()),
+                )),
             )
         })
         .collect();
@@ -466,7 +467,13 @@ mod tests {
         );
         assert_eq!(
             graph_ids(&["a", "A", "a-", "b_c", "bC"]),
-            pairs(&[("a-", "A_"), ("a", "A_1"), ("A", "A_2"), ("b_c", "B_C_1"), ("bC", "B_C_2")])
+            pairs(&[
+                ("a-", "A_"),
+                ("a", "A_1"),
+                ("A", "A_2"),
+                ("b_c", "B_C_1"),
+                ("bC", "B_C_2")
+            ])
         );
     }
 

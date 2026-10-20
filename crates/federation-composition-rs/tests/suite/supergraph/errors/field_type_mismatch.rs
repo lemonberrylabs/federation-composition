@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn field_type_mismatch(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
             
@@ -55,7 +55,7 @@ test_versions! {
         );
 
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("auth", graphql!(r#"
             type User @key(fields: "id") {
               id: ID!
@@ -219,7 +219,7 @@ test_versions! {
         ]));
 
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("foo", graphql!(r#"
           extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@shareable"])
           

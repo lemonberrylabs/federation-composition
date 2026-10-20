@@ -2,11 +2,11 @@
 
 use std::rc::Rc;
 
+use crate::utils::collections::IndexMap;
 use graphql_rs::{
     Argument, Definition, Directive as DirectiveNode, DirectiveDefinition, FieldDefinition, GraphQLError,
     InputValueDefinition, Kind, Name, NamedType, Selection, SelectionSet, StringValue, Type, Value,
 };
-use crate::utils::collections::IndexMap;
 
 use crate::graphql::printer::print;
 use crate::subgraph::validation::validation_context::{MarkAsUsedReason, SubgraphValidationContext};
@@ -33,7 +33,9 @@ pub fn validate_directive_against_original(
         .cloned();
 
     let Some(federation_directive) = federation_directive else {
-        return Err(JsError::error(format!("Federation directive @{directive_name} not found")));
+        return Err(JsError::error(format!(
+            "Federation directive @{directive_name} not found"
+        )));
     };
 
     let mut errors: Vec<GraphQLError> = Vec::new();
@@ -44,14 +46,21 @@ pub fn validate_directive_against_original(
         .iter()
         .map(|arg| (arg.name.value.as_str(), arg))
         .collect();
-    let original_locations: Vec<&str> = federation_directive.locations.iter().map(|loc| loc.value.as_str()).collect();
+    let original_locations: Vec<&str> = federation_directive
+        .locations
+        .iter()
+        .map(|loc| loc.value.as_str())
+        .collect();
     let provided_args: IndexMap<&str, &InputValueDefinition> = provided_directive_node
         .arguments
         .iter()
         .map(|arg| (arg.name.value.as_str(), arg))
         .collect();
-    let provided_locations: Vec<&str> =
-        provided_directive_node.locations.iter().map(|loc| loc.value.as_str()).collect();
+    let provided_locations: Vec<&str> = provided_directive_node
+        .locations
+        .iter()
+        .map(|loc| loc.value.as_str())
+        .collect();
 
     for (arg_name, arg_def) in original_args.iter() {
         let provided_arg_node = provided_args.get(arg_name).copied();
@@ -138,8 +147,11 @@ pub fn validate_directive_against_original(
     }
 
     // Compares locations
-    let location_intersection: Vec<&str> =
-        provided_locations.iter().copied().filter(|loc| original_locations.contains(loc)).collect();
+    let location_intersection: Vec<&str> = provided_locations
+        .iter()
+        .copied()
+        .filter(|loc| original_locations.contains(loc))
+        .collect();
 
     if location_intersection.is_empty() {
         errors.push(GraphQLError::with_code(
@@ -223,7 +235,11 @@ pub struct Intercepts {
 /// local struct implementing this trait, and gets the context as a parameter.
 /// Only the methods named in the `Intercepts` passed to `visit_fields` are called.
 pub trait VisitFieldsInterceptor<'a> {
-    fn intercept_field(&mut self, _context: &mut SubgraphValidationContext<'a>, _info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_field(
+        &mut self,
+        _context: &mut SubgraphValidationContext<'a>,
+        _info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         Ok(())
     }
     fn intercept_field_with_missing_selection_set(
@@ -233,19 +249,39 @@ pub trait VisitFieldsInterceptor<'a> {
     ) -> JsResult<()> {
         Ok(())
     }
-    fn intercept_arguments(&mut self, _context: &mut SubgraphValidationContext<'a>, _info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_arguments(
+        &mut self,
+        _context: &mut SubgraphValidationContext<'a>,
+        _info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         Ok(())
     }
-    fn intercept_unknown_field(&mut self, _context: &mut SubgraphValidationContext<'a>, _info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_unknown_field(
+        &mut self,
+        _context: &mut SubgraphValidationContext<'a>,
+        _info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         Ok(())
     }
-    fn intercept_directive(&mut self, _context: &mut SubgraphValidationContext<'a>, _info: &InterceptDirectiveInfo) -> JsResult<()> {
+    fn intercept_directive(
+        &mut self,
+        _context: &mut SubgraphValidationContext<'a>,
+        _info: &InterceptDirectiveInfo,
+    ) -> JsResult<()> {
         Ok(())
     }
-    fn intercept_interface_type(&mut self, _context: &mut SubgraphValidationContext<'a>, _info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_interface_type(
+        &mut self,
+        _context: &mut SubgraphValidationContext<'a>,
+        _info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         Ok(())
     }
-    fn intercept_external_field(&mut self, _context: &mut SubgraphValidationContext<'a>, _info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_external_field(
+        &mut self,
+        _context: &mut SubgraphValidationContext<'a>,
+        _info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         Ok(())
     }
     fn intercept_non_external_field(
@@ -279,8 +315,10 @@ pub fn visit_fields<'a>(
                 };
 
                 let interface_name = &type_condition.name.value;
-                let Some(interface_definition) =
-                    context.get_subgraph_object_or_interface_types().get(interface_name).cloned()
+                let Some(interface_definition) = context
+                    .get_subgraph_object_or_interface_types()
+                    .get(interface_name)
+                    .cloned()
                 else {
                     continue;
                 };
@@ -311,7 +349,11 @@ pub fn visit_fields<'a>(
             };
             &typename_field_def
         } else {
-            match type_definition.fields.iter().find(|field| field.name.value == selection.name.value) {
+            match type_definition
+                .fields
+                .iter()
+                .find(|field| field.name.value == selection.name.value)
+            {
                 Some(field) => field,
                 None => {
                     if intercepts.unknown_field {
@@ -332,7 +374,9 @@ pub fn visit_fields<'a>(
 
         if !is_typename && intercepts.directive && !selection.directives.is_empty() {
             for directive in &selection.directives {
-                let is_known = context.get_subgraph_directive_definitions().contains_key(&directive.name.value);
+                let is_known = context
+                    .get_subgraph_directive_definitions()
+                    .contains_key(&directive.name.value);
                 interceptor.intercept_directive(
                     context,
                     &InterceptDirectiveInfo {
@@ -385,7 +429,11 @@ pub fn visit_fields<'a>(
             let field_name = &selection.name.value;
 
             // ignore if it's not a leaf
-            let Some(field_def) = type_definition.fields.iter().find(|field| &field.name.value == field_name) else {
+            let Some(field_def) = type_definition
+                .fields
+                .iter()
+                .find(|field| &field.name.value == field_name)
+            else {
                 continue;
             };
 
@@ -467,7 +515,10 @@ pub fn visit_fields<'a>(
 
         let output_type = &named_type_from_type_node(&selection_field_def.ty).name.value;
         // This does not return a type definition for union fields.
-        let inner_type_def = context.get_subgraph_object_or_interface_types().get(output_type).cloned();
+        let inner_type_def = context
+            .get_subgraph_object_or_interface_types()
+            .get(output_type)
+            .cloned();
 
         let Some(inner_type_def) = inner_type_def else {
             // In case it is a union type we need to process the selection for each union member
@@ -535,10 +586,7 @@ fn is_js_whitespace(c: char) -> bool {
             | '\u{2028}'
             | '\u{2029}'
             | '\u{1680}'
-            | '\u{2000}'..='\u{200A}'
-            | '\u{202F}'
-            | '\u{205F}'
-            | '\u{3000}'
+            | '\u{2000}'..='\u{200A}' | '\u{202F}' | '\u{205F}' | '\u{3000}'
     )
 }
 

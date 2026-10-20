@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-enum-value-names-rule.ts`.
 
-use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_rs::EnumValueDefinition;
@@ -29,7 +29,12 @@ impl<'a> SimpleRule<'a> for UniqueEnumValueNamesRule {
 
 impl<'a> UniqueEnumValueNamesVisitor<'a> {
     /// `checkValueUniqueness(node)` for an enum definition or extension (its `name` and `values`).
-    fn check_value_uniqueness(&mut self, context: &mut SimpleValidationContext<'_>, type_name: &'a str, values: &'a [EnumValueDefinition]) {
+    fn check_value_uniqueness(
+        &mut self,
+        context: &mut SimpleValidationContext<'_>,
+        type_name: &'a str,
+        values: &'a [EnumValueDefinition],
+    ) {
         let value_names = self.known_value_names.entry(type_name).or_default();
 
         for value_def in values {
@@ -54,7 +59,12 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueEnumValueNamesVisito
         VisitKinds::enter(&[Kind::EnumTypeDefinition, Kind::EnumTypeExtension])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         match node {
             NodeRef::EnumTypeDefinition(n) => self.check_value_uniqueness(cx, &n.name.value, &n.values),
             NodeRef::EnumTypeExtension(n) => self.check_value_uniqueness(cx, &n.name.value, &n.values),

@@ -5,9 +5,7 @@ use crate::collections::IndexSet;
 use crate::error::GraphQLError;
 use crate::jsutils::did_you_mean::did_you_mean;
 use crate::jsutils::suggestion_list::suggestion_list;
-use crate::predicates::{
-    is_type_definition_node, is_type_system_definition_node, is_type_system_extension_node,
-};
+use crate::predicates::{is_type_definition_node, is_type_system_definition_node, is_type_system_extension_node};
 use crate::r#type::scalars::SPECIFIED_SCALAR_TYPE_NAMES;
 use crate::specified::INTROSPECTION_TYPE_NAMES;
 use crate::validation::validation_context::SDLValidationContext;
@@ -26,12 +24,7 @@ impl<'a> KnownTypeNamesRule<'a> {
         let type_names = definitions
             .iter()
             .filter(|def| is_type_definition_node(*def))
-            .map(|def| {
-                def.name()
-                    .expect("type definitions have a name")
-                    .value
-                    .as_str()
-            })
+            .map(|def| def.name().expect("type definitions have a name").value.as_str())
             .collect();
         KnownTypeNamesRule { type_names }
     }
@@ -48,9 +41,7 @@ fn standard_type_names() -> impl Iterator<Item = &'static str> {
 /// graphql-js `isSDLNode`: a node (not a list) of a type system kind.
 fn is_sdl_node(value: Ancestor<'_>) -> bool {
     match value {
-        Ancestor::Node(node) => {
-            is_type_system_definition_node(node) || is_type_system_extension_node(node)
-        }
+        Ancestor::Node(node) => is_type_system_definition_node(node) || is_type_system_extension_node(node),
         Ancestor::List(_) => false,
     }
 }

@@ -23,10 +23,7 @@ impl GraphQLError {
         }
     }
 
-    pub fn with_extensions(
-        message: impl Into<String>,
-        extensions: IndexMap<String, serde_json::Value>,
-    ) -> Self {
+    pub fn with_extensions(message: impl Into<String>, extensions: IndexMap<String, serde_json::Value>) -> Self {
         GraphQLError {
             message: message.into(),
             extensions,

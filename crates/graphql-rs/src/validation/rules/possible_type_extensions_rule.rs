@@ -20,24 +20,14 @@ impl<'a> PossibleTypeExtensionsRule<'a> {
         let mut defined_types = IndexMap::default();
         for def in &context.get_document().definitions {
             if is_type_definition_node(def) {
-                defined_types.insert(
-                    def.name()
-                        .expect("type definitions have a name")
-                        .value
-                        .as_str(),
-                    def,
-                );
+                defined_types.insert(def.name().expect("type definitions have a name").value.as_str(), def);
             }
         }
         PossibleTypeExtensionsRule { defined_types }
     }
 
     fn check_extension(&mut self, context: &mut SDLValidationContext<'a>, node: NodeRef<'a>) {
-        let type_name = node
-            .name()
-            .expect("type extensions have a name")
-            .value
-            .as_str();
+        let type_name = node.name().expect("type extensions have a name").value.as_str();
         let def_node = self.defined_types.get(type_name);
         // NOTE(port): no schema, so no existing type.
         match def_node {

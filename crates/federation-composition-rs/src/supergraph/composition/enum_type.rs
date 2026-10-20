@@ -1,15 +1,15 @@
 //! Port of `src/supergraph/composition/enum-type.ts`.
 
-use graphql_rs::Definition;
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::Definition;
 
 use super::ast::{create_enum_type_node, CostAst, EnumTypeAst, EnumValueAst, JoinAst, JoinEnumValueAst, JoinTypeAst};
 use super::common::{convert_to_const, get_or_insert_with, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
-use crate::utils::auth::merge_scope_policies;
-use crate::utils::helpers::{ensure_value, math_max};
 use crate::specifications::federation::FederationVersion;
 use crate::subgraph::state::{Ast, Deprecated, Description, EnumType};
 use crate::supergraph::state::SubgraphStates;
+use crate::utils::auth::merge_scope_policies;
+use crate::utils::helpers::{ensure_value, math_max};
 use crate::utils::js::JsResult;
 
 /// `enumTypeBuilder()`.
@@ -288,7 +288,10 @@ pub struct EnumValueStateInGraph {
     pub version: FederationVersion,
 }
 
-fn get_or_create_enum_type<'s>(state: &'s mut IndexMap<String, EnumTypeState>, type_name: &str) -> &'s mut EnumTypeState {
+fn get_or_create_enum_type<'s>(
+    state: &'s mut IndexMap<String, EnumTypeState>,
+    type_name: &str,
+) -> &'s mut EnumTypeState {
     get_or_insert_with(state, type_name, || EnumTypeState {
         name: type_name.to_string(),
         values: IndexMap::default(),
@@ -309,7 +312,10 @@ fn get_or_create_enum_type<'s>(state: &'s mut IndexMap<String, EnumTypeState>, t
     })
 }
 
-fn get_or_create_enum_value<'s>(enum_type_state: &'s mut EnumTypeState, enum_value_name: &str) -> &'s mut EnumValueState {
+fn get_or_create_enum_value<'s>(
+    enum_type_state: &'s mut EnumTypeState,
+    enum_value_name: &str,
+) -> &'s mut EnumValueState {
     get_or_insert_with(&mut enum_type_state.values, enum_value_name, || EnumValueState {
         name: enum_value_name.to_string(),
         tags: IndexSet::default(),
@@ -386,7 +392,10 @@ mod tests {
     fn merge_strategy() {
         assert_eq!(decide_on_enum_merge_strategy(true, true), EnumMergeStrategy::Equal);
         assert_eq!(decide_on_enum_merge_strategy(false, false), EnumMergeStrategy::Equal);
-        assert_eq!(decide_on_enum_merge_strategy(true, false), EnumMergeStrategy::Intersection);
+        assert_eq!(
+            decide_on_enum_merge_strategy(true, false),
+            EnumMergeStrategy::Intersection
+        );
         assert_eq!(decide_on_enum_merge_strategy(false, true), EnumMergeStrategy::Union);
     }
 

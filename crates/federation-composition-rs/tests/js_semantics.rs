@@ -25,7 +25,13 @@ fn locale_compare_matches_node() {
             mismatches.push(format!("{a:?} vs {b:?}: node {expected:?}"));
         }
     }
-    assert!(mismatches.is_empty(), "{} of {} pairs differ:\n{}", mismatches.len(), pairs.len(), mismatches[..mismatches.len().min(20)].join("\n"));
+    assert!(
+        mismatches.is_empty(),
+        "{} of {} pairs differ:\n{}",
+        mismatches.len(),
+        pairs.len(),
+        mismatches[..mismatches.len().min(20)].join("\n")
+    );
 }
 
 #[test]

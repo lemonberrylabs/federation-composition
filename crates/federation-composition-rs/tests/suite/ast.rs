@@ -17,15 +17,26 @@ fn create_directive(name: &str) -> ConstDirective {
 }
 
 fn join_type(graph: &str) -> JoinTypeAst {
-    JoinTypeAst { graph: graph.into(), ..Default::default() }
+    JoinTypeAst {
+        graph: graph.into(),
+        ..Default::default()
+    }
 }
 
 fn join_type_with_key(graph: &str, key: &str) -> JoinTypeAst {
-    JoinTypeAst { graph: graph.into(), key: Some(key.into()), ..Default::default() }
+    JoinTypeAst {
+        graph: graph.into(),
+        key: Some(key.into()),
+        ..Default::default()
+    }
 }
 
 fn field(name: &str, ty: &str) -> FieldAst {
-    FieldAst { name: name.into(), r#type: ty.into(), ..Default::default() }
+    FieldAst {
+        name: name.into(),
+        r#type: ty.into(),
+        ..Default::default()
+    }
 }
 
 fn object(object_type: ObjectTypeAst) -> Definition {
@@ -64,7 +75,10 @@ mod object_type {
         to_equal_graphql(
             object(ObjectTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![field("name", "String")],
                 ..Default::default()
             }),
@@ -83,7 +97,10 @@ mod object_type {
                 name: "Book".into(),
                 join: JoinAst {
                     r#type: vec![join_type("A")],
-                    implements: vec![JoinImplementsAst { graph: "A".into(), interface: "Media".into() }],
+                    implements: vec![JoinImplementsAst {
+                        graph: "A".into(),
+                        interface: "Media".into(),
+                    }],
                     ..Default::default()
                 },
                 fields: vec![field("title", "String")],
@@ -130,7 +147,10 @@ mod object_type {
                 join: JoinAst {
                     r#type: vec![
                         join_type_with_key("A", "id"),
-                        JoinTypeAst { extension: Some(true), ..join_type_with_key("B", "id") },
+                        JoinTypeAst {
+                            extension: Some(true),
+                            ..join_type_with_key("B", "id")
+                        },
                     ],
                     ..Default::default()
                 },
@@ -153,10 +173,16 @@ mod object_type {
         to_equal_graphql(
             object(ObjectTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![
                     FieldAst {
-                        join: JoinAst { field: vec![JoinFieldAst::default()], ..Default::default() },
+                        join: JoinAst {
+                            field: vec![JoinFieldAst::default()],
+                            ..Default::default()
+                        },
                         ..field("name", "String")
                     },
                     field("id", "ID"),
@@ -177,11 +203,17 @@ mod object_type {
         to_equal_graphql(
             object(ObjectTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![
                     FieldAst {
                         join: JoinAst {
-                            field: vec![JoinFieldAst { graph: Some("A".into()), ..Default::default() }],
+                            field: vec![JoinFieldAst {
+                                graph: Some("A".into()),
+                                ..Default::default()
+                            }],
                             ..Default::default()
                         },
                         ..field("name", "String")
@@ -204,7 +236,10 @@ mod object_type {
         to_equal_graphql(
             object(ObjectTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![FieldAst {
                     join: JoinAst {
                         field: vec![
@@ -240,7 +275,10 @@ mod object_type {
         to_equal_graphql(
             object(ObjectTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![FieldAst {
                     join: JoinAst {
                         field: vec![JoinFieldAst {
@@ -267,7 +305,10 @@ mod object_type {
         to_equal_graphql(
             object(ObjectTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![FieldAst {
                     join: JoinAst {
                         field: vec![JoinFieldAst {
@@ -294,7 +335,10 @@ mod object_type {
         to_equal_graphql(
             object(ObjectTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![FieldAst {
                     join: JoinAst {
                         field: vec![JoinFieldAst {
@@ -321,7 +365,10 @@ mod object_type {
         to_equal_graphql(
             object(ObjectTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![FieldAst {
                     join: JoinAst {
                         field: vec![JoinFieldAst {
@@ -348,8 +395,14 @@ mod object_type {
         to_equal_graphql(
             object(ObjectTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
-                fields: vec![FieldAst { inaccessible: true, ..field("name", "String") }],
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
+                fields: vec![FieldAst {
+                    inaccessible: true,
+                    ..field("name", "String")
+                }],
                 ..Default::default()
             }),
             r#"
@@ -365,7 +418,10 @@ mod object_type {
         to_equal_graphql(
             object(ObjectTypeAst {
                 name: "Building".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![FieldAst {
                     arguments: vec![FieldArgumentAst {
                         name: "units".into(),
@@ -433,8 +489,14 @@ mod object_type {
         to_equal_graphql(
             object(ObjectTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A")], ..Default::default() },
-                fields: vec![FieldAst { ast: vec![create_directive("lowercase")], ..field("name", "String!") }],
+                join: JoinAst {
+                    r#type: vec![join_type("A")],
+                    ..Default::default()
+                },
+                fields: vec![FieldAst {
+                    ast: vec![create_directive("lowercase")],
+                    ..field("name", "String!")
+                }],
                 ..Default::default()
             }),
             r#"
@@ -450,7 +512,10 @@ mod object_type {
         to_equal_graphql(
             object(ObjectTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A")],
+                    ..Default::default()
+                },
                 fields: vec![field("name", "String!")],
                 ast: vec![create_directive("lowercase")],
                 ..Default::default()
@@ -526,7 +591,10 @@ mod interface_type {
         to_equal_graphql(
             interface(InterfaceTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![field("name", "String")],
                 ..Default::default()
             }),
@@ -546,7 +614,10 @@ mod interface_type {
                 join: JoinAst {
                     r#type: vec![
                         join_type_with_key("A", "id"),
-                        JoinTypeAst { is_interface_object: Some(true), ..join_type_with_key("B", "id") },
+                        JoinTypeAst {
+                            is_interface_object: Some(true),
+                            ..join_type_with_key("B", "id")
+                        },
                     ],
                     ..Default::default()
                 },
@@ -568,11 +639,17 @@ mod interface_type {
         to_equal_graphql(
             interface(InterfaceTypeAst {
                 name: "User".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![
                     FieldAst {
                         join: JoinAst {
-                            field: vec![JoinFieldAst { graph: Some("A".into()), ..Default::default() }],
+                            field: vec![JoinFieldAst {
+                                graph: Some("A".into()),
+                                ..Default::default()
+                            }],
                             ..Default::default()
                         },
                         ..field("name", "String")
@@ -595,7 +672,10 @@ mod interface_type {
         to_equal_graphql(
             interface(InterfaceTypeAst {
                 name: "Building".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![FieldAst {
                     arguments: vec![FieldArgumentAst {
                         name: "units".into(),
@@ -718,7 +798,10 @@ mod union_type {
 
     #[test]
     fn join_type_graph_join_union_member_graph_member() {
-        let union_member = |graph: &str, member: &str| JoinUnionMemberAst { graph: graph.into(), member: member.into() };
+        let union_member = |graph: &str, member: &str| JoinUnionMemberAst {
+            graph: graph.into(),
+            member: member.into(),
+        };
         to_equal_graphql(
             union(UnionTypeAst {
                 name: "Media".into(),
@@ -797,7 +880,11 @@ mod input_object_type {
     use super::*;
 
     fn input_field(name: &str, ty: &str) -> InputFieldAst {
-        InputFieldAst { name: name.into(), r#type: ty.into(), ..Default::default() }
+        InputFieldAst {
+            name: name.into(),
+            r#type: ty.into(),
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -805,7 +892,10 @@ mod input_object_type {
         to_equal_graphql(
             input_object(InputObjectTypeAst {
                 name: "UserInput".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 fields: vec![input_field("name", "String!")],
                 ..Default::default()
             }),
@@ -822,7 +912,10 @@ mod input_object_type {
         to_equal_graphql(
             input_object(InputObjectTypeAst {
                 name: "User".into(),
-                fields: vec![InputFieldAst { inaccessible: true, ..input_field("name", "String") }],
+                fields: vec![InputFieldAst {
+                    inaccessible: true,
+                    ..input_field("name", "String")
+                }],
                 inaccessible: true,
                 ..Default::default()
             }),
@@ -839,7 +932,10 @@ mod input_object_type {
         to_equal_graphql(
             input_object(InputObjectTypeAst {
                 name: "UserInput".into(),
-                fields: vec![InputFieldAst { tags: vec!["public".into()], ..input_field("name", "String!") }],
+                fields: vec![InputFieldAst {
+                    tags: vec!["public".into()],
+                    ..input_field("name", "String!")
+                }],
                 tags: vec!["public".into()],
                 ..Default::default()
             }),
@@ -856,7 +952,10 @@ mod input_object_type {
         to_equal_graphql(
             input_object(InputObjectTypeAst {
                 name: "User".into(),
-                fields: vec![InputFieldAst { ast: vec![create_directive("custom")], ..input_field("name", "String") }],
+                fields: vec![InputFieldAst {
+                    ast: vec![create_directive("custom")],
+                    ..input_field("name", "String")
+                }],
                 ast: vec![create_directive("custom")],
                 ..Default::default()
             }),
@@ -874,8 +973,14 @@ mod input_object_type {
             input_object(InputObjectTypeAst {
                 name: "Filter".into(),
                 fields: vec![
-                    InputFieldAst { default_value: Some("2".into()), ..input_field("limit", "Int") },
-                    InputFieldAst { default_value: Some("{limit: 1}".into()), ..input_field("obj", "Obj") },
+                    InputFieldAst {
+                        default_value: Some("2".into()),
+                        ..input_field("limit", "Int")
+                    },
+                    InputFieldAst {
+                        default_value: Some("{limit: 1}".into()),
+                        ..input_field("obj", "Obj")
+                    },
                 ],
                 ..Default::default()
             }),
@@ -893,7 +998,10 @@ mod enum_object_type {
     use super::*;
 
     fn enum_value(name: &str) -> EnumValueAst {
-        EnumValueAst { name: name.into(), ..Default::default() }
+        EnumValueAst {
+            name: name.into(),
+            ..Default::default()
+        }
     }
 
     fn join_enum_value(graph: &str) -> JoinEnumValueAst {
@@ -905,7 +1013,10 @@ mod enum_object_type {
         to_equal_graphql(
             enum_type(EnumTypeAst {
                 name: "UserType".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 values: vec![
                     EnumValueAst {
                         join: JoinAst {
@@ -915,7 +1026,10 @@ mod enum_object_type {
                         ..enum_value("ADMIN")
                     },
                     EnumValueAst {
-                        join: JoinAst { enum_value: vec![join_enum_value("B")], ..Default::default() },
+                        join: JoinAst {
+                            enum_value: vec![join_enum_value("B")],
+                            ..Default::default()
+                        },
                         ..enum_value("REGULAR")
                     },
                 ],
@@ -937,8 +1051,14 @@ mod enum_object_type {
                 name: "UserType".into(),
                 tags: vec!["public".into()],
                 values: vec![
-                    EnumValueAst { tags: vec!["public".into()], ..enum_value("ADMIN") },
-                    EnumValueAst { tags: vec!["public".into()], ..enum_value("REGULAR") },
+                    EnumValueAst {
+                        tags: vec!["public".into()],
+                        ..enum_value("ADMIN")
+                    },
+                    EnumValueAst {
+                        tags: vec!["public".into()],
+                        ..enum_value("REGULAR")
+                    },
                 ],
                 ..Default::default()
             }),
@@ -956,7 +1076,13 @@ mod enum_object_type {
         to_equal_graphql(
             enum_type(EnumTypeAst {
                 name: "Media".into(),
-                values: vec![enum_value("BOOK"), EnumValueAst { inaccessible: true, ..enum_value("MOVIE") }],
+                values: vec![
+                    enum_value("BOOK"),
+                    EnumValueAst {
+                        inaccessible: true,
+                        ..enum_value("MOVIE")
+                    },
+                ],
                 inaccessible: true,
                 ..Default::default()
             }),
@@ -975,7 +1101,10 @@ mod enum_object_type {
             enum_type(EnumTypeAst {
                 name: "Media".into(),
                 values: vec![
-                    EnumValueAst { ast: vec![create_directive("any")], ..enum_value("BOOK") },
+                    EnumValueAst {
+                        ast: vec![create_directive("any")],
+                        ..enum_value("BOOK")
+                    },
                     enum_value("MOVIE"),
                 ],
                 ast: vec![create_directive("custom")],
@@ -1019,7 +1148,10 @@ mod schema {
             Definition::SchemaDefinition(create_schema_node(&SchemaAst {
                 query: Some("Query".into()),
                 links: vec![
-                    LinkAst { url: "https://specs.apollo.dev/link/v1.0".into(), ..Default::default() },
+                    LinkAst {
+                        url: "https://specs.apollo.dev/link/v1.0".into(),
+                        ..Default::default()
+                    },
                     LinkAst {
                         url: "https://specs.apollo.dev/join/v0.3".into(),
                         r#for: Some("EXECUTION".into()),
@@ -1027,7 +1159,10 @@ mod schema {
                     },
                     LinkAst {
                         url: "https://myspecs.dev/lowercase/v1.0".into(),
-                        import: Some(vec![LinkImportAst { name: "@lowercase".into(), alias: None }]),
+                        import: Some(vec![LinkImportAst {
+                            name: "@lowercase".into(),
+                            alias: None,
+                        }]),
                         ..Default::default()
                     },
                 ],
@@ -1060,7 +1195,11 @@ mod join_graph_enum_type {
                     url: Some("http://products.com".into()),
                     enum_value: "PRODUCTS".into(),
                 },
-                JoinGraphAst { name: "reviews".into(), url: None, enum_value: "REVIEWS".into() },
+                JoinGraphAst {
+                    name: "reviews".into(),
+                    url: None,
+                    enum_value: "REVIEWS".into(),
+                },
             ])),
             r#"
       enum join__Graph {
@@ -1080,7 +1219,10 @@ mod scalars {
         to_equal_graphql(
             scalar(ScalarTypeAst {
                 name: "MyScalar".into(),
-                join: JoinAst { r#type: vec![join_type("A"), join_type("B")], ..Default::default() },
+                join: JoinAst {
+                    r#type: vec![join_type("A"), join_type("B")],
+                    ..Default::default()
+                },
                 ast: vec![create_directive("custom")],
                 ..Default::default()
             }),
@@ -1093,7 +1235,11 @@ mod scalars {
     #[test]
     fn inaccessible() {
         to_equal_graphql(
-            scalar(ScalarTypeAst { name: "MyScalar".into(), inaccessible: true, ..Default::default() }),
+            scalar(ScalarTypeAst {
+                name: "MyScalar".into(),
+                inaccessible: true,
+                ..Default::default()
+            }),
             r#"
       scalar MyScalar @inaccessible
     "#,

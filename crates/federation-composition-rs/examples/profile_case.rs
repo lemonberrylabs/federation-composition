@@ -19,7 +19,8 @@ fn main() {
     let id = args.next().unwrap_or_else(|| "fixture:huge-schema".to_string());
     let seconds: u64 = args.next().map(|s| s.parse().expect("seconds")).unwrap_or(20);
 
-    let corpus = std::fs::read_to_string("bench/corpus.jsonl").expect("bench/corpus.jsonl is missing: run `pnpm bench:capture`");
+    let corpus =
+        std::fs::read_to_string("bench/corpus.jsonl").expect("bench/corpus.jsonl is missing: run `pnpm bench:capture`");
     let case: Value = corpus
         .lines()
         .map(|l| serde_json::from_str::<Value>(l).expect("corpus line is JSON"))
@@ -35,9 +36,11 @@ fn main() {
             type_defs: serde_json::from_value::<Document>(s["typeDefs"].clone()).unwrap(),
         })
         .collect();
-    let internal = case["internal"]["disableValidationRules"].as_array().map(|rules| InternalOptions {
-        disable_validation_rules: Some(rules.iter().map(|r| r.as_str().unwrap().to_string()).collect()),
-    });
+    let internal = case["internal"]["disableValidationRules"]
+        .as_array()
+        .map(|rules| InternalOptions {
+            disable_validation_rules: Some(rules.iter().map(|r| r.as_str().unwrap().to_string()).collect()),
+        });
 
     let deadline = Instant::now() + Duration::from_secs(seconds);
     let mut runs = 0u64;

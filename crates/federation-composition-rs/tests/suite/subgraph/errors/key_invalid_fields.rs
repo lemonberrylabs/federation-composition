@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn key_invalid_fields_syntax_error(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("serviceA", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 
@@ -37,7 +37,7 @@ test_versions! {
 
     fn key_invalid_fields_unknown_directive(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 
             type User @key(fields: "id name @lowercase ") {
@@ -57,7 +57,7 @@ test_versions! {
 
     fn key_invalid_fields_unknown_field(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("serviceA", graphql!(r#"
+            api.compose_services(&[service("serviceA", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 
             type Product @key(fields: "skucha") {

@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/field-argument-default-mismatch-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::utils::collections::IndexMap;
+use graphql_rs::GraphQLError;
 
 use crate::supergraph::composition::object_type::{ObjectTypeFieldArgState, ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;

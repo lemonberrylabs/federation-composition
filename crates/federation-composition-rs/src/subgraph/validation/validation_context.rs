@@ -8,10 +8,10 @@
 use std::rc::Rc;
 use std::sync::LazyLock;
 
+use crate::utils::collections::{IndexMap, IndexSet};
 use graphql_rs::{
     parse, Ancestor, Definition, DirectiveDefinition, Document, GraphQLError, Kind, Name, TypeDefinition,
 };
-use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::graphql::type_node_info::{HasTypeNodeInfo, TypeNodeInfo};
 use crate::specifications::federation::{DetectedFederation, FederationVersion, SpecSchema};
@@ -329,8 +329,10 @@ pub fn create_subgraph_validation_context<'a>(
         }
     }
 
-    let mut leaf_type_names: IndexSet<String> =
-        graphql_rs::specified_scalar_types().iter().map(|t| t.name.to_string()).collect();
+    let mut leaf_type_names: IndexSet<String> = graphql_rs::specified_scalar_types()
+        .iter()
+        .map(|t| t.name.to_string())
+        .collect();
 
     for def in &subgraph.type_defs.definitions {
         match def {
@@ -393,7 +395,8 @@ pub fn create_subgraph_validation_context<'a>(
         let spec_name = &spec_type.name().value;
         if let Some(normalized_name) = spec_name.strip_prefix("federation__") {
             if !type_alternative_names_map.contains_key(normalized_name) {
-                type_alternative_names_map.insert(normalized_name.to_string(), IndexSet::from_iter([spec_name.clone()]));
+                type_alternative_names_map
+                    .insert(normalized_name.to_string(), IndexSet::from_iter([spec_name.clone()]));
             }
         } else {
             let alias = imports
@@ -411,8 +414,7 @@ pub fn create_subgraph_validation_context<'a>(
         }
     }
 
-    let imported_types_set: IndexSet<&str> =
-        available_spec.types.iter().map(|t| t.name().value.as_str()).collect();
+    let imported_types_set: IndexSet<&str> = available_spec.types.iter().map(|t| t.name().value.as_str()).collect();
     if !imported_types_set.is_empty() {
         for def in &subgraph.type_defs.definitions {
             if let Some(name) = def.name() {
@@ -479,7 +481,10 @@ fn is_object_or_interface_node(node: &Definition) -> bool {
 }
 
 fn is_union_node(node: &Definition) -> bool {
-    matches!(node, Definition::UnionTypeExtension(_) | Definition::UnionTypeDefinition(_))
+    matches!(
+        node,
+        Definition::UnionTypeExtension(_) | Definition::UnionTypeDefinition(_)
+    )
 }
 
 impl<'a> SubgraphValidationContext<'a> {
@@ -616,14 +621,26 @@ impl<'a> SubgraphValidationContext<'a> {
 
     /// `markAsUsed(reason, kind, typeName, fieldName)`. `kind` is one of the object/interface
     /// definition/extension kinds. Fallible because the state builder setters are.
-    pub fn mark_as_used(&mut self, reason: MarkAsUsedReason, kind: Kind, type_name: &str, field_name: &str) -> JsResult<()> {
+    pub fn mark_as_used(
+        &mut self,
+        reason: MarkAsUsedReason,
+        kind: Kind,
+        type_name: &str,
+        field_name: &str,
+    ) -> JsResult<()> {
         if !field_name.starts_with("__") && !type_name.starts_with("__") && reason == MarkAsUsedReason::Fields {
             match kind {
                 Kind::ObjectTypeDefinition | Kind::ObjectTypeExtension => {
-                    self.state_builder.object_type().field().set_used(type_name, field_name)?;
+                    self.state_builder
+                        .object_type()
+                        .field()
+                        .set_used(type_name, field_name)?;
                 }
                 Kind::InterfaceTypeDefinition | Kind::InterfaceTypeExtension => {
-                    self.state_builder.interface_type().field().set_used(type_name, field_name)?;
+                    self.state_builder
+                        .interface_type()
+                        .field()
+                        .set_used(type_name, field_name)?;
                 }
                 _ => {}
             }
@@ -658,7 +675,10 @@ impl<'a> SubgraphValidationContext<'a> {
                 .collect();
         }
 
-        let unused = self.marked_as_external.iter().filter(|c| !self.marked_as_used.contains(*c));
+        let unused = self
+            .marked_as_external
+            .iter()
+            .filter(|c| !self.marked_as_used.contains(*c));
 
         let state = &self.state_builder.state;
         unused

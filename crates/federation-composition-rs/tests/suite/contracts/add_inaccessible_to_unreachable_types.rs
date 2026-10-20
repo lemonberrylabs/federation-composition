@@ -11,8 +11,7 @@ fn add_inaccessible(composition_result: &CompositionResult) -> CompositionSucces
         panic!("expected a CompositionSuccess");
     };
     let link_implementations = extract_link_implementations(&parse(success.supergraph_sdl()).unwrap()).unwrap();
-    let resolve_import_name =
-        |identity: &str, name: &str| link_implementations.resolve_import_name(identity, name);
+    let resolve_import_name = |identity: &str, name: &str| link_implementations.resolve_import_name(identity, name);
     add_inaccessible_to_unreachable_types(&resolve_import_name, success).unwrap()
 }
 
@@ -155,7 +154,11 @@ fn inaccessible_is_not_added_on_built_in_federation_and_context_types() {
   "#;
 
     let composition_result = compose_services(
-        &[service_with_url("user", "https://noop.graphql-hive.com", parse(sdl).unwrap())],
+        &[service_with_url(
+            "user",
+            "https://noop.graphql-hive.com",
+            parse(sdl).unwrap(),
+        )],
         None,
     );
 

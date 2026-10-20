@@ -9,8 +9,7 @@ pub const SDL: &str = r#"
 "#;
 
 /// `typeDefs = parse(sdl)`.
-pub static TYPE_DEFS: LazyLock<Document> =
-    LazyLock::new(|| parse(SDL).expect("valid @inaccessible SDL"));
+pub static TYPE_DEFS: LazyLock<Document> = LazyLock::new(|| parse(SDL).expect("valid @inaccessible SDL"));
 
 /// `directive`: the `@inaccessible` definition. Callers clone it before changing it.
 pub static DIRECTIVE: LazyLock<DirectiveDefinition> = LazyLock::new(|| {

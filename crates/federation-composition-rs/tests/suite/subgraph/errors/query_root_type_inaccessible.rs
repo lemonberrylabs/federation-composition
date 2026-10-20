@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn query_root_type_inaccessible(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("book", graphql!(r#"
+            api.compose_services(&[service("book", graphql!(r#"
             extend schema
               @link(
                 url: "https://specs.apollo.dev/federation/${version}"
@@ -26,7 +26,7 @@ test_versions! {
         );
 
         assert_errors_contain(
-            &api.compose_services(&[service("book", graphql!(r#"
+            api.compose_services(&[service("book", graphql!(r#"
             extend schema
               @link(
                 url: "https://specs.apollo.dev/federation/${version}"

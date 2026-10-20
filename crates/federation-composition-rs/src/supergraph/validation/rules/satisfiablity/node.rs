@@ -114,7 +114,13 @@ pub struct GraphComboIds {
 }
 
 impl GraphComboIds {
-    pub fn id(&self, merged_graph: &Graph<'_>, tail: NodeId, has_provides: bool, contexts: &ContextMask) -> GraphComboId {
+    pub fn id(
+        &self,
+        merged_graph: &Graph<'_>,
+        tail: NodeId,
+        has_provides: bool,
+        contexts: &ContextMask,
+    ) -> GraphComboId {
         let tail_node = merged_graph.node(tail);
         let triple = (tail_node.graph_name_id, has_provides, contexts.clone());
         if let Some(&id) = self.by_triple.borrow().get(&triple) {
@@ -286,7 +292,11 @@ impl<'s> Node<'s> {
 
     /// Whether a combination of graph names and @provides that lead to the Node was already
     /// checked. (`labelValues` is unused, as in the TS.)
-    pub fn is_graph_combo_visited(&self, graph_name_provides_combos: &[GraphComboId], _label_values: &OverrideLabels) -> bool {
+    pub fn is_graph_combo_visited(
+        &self,
+        graph_name_provides_combos: &[GraphComboId],
+        _label_values: &OverrideLabels,
+    ) -> bool {
         self.visited_graph_combos
             .borrow()
             .iter()

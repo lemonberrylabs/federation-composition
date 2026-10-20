@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn requires_fields_missing_external(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(
                 url: "https://specs.apollo.dev/federation/${version}"

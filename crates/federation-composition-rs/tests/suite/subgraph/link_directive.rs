@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn invalid_link_identifier(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("billing", graphql!(r#"
                 extend schema
                   @link(
@@ -50,7 +50,7 @@ test_versions! {
         );
 
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("billing", graphql!(r#"
             extend schema
               @link(
@@ -98,7 +98,7 @@ test_versions! {
 
     fn invalid_link_directive_usage_duplicate_inclusion_of_feature(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("billing", graphql!(r#"
               extend schema
                 @link(
@@ -146,7 +146,7 @@ test_versions! {
 
     fn invalid_link_directive_usage_unknown_element(api, version) {
         assert_errors_equal(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@flexibility"])
 
@@ -166,7 +166,7 @@ test_versions! {
 
     fn unknown_federation_link_version(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(
                 url: "https://specs.apollo.dev/federation/v6.9"
@@ -185,7 +185,7 @@ test_versions! {
 
     fn unknown_link_version(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/link/v6.9")
 
             type Query {

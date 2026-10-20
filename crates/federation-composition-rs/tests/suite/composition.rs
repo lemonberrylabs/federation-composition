@@ -8355,8 +8355,9 @@ mod guild_composition_one_of {
                 }
               "#)),
                 ]),
-                Some(r#"The schema is not a valid GraphQL schema.. Caused by:
-Argument "@oneOf(arg:)" of type "String!" is required, but it was not provided."#),
+                Some(
+                    "The schema is not a valid GraphQL schema.. Caused by:\nArgument \"@oneOf(arg:)\" of type \"String!\" is required, but it was not provided.",
+                ),
             );
         }
 

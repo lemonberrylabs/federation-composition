@@ -1,9 +1,9 @@
 //! Port of `src/subgraph/validation/rules/known-type-names-rule.ts`.
 
-use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
-use graphql_rs::Ancestor;
 use crate::utils::collections::IndexSet;
+use graphql_rs::Ancestor;
+use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use std::sync::LazyLock;
 
 /// `KnownTypeNamesRule(context)`.
@@ -36,7 +36,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for KnownTypeNamesRule<'a> {
         VisitKinds::enter(&[Kind::NamedType])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let NodeRef::NamedType(node) = node else {
             return VisitAction::Continue;
         };
@@ -49,7 +54,10 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for KnownTypeNamesRule<'a> {
                 return VisitAction::Continue;
             }
 
-            cx.report_error(GraphQLError::with_code(format!("Unknown type {type_name}"), "INVALID_GRAPHQL"));
+            cx.report_error(GraphQLError::with_code(
+                format!("Unknown type {type_name}"),
+                "INVALID_GRAPHQL",
+            ));
         }
 
         VisitAction::Continue

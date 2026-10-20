@@ -2,8 +2,8 @@
 
 use std::borrow::Cow;
 
-use graphql_rs::GraphQLError;
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::GraphQLError;
 
 use crate::subgraph::state::SubgraphType;
 use crate::supergraph::composition::input_object_type::{InputObjectTypeFieldState, InputObjectTypeState};
@@ -241,7 +241,10 @@ impl<'s> SupergraphVisitor<'s> for FieldsOfTheSameTypeRule {
         for (graph_name, field) in &field_state.by_graph {
             let normalized_output_type = input_field_output_type(&field_state.r#type, &field.r#type);
 
-            type_to_graphs.entry(normalized_output_type).or_default().push(graph_name);
+            type_to_graphs
+                .entry(normalized_output_type)
+                .or_default()
+                .push(graph_name);
         }
 
         if type_to_graphs.len() > 1 {
@@ -384,6 +387,9 @@ mod tests {
     fn first_but_second_and_rest_joins_groups() {
         let g = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         assert_eq!(first_but_second_and_rest(&g(&["a", "b"])), "a but b");
-        assert_eq!(first_but_second_and_rest(&g(&["a", "b", "c", "d"])), "a but b and c and d");
+        assert_eq!(
+            first_but_second_and_rest(&g(&["a", "b", "c", "d"])),
+            "a but b and c and d"
+        );
     }
 }

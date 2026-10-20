@@ -1,11 +1,11 @@
 //! Port of `src/supergraph/validation/rules/external-argument-missing-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::supergraph::composition::object_type::{ObjectTypeFieldArgState, ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::GraphQLError;
 
 /// `ExternalArgumentMissingRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeFieldArg`.
@@ -58,13 +58,15 @@ impl<'s> SupergraphVisitor<'s> for ExternalArgumentMissingRule {
         let required_in = format!(
             "subgraph{} \"{}\"",
             if graphs_with_required_arg.len() > 1 { "s" } else { "" },
-            cx.graph_ids_to_names(graphs_with_required_arg.iter().copied())?.join("\", \"")
+            cx.graph_ids_to_names(graphs_with_required_arg.iter().copied())?
+                .join("\", \"")
         );
 
         let missing_in = format!(
             "subgraph{} \"{}\"",
             if external_graphs_without_arg.len() > 1 { "s" } else { "" },
-            cx.graph_ids_to_names(external_graphs_without_arg.iter().copied())?.join("\", \"")
+            cx.graph_ids_to_names(external_graphs_without_arg.iter().copied())?
+                .join("\", \"")
         );
 
         let field_coordinate = format!("{}.{}", object_state.name, field_state.name);

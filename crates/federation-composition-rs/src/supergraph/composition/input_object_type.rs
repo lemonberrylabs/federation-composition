@@ -1,14 +1,16 @@
 //! Port of `src/supergraph/composition/input-object-type.ts`.
 
-use graphql_rs::Definition;
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::Definition;
 
-use super::ast::{create_input_object_type_node, CostAst, InputFieldAst, InputObjectTypeAst, JoinAst, JoinFieldAst, JoinTypeAst};
+use super::ast::{
+    create_input_object_type_node, CostAst, InputFieldAst, InputObjectTypeAst, JoinAst, JoinFieldAst, JoinTypeAst,
+};
 use super::common::{convert_to_const, get_or_insert_with, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
-use crate::utils::helpers::{ensure_value, math_max};
 use crate::specifications::federation::FederationVersion;
-use crate::subgraph::state::{Ast, ArgumentKind, Deprecated, Description, InputObjectType};
+use crate::subgraph::state::{ArgumentKind, Ast, Deprecated, Description, InputObjectType};
 use crate::supergraph::state::SubgraphStates;
+use crate::utils::helpers::{ensure_value, math_max};
 use crate::utils::js::JsResult;
 
 /// `inputObjectTypeBuilder()`.
@@ -177,26 +179,28 @@ impl TypeBuilder<InputObjectType, InputObjectTypeState> for InputObjectTypeBuild
             });
         }
 
-        Ok(Definition::InputObjectTypeDefinition(create_input_object_type_node(InputObjectTypeAst {
-            name: input_object_type.name.clone(),
-            tags: input_object_type.tags.iter().cloned().collect(),
-            inaccessible: input_object_type.inaccessible,
-            description: input_object_type.description.clone(),
-            is_one_of: input_object_type.is_one_of == Some(true),
-            ast: convert_to_const(&input_object_type.ast.directives),
-            fields,
-            join: JoinAst {
-                r#type: input_object_type
-                    .by_graph
-                    .keys()
-                    .map(|graph| JoinTypeAst {
-                        graph: graph.clone(),
-                        ..Default::default()
-                    })
-                    .collect(),
-                ..Default::default()
+        Ok(Definition::InputObjectTypeDefinition(create_input_object_type_node(
+            InputObjectTypeAst {
+                name: input_object_type.name.clone(),
+                tags: input_object_type.tags.iter().cloned().collect(),
+                inaccessible: input_object_type.inaccessible,
+                description: input_object_type.description.clone(),
+                is_one_of: input_object_type.is_one_of == Some(true),
+                ast: convert_to_const(&input_object_type.ast.directives),
+                fields,
+                join: JoinAst {
+                    r#type: input_object_type
+                        .by_graph
+                        .keys()
+                        .map(|graph| JoinTypeAst {
+                            graph: graph.clone(),
+                            ..Default::default()
+                        })
+                        .collect(),
+                    ..Default::default()
+                },
             },
-        })))
+        )))
     }
 }
 
@@ -269,18 +273,20 @@ fn get_or_create_field<'s>(
     field_type: &str,
     field_kind: ArgumentKind,
 ) -> &'s mut InputObjectTypeFieldState {
-    get_or_insert_with(&mut object_type_state.fields, field_name, || InputObjectTypeFieldState {
-        name: field_name.to_string(),
-        r#type: field_type.to_string(),
-        kind: field_kind,
-        tags: IndexSet::default(),
-        inaccessible: false,
-        cost: None,
-        default_value: None,
-        description: None,
-        deprecated: None,
-        by_graph: IndexMap::default(),
-        ast: Ast { directives: vec![] },
+    get_or_insert_with(&mut object_type_state.fields, field_name, || {
+        InputObjectTypeFieldState {
+            name: field_name.to_string(),
+            r#type: field_type.to_string(),
+            kind: field_kind,
+            tags: IndexSet::default(),
+            inaccessible: false,
+            cost: None,
+            default_value: None,
+            description: None,
+            deprecated: None,
+            by_graph: IndexMap::default(),
+            ast: Ast { directives: vec![] },
+        }
     })
 }
 

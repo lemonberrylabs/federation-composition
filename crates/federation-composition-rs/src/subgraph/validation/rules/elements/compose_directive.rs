@@ -1,11 +1,11 @@
 //! Port of `src/subgraph/validation/rules/elements/compose-directive.ts`.
 
-use graphql_rs::{Definition, Directive, GraphQLError, NodeRef, Value, VisitAction, VisitInfo, Visitor};
-use crate::utils::collections::IndexMap;
 use crate::specifications::link::LinkImportKind;
 use crate::subgraph::helpers::validate_directive_against_original;
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
+use crate::utils::collections::IndexMap;
 use crate::utils::js::JsResult;
+use graphql_rs::{Definition, Directive, GraphQLError, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 
 use super::finish;
 
@@ -29,7 +29,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for ComposeDirectiveRules {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "composeDirective", cx),
             NodeRef::Directive(node) => directive(node, cx),
@@ -107,7 +112,10 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
             return Ok(());
         }
 
-        context.state_builder.directive().set_composed(&matching_directive.name.value)?;
+        context
+            .state_builder
+            .directive()
+            .set_composed(&matching_directive.name.value)?;
         context
             .state_builder
             .composed_directives

@@ -3,13 +3,13 @@
 
 use std::sync::LazyLock;
 
-use graphql_rs::{GraphQLError, Value};
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::{GraphQLError, Value};
 
 use super::validation_context::SubgraphValidationContext;
 use crate::subgraph::state::{
-    Argument, EnumType, Field, InputField, InputObjectType, InterfaceType, SubgraphState, SubgraphType,
-    TypeKind, UnionType,
+    Argument, EnumType, Field, InputField, InputObjectType, InterfaceType, SubgraphState, SubgraphType, TypeKind,
+    UnionType,
 };
 use crate::utils::format::and_list;
 use crate::utils::state::{is_list, is_non_null, strip_list, strip_non_null, strip_type_modifiers};
@@ -118,7 +118,11 @@ fn capitalize(s: &str) -> String {
     }
 }
 
-fn validate_directives(state: &SubgraphState, report_error: ReportErrorFn<'_>, context: &SubgraphValidationContext<'_>) {
+fn validate_directives(
+    state: &SubgraphState,
+    report_error: ReportErrorFn<'_>,
+    context: &SubgraphValidationContext<'_>,
+) {
     for directive in state.types.values() {
         let SubgraphType::Directive(directive) = directive else {
             continue;
@@ -452,7 +456,10 @@ fn validate_union_members(state: &SubgraphState, report_error: ReportErrorFn<'_>
     let member_types = &union.members;
 
     if member_types.is_empty() {
-        report_error(format!("Union type {} must define one or more member types.", union.name));
+        report_error(format!(
+            "Union type {} must define one or more member types.",
+            union.name
+        ));
     }
 
     // NOTE(port): `members` is a set, so the "only once" branch never fires; kept as in TS.
@@ -494,7 +501,10 @@ fn validate_input_fields(state: &SubgraphState, report_error: ReportErrorFn<'_>,
     let fields = &input_obj.fields;
 
     if fields.is_empty() {
-        report_error(format!("Input Object type {} must define one or more fields.", input_obj.name));
+        report_error(format!(
+            "Input Object type {} must define one or more fields.",
+            input_obj.name
+        ));
     }
 
     // Ensure the arguments are valid
@@ -598,7 +608,11 @@ fn validate_interfaces(
     }
 }
 
-fn validate_type_implements_ancestors(report_error: ReportErrorFn<'_>, ty: &SubgraphType, interface_type: &InterfaceType) {
+fn validate_type_implements_ancestors(
+    report_error: ReportErrorFn<'_>,
+    ty: &SubgraphType,
+    interface_type: &InterfaceType,
+) {
     let (type_name, _, iface_interfaces) = object_or_interface_parts(ty);
     for transitive in &interface_type.interfaces {
         if !iface_interfaces.contains(transitive) {
@@ -712,7 +726,12 @@ pub fn is_type_sub_type_of(
     }
     if is_non_null(maybe_sub_type_name) {
         // If superType is nullable, maybeSubType may be non-null or nullable.
-        return is_type_sub_type_of(state, implementations_map, &strip_non_null(maybe_sub_type_name), super_type_name);
+        return is_type_sub_type_of(
+            state,
+            implementations_map,
+            &strip_non_null(maybe_sub_type_name),
+            super_type_name,
+        );
     }
 
     // If superType type is a list, maybeSubType type must also be a list.
@@ -921,10 +940,14 @@ mod tests {
     #[test]
     fn root_type_kind_names_capitalize_like_ts() {
         use crate::subgraph::state::RootTypeKind;
-        let names: Vec<String> = [RootTypeKind::QueryType, RootTypeKind::MutationType, RootTypeKind::SubscriptionType]
-            .iter()
-            .map(|k| capitalize(&k.as_str().replacen("Type", "", 1)))
-            .collect();
+        let names: Vec<String> = [
+            RootTypeKind::QueryType,
+            RootTypeKind::MutationType,
+            RootTypeKind::SubscriptionType,
+        ]
+        .iter()
+        .map(|k| capitalize(&k.as_str().replacen("Type", "", 1)))
+        .collect();
         assert_eq!(names, vec!["Query", "Mutation", "Subscription"]);
         assert_eq!(and_list(&names, true, None), "Query, Mutation, and Subscription");
     }

@@ -52,10 +52,7 @@ fn format_array(array: &[JsValue], seen: usize) -> String {
     }
     let len = MAX_ARRAY_LENGTH.min(array.len());
     let remaining = array.len() - len;
-    let mut items: Vec<String> = array[..len]
-        .iter()
-        .map(|item| format_value(item, seen))
-        .collect();
+    let mut items: Vec<String> = array[..len].iter().map(|item| format_value(item, seen)).collect();
     if remaining == 1 {
         items.push("... 1 more item".to_string());
     } else if remaining > 1 {
@@ -72,17 +69,12 @@ mod tests {
     fn inspects_like_graphql_js() {
         assert_eq!(inspect(&JsValue::String("a\"b".into())), r#""a\"b""#);
         assert_eq!(inspect(&JsValue::Number(1.5)), "1.5");
-        let nested = JsValue::List(vec![JsValue::List(vec![JsValue::List(vec![
-            JsValue::Null,
-        ])])]);
+        let nested = JsValue::List(vec![JsValue::List(vec![JsValue::List(vec![JsValue::Null])])]);
         assert_eq!(inspect(&nested), "[[[Array]]]");
         let mut o = IndexMap::default();
         o.insert("a".to_string(), JsValue::Boolean(true));
         assert_eq!(inspect(&JsValue::Object(o)), "{ a: true }");
         let long = JsValue::List((0..12).map(|i| JsValue::Number(i as f64)).collect());
-        assert_eq!(
-            inspect(&long),
-            "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, ... 2 more items]"
-        );
+        assert_eq!(inspect(&long), "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, ... 2 more items]");
     }
 }

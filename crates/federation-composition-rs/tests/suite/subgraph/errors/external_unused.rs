@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn external_unused_on_field(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(
                 url: "https://specs.apollo.dev/federation/${version}"
@@ -31,7 +31,7 @@ test_versions! {
 
     fn external_unused_on_type(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(
                 url: "https://specs.apollo.dev/federation/${version}"
@@ -160,7 +160,7 @@ test_versions! {
 
     fn fed_v1_no_external_unused_but_external_missing_on_base_on_key_field(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             type Query {
               users: [User]
             }

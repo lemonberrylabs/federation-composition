@@ -95,24 +95,14 @@ fn get_directive_location_for_ast_path(ancestors: &[Ancestor<'_>]) -> DirectiveL
             }
         }
         NodeRef::SchemaDefinition(_) | NodeRef::SchemaExtension(_) => DirectiveLocation::Schema,
-        NodeRef::ScalarTypeDefinition(_) | NodeRef::ScalarTypeExtension(_) => {
-            DirectiveLocation::Scalar
-        }
-        NodeRef::ObjectTypeDefinition(_) | NodeRef::ObjectTypeExtension(_) => {
-            DirectiveLocation::Object
-        }
+        NodeRef::ScalarTypeDefinition(_) | NodeRef::ScalarTypeExtension(_) => DirectiveLocation::Scalar,
+        NodeRef::ObjectTypeDefinition(_) | NodeRef::ObjectTypeExtension(_) => DirectiveLocation::Object,
         NodeRef::FieldDefinition(_) => DirectiveLocation::FieldDefinition,
-        NodeRef::InterfaceTypeDefinition(_) | NodeRef::InterfaceTypeExtension(_) => {
-            DirectiveLocation::Interface
-        }
-        NodeRef::UnionTypeDefinition(_) | NodeRef::UnionTypeExtension(_) => {
-            DirectiveLocation::Union
-        }
+        NodeRef::InterfaceTypeDefinition(_) | NodeRef::InterfaceTypeExtension(_) => DirectiveLocation::Interface,
+        NodeRef::UnionTypeDefinition(_) | NodeRef::UnionTypeExtension(_) => DirectiveLocation::Union,
         NodeRef::EnumTypeDefinition(_) | NodeRef::EnumTypeExtension(_) => DirectiveLocation::Enum,
         NodeRef::EnumValueDefinition(_) => DirectiveLocation::EnumValue,
-        NodeRef::InputObjectTypeDefinition(_) | NodeRef::InputObjectTypeExtension(_) => {
-            DirectiveLocation::InputObject
-        }
+        NodeRef::InputObjectTypeDefinition(_) | NodeRef::InputObjectTypeExtension(_) => DirectiveLocation::InputObject,
         NodeRef::InputValueDefinition(_) => {
             let parent_node = ancestor_node(ancestors, 3).expect("Unexpected invariant triggered.");
             match parent_node.kind() {
@@ -122,9 +112,7 @@ fn get_directive_location_for_ast_path(ancestors: &[Ancestor<'_>]) -> DirectiveL
                 _ => DirectiveLocation::ArgumentDefinition,
             }
         }
-        NodeRef::DirectiveDefinition(_) | NodeRef::DirectiveExtension(_) => {
-            DirectiveLocation::DirectiveDefinition
-        }
+        NodeRef::DirectiveDefinition(_) | NodeRef::DirectiveExtension(_) => DirectiveLocation::DirectiveDefinition,
         // TS: invariant(false, 'Unexpected kind: ' + inspect(appliedTo.kind));
         // no other node has directives.
         other => panic!("Unexpected kind: \"{}\"", other.kind()),

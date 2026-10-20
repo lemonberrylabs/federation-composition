@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn invalid_graphql_invalid_value_for_fields_input_object(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(
                 url: "https://specs.apollo.dev/federation/v2.2"
@@ -38,7 +38,7 @@ test_versions! {
 
     fn invalid_graphql_provides_without_fields(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("billing", graphql!(r#"
+            api.compose_services(&[service("billing", graphql!(r#"
             extend schema
               @link(
                 url: "https://specs.apollo.dev/federation/${version}"
@@ -65,7 +65,7 @@ test_versions! {
 
     fn invalid_graphql_unknown_type(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(
                 url: "https://specs.apollo.dev/federation/${version}"
@@ -156,7 +156,7 @@ test_versions! {
 
     fn invalid_graphql_compose_directive_gets_a_boolean_instead_of_string(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(url: "https://specs.apollo.dev/link/v1.0")
               @link(
@@ -194,7 +194,7 @@ test_versions! {
 
     fn invalid_graphql_composed_directive_gets_an_int_instead_of_input_type(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(url: "https://specs.apollo.dev/link/v1.0")
               @link(
@@ -229,7 +229,7 @@ test_versions! {
 
     fn invalid_graphql_composed_directive_gets_a_float_instead_of_input_type(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(url: "https://specs.apollo.dev/link/v1.0")
               @link(

@@ -1,12 +1,12 @@
 //! Port of `src/supergraph/composition/directive.ts`.
 
-use graphql_rs::Definition;
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::Definition;
 
 use super::ast::{create_directive_node, DirectiveAst, FieldArgumentAst};
 use super::common::{convert_to_const, get_or_insert_with, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
 use crate::specifications::federation::FederationVersion;
-use crate::subgraph::state::{Ast, ArgumentKind, Directive};
+use crate::subgraph::state::{ArgumentKind, Ast, Directive};
 use crate::supergraph::state::SubgraphStates;
 use crate::utils::js::JsResult;
 
@@ -173,7 +173,10 @@ pub struct ArgStateInGraph {
     pub version: FederationVersion,
 }
 
-fn get_or_create_directive<'s>(state: &'s mut IndexMap<String, DirectiveState>, directive_name: &str) -> &'s mut DirectiveState {
+fn get_or_create_directive<'s>(
+    state: &'s mut IndexMap<String, DirectiveState>,
+    directive_name: &str,
+) -> &'s mut DirectiveState {
     get_or_insert_with(state, directive_name, || DirectiveState {
         name: directive_name.to_string(),
         locations: IndexSet::default(),
@@ -204,7 +207,10 @@ fn get_or_create_arg<'s>(
 }
 
 /// `isArgumentTypeIdenticalInEverySubgraph(directiveArgState, totalSubgraphSize)`.
-pub fn is_argument_type_identical_in_every_subgraph(directive_arg_state: &DirectiveArgState, total_subgraph_size: usize) -> bool {
+pub fn is_argument_type_identical_in_every_subgraph(
+    directive_arg_state: &DirectiveArgState,
+    total_subgraph_size: usize,
+) -> bool {
     if directive_arg_state.by_graph.len() != total_subgraph_size {
         return false;
     }
@@ -259,7 +265,12 @@ mod tests {
     fn skips_non_executable_non_composed_directives() {
         let mut builder = directive_builder();
         let mut state = IndexMap::default();
-        builder.visit_subgraph_state(&graph("A"), &mut state, "d", &directive(&["OBJECT"], false, arg("Int", None)));
+        builder.visit_subgraph_state(
+            &graph("A"),
+            &mut state,
+            "d",
+            &directive(&["OBJECT"], false, arg("Int", None)),
+        );
         assert!(state.is_empty());
     }
 
@@ -273,7 +284,12 @@ mod tests {
             "d",
             &directive(&["FIELD", "OBJECT"], false, arg("Int", Some("1"))),
         );
-        builder.visit_subgraph_state(&graph("B"), &mut state, "d", &directive(&["QUERY"], true, arg("Int!", None)));
+        builder.visit_subgraph_state(
+            &graph("B"),
+            &mut state,
+            "d",
+            &directive(&["QUERY"], true, arg("Int!", None)),
+        );
 
         let d = &state["d"];
         assert!(d.is_executable);
@@ -296,6 +312,9 @@ mod tests {
                 },
             )
             .unwrap();
-        assert_eq!(graphql_rs::print(&node), "directive @d(a: Int! = 1) on FIELD | OBJECT | QUERY");
+        assert_eq!(
+            graphql_rs::print(&node),
+            "directive @d(a: Int! = 1) on FIELD | OBJECT | QUERY"
+        );
     }
 }

@@ -14,8 +14,8 @@ use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use graphql_rs::is_specified_scalar_type;
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::is_specified_scalar_type;
 
 use super::constants::GraphId;
 use super::contexts::{ContextMask, Contexts};
@@ -156,8 +156,8 @@ pub struct Graph<'s> {
 fn encode_uri_component(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
-        let unreserved = b.is_ascii_alphanumeric()
-            || matches!(b, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')');
+        let unreserved =
+            b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')');
         if unreserved {
             out.push(b as char);
         } else {
@@ -398,7 +398,8 @@ impl<'s> Graph<'s> {
 
         let state = self.supergraph_state;
         for type_state in state.object_types.values() {
-            if type_state.is_entity && self.true_or_if_subgraph_then(|| type_state.by_graph.contains_key(&self.id_str)) {
+            if type_state.is_entity && self.true_or_if_subgraph_then(|| type_state.by_graph.contains_key(&self.id_str))
+            {
                 self.create_nodes_and_edges_for_type(&type_state.name)?;
             }
         }
@@ -436,7 +437,12 @@ impl<'s> Graph<'s> {
         }
     }
 
-    fn connect_union_or_interface(&mut self, node_index: usize, same_type_name_node_indexes: &[usize], edges_to_add: &mut Vec<Edge<'s>>) {
+    fn connect_union_or_interface(
+        &mut self,
+        node_index: usize,
+        same_type_name_node_indexes: &[usize],
+        edges_to_add: &mut Vec<Edge<'s>>,
+    ) {
         // `nodesByTypeIndex[nodeIndex]` holds a single node.
         let head_node = NodeId(node_index);
         let edges = self.edges_of_tail(head_node);
@@ -462,7 +468,12 @@ impl<'s> Graph<'s> {
         }
     }
 
-    fn connect_entities(&mut self, node_index: usize, same_type_name_node_indexes: &[usize], edges_to_add: &mut Vec<Edge<'s>>) -> JsResult<()> {
+    fn connect_entities(
+        &mut self,
+        node_index: usize,
+        same_type_name_node_indexes: &[usize],
+        edges_to_add: &mut Vec<Edge<'s>>,
+    ) -> JsResult<()> {
         let head_node = NodeId(node_index);
         let head_type_name = self.node(head_node).type_name.clone();
 
@@ -476,7 +487,9 @@ impl<'s> Graph<'s> {
 
             // `"isEntity" in tailNode.typeState`: objects and interfaces.
             let (is_entity, keys, is_object) = match tail.type_state {
-                Some(NodeTypeState::Object(ts)) => (ts.is_entity, ts.by_graph.get(&tail.graph_id).map(|g| &g.keys), true),
+                Some(NodeTypeState::Object(ts)) => {
+                    (ts.is_entity, ts.by_graph.get(&tail.graph_id).map(|g| &g.keys), true)
+                }
                 Some(NodeTypeState::Interface(ts)) => {
                     (ts.is_entity, ts.by_graph.get(&tail.graph_id).map(|g| &g.keys), false)
                 }
@@ -488,7 +501,7 @@ impl<'s> Graph<'s> {
             }
 
             let mut keys: Vec<_> = keys.map(|k| k.iter().collect()).unwrap_or_default();
-            keys.sort_by(|a, b| score_key_fields(&a.fields).cmp(&score_key_fields(&b.fields)));
+            keys.sort_by_key(|a| score_key_fields(&a.fields));
 
             for key in keys {
                 if key.resolvable {
@@ -598,7 +611,10 @@ impl<'s> Graph<'s> {
             let new_tail_type_name = self.node(new_tail).type_name.clone();
             queue.push(ProvidedFieldsQueueItem {
                 head: new_tail,
-                provided_fields: interface_fields.iter().map(|f| with_type_name(f, &new_tail_type_name)).collect(),
+                provided_fields: interface_fields
+                    .iter()
+                    .map(|f| with_type_name(f, &new_tail_type_name))
+                    .collect(),
             });
         }
 
@@ -621,7 +637,9 @@ impl<'s> Graph<'s> {
 
         for provided_field in provided_fields {
             let SelectionNode::Fragment(fragment) = provided_field else {
-                return Err(JsError::error("Selection on union must be fragment. Received \"field\"."));
+                return Err(JsError::error(
+                    "Selection on union must be fragment. Received \"field\".",
+                ));
             };
 
             fields_by_type
@@ -636,7 +654,9 @@ impl<'s> Graph<'s> {
                 // NOTE(port): the TS reads `potentialEdge.tail` without a check; a missing edge
                 // would be a TypeError.
                 let Some(&potential_edge) = self.edges_by_head_type_index[head.0].get(index) else {
-                    return Err(JsError::type_error("Cannot read properties of undefined (reading 'tail')"));
+                    return Err(JsError::type_error(
+                        "Cannot read properties of undefined (reading 'tail')",
+                    ));
                 };
 
                 if self.node(self.edge(potential_edge).tail).type_name == type_name {
@@ -792,7 +812,9 @@ impl<'s> Graph<'s> {
                             continue;
                         }
 
-                        let Some(NodeTypeState::Interface(interface_type_state)) = self.node(interface_nodes[0]).type_state else {
+                        let Some(NodeTypeState::Interface(interface_type_state)) =
+                            self.node(interface_nodes[0]).type_state
+                        else {
                             continue;
                         };
 
@@ -927,7 +949,9 @@ impl<'s> Graph<'s> {
                 }
 
                 for field_state_in_graph in field_state.by_graph.values() {
-                    if is_truthy_str(&field_state_in_graph.override_label) && is_truthy_str(&field_state_in_graph.r#override) {
+                    if is_truthy_str(&field_state_in_graph.override_label)
+                        && is_truthy_str(&field_state_in_graph.r#override)
+                    {
                         let from_graph_id = field_state_in_graph
                             .r#override
                             .as_deref()
@@ -1075,7 +1099,13 @@ impl<'s> Graph<'s> {
     fn duplicate_node(&mut self, original_node: NodeId, r#move: &Move) -> NodeId {
         let (type_name, type_state, graph_id, graph_name, graph_name_id) = {
             let n = self.node(original_node);
-            (n.type_name.clone(), n.type_state, n.graph_id.clone(), n.graph_name.clone(), n.graph_name_id)
+            (
+                n.type_name.clone(),
+                n.type_state,
+                n.graph_id.clone(),
+                n.graph_name.clone(),
+                n.graph_name_id,
+            )
         };
         let new_node = self.create_node(&type_name, type_state, &graph_id, &graph_name, graph_name_id);
 
@@ -1147,7 +1177,10 @@ impl<'s> Graph<'s> {
         str += "\n}";
 
         if as_link {
-            return format!("https://dreampuf.github.io/GraphvizOnline/#{}", encode_uri_component(&str));
+            return format!(
+                "https://dreampuf.github.io/GraphvizOnline/#{}",
+                encode_uri_component(&str)
+            );
         }
 
         str
@@ -1203,7 +1236,12 @@ impl<'s> Graph<'s> {
     }
 
     /// Throws `Expected edge to be defined at index X` for an index without an edge.
-    fn get_same_graph_edges_of_index(&self, head: NodeId, indexes: Option<&Vec<usize>>, kind: &str) -> JsResult<Vec<EdgeId>> {
+    fn get_same_graph_edges_of_index(
+        &self,
+        head: NodeId,
+        indexes: Option<&Vec<usize>>,
+        kind: &str,
+    ) -> JsResult<Vec<EdgeId>> {
         let mut edges = Vec::new();
         self.push_same_graph_edges_of_index(&mut edges, head, indexes, kind)?;
         Ok(edges)
@@ -1262,7 +1300,11 @@ impl<'s> Graph<'s> {
     }
 
     fn filter_edges(&self, edges: &[EdgeId]) -> Vec<EdgeId> {
-        edges.iter().copied().filter(|&edge| !self.edge(edge).is_ignored()).collect()
+        edges
+            .iter()
+            .copied()
+            .filter(|&edge| !self.edge(edge).is_ignored())
+            .collect()
     }
 
     pub fn entity_edges_of_head(&self, head: NodeId) -> JsResult<Vec<EdgeId>> {
@@ -1287,8 +1329,18 @@ impl<'s> Graph<'s> {
 
         let node = self.node(head);
         let mut all = Vec::new();
-        self.push_same_graph_edges_of_index(&mut all, head, node.get_cross_graph_edge_indexes(&node.type_name), "cross-graph")?;
-        self.push_same_graph_edges_of_index(&mut all, head, node.get_abstract_edge_indexes(&node.type_name), "abstract")?;
+        self.push_same_graph_edges_of_index(
+            &mut all,
+            head,
+            node.get_cross_graph_edge_indexes(&node.type_name),
+            "cross-graph",
+        )?;
+        self.push_same_graph_edges_of_index(
+            &mut all,
+            head,
+            node.get_abstract_edge_indexes(&node.type_name),
+            "abstract",
+        )?;
 
         // `.filter((edge, i, all) => all.indexOf(edge) === i)`
         // PERF: in place; the kept edges are the prefix `all[..unique]`. Long lists (an entity
@@ -1556,7 +1608,11 @@ impl<'s> Graph<'s> {
         Ok(head)
     }
 
-    fn create_edge_for_interface_type_field(&mut self, head: NodeId, field: &'s InterfaceTypeFieldState) -> JsResult<()> {
+    fn create_edge_for_interface_type_field(
+        &mut self,
+        head: NodeId,
+        field: &'s InterfaceTypeFieldState,
+    ) -> JsResult<()> {
         if self.ignore_inaccessible && field.inaccessible {
             return Ok(());
         }
@@ -1574,7 +1630,9 @@ impl<'s> Graph<'s> {
             _ => None,
         };
         let provides = match provides {
-            Some(provides) if !provides.is_empty() => Some(self.selection_resolver.resolve(&output_type_name, provides)?),
+            Some(provides) if !provides.is_empty() => {
+                Some(self.selection_resolver.resolve(&output_type_name, provides)?)
+            }
             _ => None,
         };
         let required_contexts = self.required_contexts_of_field(head, FieldStateRef::Interface(field));
@@ -1694,7 +1752,9 @@ impl<'s> Graph<'s> {
             _ => None,
         };
         let provides = match provides {
-            Some(provides) if !provides.is_empty() => Some(self.selection_resolver.resolve(&output_type_name, provides)?),
+            Some(provides) if !provides.is_empty() => {
+                Some(self.selection_resolver.resolve(&output_type_name, provides)?)
+            }
             _ => None,
         };
         let r#override = match override_from_graph_id {
@@ -1785,7 +1845,10 @@ impl<'s> Graph<'s> {
         self.edges_by_tail_type_index.push(Vec::new());
         self.type_children.push(IndexSet::default());
 
-        self.type_name_to_node_indexes.entry(type_name).or_default().push(new_index);
+        self.type_name_to_node_indexes
+            .entry(type_name)
+            .or_default()
+            .push(new_index);
 
         NodeId(new_index)
     }
@@ -1878,7 +1941,10 @@ mod tests {
 
     #[test]
     fn encode_uri_component_matches_js() {
-        assert_eq!(encode_uri_component("digraph G {\n \"a\" -> b;}"), "digraph%20G%20%7B%0A%20%22a%22%20-%3E%20b%3B%7D");
+        assert_eq!(
+            encode_uri_component("digraph G {\n \"a\" -> b;}"),
+            "digraph%20G%20%7B%0A%20%22a%22%20-%3E%20b%3B%7D"
+        );
         assert_eq!(encode_uri_component("A-z_0.9!~*'()"), "A-z_0.9!~*'()");
         assert_eq!(encode_uri_component("🔑"), "%F0%9F%94%91");
     }

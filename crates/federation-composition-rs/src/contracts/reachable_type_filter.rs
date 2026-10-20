@@ -10,12 +10,12 @@
 use std::collections::VecDeque;
 use std::sync::LazyLock;
 
+use crate::utils::collections::{IndexMap, IndexSet};
 use graphql_rs::{
     is_type_definition_node, is_type_extension_node, is_type_system_definition_node, is_type_system_extension_node,
     visit, visit_in_parallel, Ancestor, ConstDirective, Definition, Directive, Document, FieldDefinition,
     InputValueDefinition, Kind, NamedType, NodeRef, Type, VisitAction, VisitInfo, Visitor,
 };
-use crate::utils::collections::{IndexMap, IndexSet};
 
 use crate::utils::js::{JsError, JsResult};
 
@@ -52,13 +52,28 @@ pub fn get_reachable_types(document_node: &Document) -> JsResult<IndexSet<String
     }
 
     if let Some(query_type) = schema.query_type {
-        process_named_type(query_type, &mut did_visit_type, &mut type_queue, &mut reachable_type_names);
+        process_named_type(
+            query_type,
+            &mut did_visit_type,
+            &mut type_queue,
+            &mut reachable_type_names,
+        );
     }
     if let Some(mutation_type) = schema.mutation_type {
-        process_named_type(mutation_type, &mut did_visit_type, &mut type_queue, &mut reachable_type_names);
+        process_named_type(
+            mutation_type,
+            &mut did_visit_type,
+            &mut type_queue,
+            &mut reachable_type_names,
+        );
     }
     if let Some(subscription_type) = schema.subscription_type {
-        process_named_type(subscription_type, &mut did_visit_type, &mut type_queue, &mut reachable_type_names);
+        process_named_type(
+            subscription_type,
+            &mut did_visit_type,
+            &mut type_queue,
+            &mut reachable_type_names,
+        );
     }
 
     // `schema.getDirectives()`: the document's directive definitions, then the specified
@@ -70,7 +85,12 @@ pub fn get_reachable_types(document_node: &Document) -> JsResult<IndexSet<String
 
         for arg in &directive.arguments {
             let arg_type = schema.get_named_type(named_type_name(&arg.ty))?;
-            process_named_type(arg_type, &mut did_visit_type, &mut type_queue, &mut reachable_type_names);
+            process_named_type(
+                arg_type,
+                &mut did_visit_type,
+                &mut type_queue,
+                &mut reachable_type_names,
+            );
         }
     }
 
@@ -90,22 +110,42 @@ pub fn get_reachable_types(document_node: &Document) -> JsResult<IndexSet<String
                 UserTypeKind::Object => {
                     for field in user_type.field_definitions() {
                         let field_type = schema.get_named_type(named_type_name(&field.ty))?;
-                        process_named_type(field_type, &mut did_visit_type, &mut type_queue, &mut reachable_type_names);
+                        process_named_type(
+                            field_type,
+                            &mut did_visit_type,
+                            &mut type_queue,
+                            &mut reachable_type_names,
+                        );
 
                         for arg in &field.arguments {
                             let arg_type = schema.get_named_type(named_type_name(&arg.ty))?;
-                            process_named_type(arg_type, &mut did_visit_type, &mut type_queue, &mut reachable_type_names);
+                            process_named_type(
+                                arg_type,
+                                &mut did_visit_type,
+                                &mut type_queue,
+                                &mut reachable_type_names,
+                            );
                         }
                     }
                     for interface in user_type.interfaces() {
                         let interface = schema.get_named_type(&interface.name.value)?;
-                        process_named_type(interface, &mut did_visit_type, &mut type_queue, &mut reachable_type_names);
+                        process_named_type(
+                            interface,
+                            &mut did_visit_type,
+                            &mut type_queue,
+                            &mut reachable_type_names,
+                        );
                     }
                 }
                 UserTypeKind::InputObject => {
                     for field in user_type.input_fields() {
                         let field_type = schema.get_named_type(named_type_name(&field.ty))?;
-                        process_named_type(field_type, &mut did_visit_type, &mut type_queue, &mut reachable_type_names);
+                        process_named_type(
+                            field_type,
+                            &mut did_visit_type,
+                            &mut type_queue,
+                            &mut reachable_type_names,
+                        );
                     }
                 }
                 UserTypeKind::Scalar | UserTypeKind::Enum => {
@@ -115,14 +155,29 @@ pub fn get_reachable_types(document_node: &Document) -> JsResult<IndexSet<String
                     // NOTE(port): the TS does not visit the arguments of interface fields.
                     for field in user_type.field_definitions() {
                         let field_type = schema.get_named_type(named_type_name(&field.ty))?;
-                        process_named_type(field_type, &mut did_visit_type, &mut type_queue, &mut reachable_type_names);
+                        process_named_type(
+                            field_type,
+                            &mut did_visit_type,
+                            &mut type_queue,
+                            &mut reachable_type_names,
+                        );
                     }
                     for interface in user_type.interfaces() {
                         let interface = schema.get_named_type(&interface.name.value)?;
-                        process_named_type(interface, &mut did_visit_type, &mut type_queue, &mut reachable_type_names);
+                        process_named_type(
+                            interface,
+                            &mut did_visit_type,
+                            &mut type_queue,
+                            &mut reachable_type_names,
+                        );
                     }
                     for possible_type in schema.get_possible_types(&current_type) {
-                        process_named_type(possible_type, &mut did_visit_type, &mut type_queue, &mut reachable_type_names);
+                        process_named_type(
+                            possible_type,
+                            &mut did_visit_type,
+                            &mut type_queue,
+                            &mut reachable_type_names,
+                        );
                     }
                 }
                 UserTypeKind::Union => {
@@ -489,7 +544,10 @@ fn build_ast_schema<'a>(document_ast: &'a Document) -> JsResult<AstSchema<'a>> {
 
     let mut directives: Vec<&graphql_rs::DirectiveDefinition> = directive_defs.clone();
     for std_directive in graphql_rs::specified_directives() {
-        if directive_defs.iter().all(|directive| directive.name.value != std_directive.name.value) {
+        if directive_defs
+            .iter()
+            .all(|directive| directive.name.value != std_directive.name.value)
+        {
             directives.push(std_directive);
         }
     }
@@ -681,7 +739,9 @@ impl<'a> Visitor<'a, SdlValidationContext> for UniqueEnumValueNamesRule {
         for value_def in value_nodes {
             let value_name = &value_def.name.value;
             if value_names.contains(value_name) {
-                cx.report_error(format!("Enum value \"{type_name}.{value_name}\" can only be defined once."));
+                cx.report_error(format!(
+                    "Enum value \"{type_name}.{value_name}\" can only be defined once."
+                ));
             } else {
                 value_names.insert(value_name.clone());
             }
@@ -728,7 +788,9 @@ impl UniqueArgumentDefinitionNamesRule {
         let seen_args = group_by_name(argument_nodes.iter().map(|arg| arg.name.value.as_str()));
         for (arg_name, count) in seen_args {
             if count > 1 {
-                cx.report_error(format!("Argument \"{parent_name}({arg_name}:)\" can only be defined once."));
+                cx.report_error(format!(
+                    "Argument \"{parent_name}({arg_name}:)\" can only be defined once."
+                ));
             }
         }
     }
@@ -839,7 +901,10 @@ impl<'a> Visitor<'a, SdlValidationContext> for KnownTypeNamesRule {
                 self.type_names.iter().map(String::as_str).collect()
             };
             let suggested_types = suggestion_list(type_name, &options);
-            cx.report_error(format!("Unknown type \"{type_name}\".{}", did_you_mean(&suggested_types)));
+            cx.report_error(format!(
+                "Unknown type \"{type_name}\".{}",
+                did_you_mean(&suggested_types)
+            ));
         }
         VisitAction::Continue
     }
@@ -884,7 +949,9 @@ impl<'a> Visitor<'a, SdlValidationContext> for KnownDirectivesRule {
         let candidate_location = get_directive_location_for_ast_path(info.ancestors);
         if let Some(candidate_location) = candidate_location {
             if !locations.iter().any(|l| l == candidate_location) {
-                cx.report_error(format!("Directive \"@{name}\" may not be used on {candidate_location}."));
+                cx.report_error(format!(
+                    "Directive \"@{name}\" may not be used on {candidate_location}."
+                ));
             }
         }
         VisitAction::Continue
@@ -981,15 +1048,18 @@ impl<'a> Visitor<'a, SdlValidationContext> for UniqueDirectivesPerLocationRule {
             return VisitAction::Continue;
         };
         let mut local_seen_directives = IndexSet::default();
-        let seen_directives: &mut IndexSet<String> = if matches!(node.kind(), Kind::SchemaDefinition | Kind::SchemaExtension) {
-            &mut self.schema_directives
-        } else if is_type_definition_node(node) || is_type_extension_node(node) {
-            self.type_directives_map.entry(node_name(node).to_string()).or_default()
-        } else if matches!(node.kind(), Kind::DirectiveDefinition | Kind::DirectiveExtension) {
-            self.directive_directives_map.entry(node_name(node).to_string()).or_default()
-        } else {
-            &mut local_seen_directives
-        };
+        let seen_directives: &mut IndexSet<String> =
+            if matches!(node.kind(), Kind::SchemaDefinition | Kind::SchemaExtension) {
+                &mut self.schema_directives
+            } else if is_type_definition_node(node) || is_type_extension_node(node) {
+                self.type_directives_map.entry(node_name(node).to_string()).or_default()
+            } else if matches!(node.kind(), Kind::DirectiveDefinition | Kind::DirectiveExtension) {
+                self.directive_directives_map
+                    .entry(node_name(node).to_string())
+                    .or_default()
+            } else {
+                &mut local_seen_directives
+            };
 
         for directive in directives {
             let directive_name = &directive.name.value;
@@ -1330,9 +1400,7 @@ impl LexicalDistance {
             for j in 1..=b_length {
                 let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
 
-                let mut current_cell = (rows[up][j] + 1)
-                    .min(rows[cur][j - 1] + 1)
-                    .min(rows[up][j - 1] + cost);
+                let mut current_cell = (rows[up][j] + 1).min(rows[cur][j - 1] + 1).min(rows[up][j - 1] + cost);
 
                 if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
                     // transposition
@@ -1467,7 +1535,10 @@ mod tests {
     fn includes_root_types() {
         assert_eq!(reachable("type Query { hello: String }"), names(&["Query"]));
         assert_eq!(reachable("type Mutation { hello: String }"), names(&["Mutation"]));
-        assert_eq!(reachable("type Subscription { hello: String }"), names(&["Subscription"]));
+        assert_eq!(
+            reachable("type Subscription { hello: String }"),
+            names(&["Subscription"])
+        );
     }
 
     #[test]
@@ -1504,7 +1575,10 @@ mod tests {
             reachable("type Query { hello: Hello } type Hello { world: String }"),
             names(&["Query", "Hello"])
         );
-        assert_eq!(reachable("type Query { hello: Hello } scalar Hello"), names(&["Query", "Hello"]));
+        assert_eq!(
+            reachable("type Query { hello: Hello } scalar Hello"),
+            names(&["Query", "Hello"])
+        );
         assert_eq!(
             reachable("type Query { hello(input: Hello): String } input Hello { world: String }"),
             names(&["Query", "Hello"])
@@ -1572,7 +1646,14 @@ mod tests {
         let set = reachable("type Query { t: __Type }");
         assert_eq!(
             set,
-            names(&["Query", "__Type", "__TypeKind", "__Field", "__EnumValue", "__InputValue"])
+            names(&[
+                "Query",
+                "__Type",
+                "__TypeKind",
+                "__Field",
+                "__EnumValue",
+                "__InputValue"
+            ])
         );
     }
 
@@ -1650,14 +1731,23 @@ mod tests {
 
     #[test]
     fn suggestion_list_and_did_you_mean() {
-        assert_eq!(suggestion_list("Strin", &["String", "Int", "Stri"]), vec!["Stri", "String"]);
-        assert_eq!(suggestion_list("abc", &["ABC", "abc", "acb"]), vec!["abc", "ABC", "acb"]);
+        assert_eq!(
+            suggestion_list("Strin", &["String", "Int", "Stri"]),
+            vec!["Stri", "String"]
+        );
+        assert_eq!(
+            suggestion_list("abc", &["ABC", "abc", "acb"]),
+            vec!["abc", "ABC", "acb"]
+        );
         assert_eq!(did_you_mean(&[]), "");
         assert_eq!(
             did_you_mean(&["a", "b", "c", "d", "e", "f"].map(String::from)),
             " Did you mean \"a\", \"b\", \"c\", \"d\", or \"e\"?"
         );
-        assert_eq!(did_you_mean(&["a", "b"].map(String::from)), " Did you mean \"a\" or \"b\"?");
+        assert_eq!(
+            did_you_mean(&["a", "b"].map(String::from)),
+            " Did you mean \"a\" or \"b\"?"
+        );
         assert_eq!(natural_compare("a10", "a9"), std::cmp::Ordering::Greater);
         assert_eq!(natural_compare("a01", "a1"), std::cmp::Ordering::Less);
     }

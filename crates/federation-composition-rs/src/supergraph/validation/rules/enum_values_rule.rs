@@ -1,11 +1,11 @@
 //! Port of `src/supergraph/validation/rules/enum-values-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::supergraph::composition::enum_type::EnumTypeState;
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::GraphQLError;
 
 /// `EnumValuesRule(context, supergraph)`.
 /// Visitor callbacks: `EnumType`.
@@ -20,11 +20,7 @@ impl<'s> SupergraphRule<'s> for EnumValuesRule {
 }
 
 impl<'s> SupergraphVisitor<'s> for EnumValuesRule {
-    fn enum_type(
-        &mut self,
-        cx: &mut SupergraphValidationContext,
-        enum_type_state: &'s EnumTypeState,
-    ) -> JsResult<()> {
+    fn enum_type(&mut self, cx: &mut SupergraphValidationContext, enum_type_state: &'s EnumTypeState) -> JsResult<()> {
         if enum_type_state.referenced_by_input_type && enum_type_state.referenced_by_output_type {
             let mut missing_values: Vec<&String> = Vec::new();
             let total = enum_type_state.by_graph.len();

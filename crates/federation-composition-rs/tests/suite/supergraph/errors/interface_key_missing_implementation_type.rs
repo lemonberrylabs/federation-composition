@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn interface_key_missing_implementation_type(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 
@@ -103,7 +103,7 @@ test_versions! {
 
     fn interface_key_missing_implementation_type_multiple_keys(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 

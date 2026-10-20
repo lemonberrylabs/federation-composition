@@ -7,6 +7,7 @@
 
 use std::sync::LazyLock;
 
+use crate::utils::collections::IndexSet;
 use graphql_rs::{
     visit_edit, visit_in_parallel_edit, Ancestor, ConstArgument, ConstDirective, ConstObjectField, ConstValue,
     DirectiveDefinition, Document, EditAction, EditVisitor, EnumTypeDefinition, EnumValueDefinition, FieldDefinition,
@@ -14,10 +15,9 @@ use graphql_rs::{
     ObjectTypeDefinition, OperationType, OperationTypeDefinition, PathKey, ScalarTypeDefinition, SchemaDefinition,
     StringValue, Type, UnionTypeDefinition, VisitInfo,
 };
-use crate::utils::collections::IndexSet;
 
-use crate::subgraph::state::{ArgumentKind, Deprecated, Description};
 use crate::graphql::printer::print;
+use crate::subgraph::state::{ArgumentKind, Deprecated, Description};
 use crate::utils::js::number_to_string;
 
 /// `DescriptionAST`: `{ value, block }`.
@@ -383,7 +383,11 @@ pub fn create_directive_node(directive: impl AstArg<DirectiveAst>) -> DirectiveD
         name: Name::new(directive.name),
         locations: directive.locations.into_iter().map(Name::new).collect(),
         repeatable: directive.repeatable,
-        arguments: directive.arguments.into_iter().map(create_field_argument_node).collect(),
+        arguments: directive
+            .arguments
+            .into_iter()
+            .map(create_field_argument_node)
+            .collect(),
         directives: vec![],
     }
 }
@@ -427,7 +431,11 @@ pub fn create_interface_type_node(interface_type: impl AstArg<InterfaceTypeAst>)
         }),
         description: interface_type.description.map(create_description_node),
         fields: interface_type.fields.into_iter().map(create_field_node).collect(),
-        interfaces: interface_type.interfaces.into_iter().map(create_named_type_node).collect(),
+        interfaces: interface_type
+            .interfaces
+            .into_iter()
+            .map(create_named_type_node)
+            .collect(),
     }
 }
 
@@ -443,7 +451,11 @@ pub fn create_input_object_type_node(input_object_type: impl AstArg<InputObjectT
             is_one_of: input_object_type.is_one_of,
             ..Default::default()
         }),
-        fields: input_object_type.fields.into_iter().map(create_input_field_node).collect(),
+        fields: input_object_type
+            .fields
+            .into_iter()
+            .map(create_input_field_node)
+            .collect(),
         description: input_object_type.description.map(create_description_node),
     }
 }
@@ -556,7 +568,10 @@ fn parse_printed_type(ty: &str, position: &mut usize) -> Option<Type> {
             return None;
         }
         *position += 1;
-        while bytes.get(*position).is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_') {
+        while bytes
+            .get(*position)
+            .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+        {
             *position += 1;
         }
         Type::named(&ty[start..*position])
@@ -813,11 +828,17 @@ fn string_list_list(groups: &[Vec<String>]) -> ConstValue {
 }
 
 fn create_policy_directive_node(policies: &[Vec<String>]) -> ConstDirective {
-    ConstDirective::new("policy", vec![ConstArgument::new("policies", string_list_list(policies))])
+    ConstDirective::new(
+        "policy",
+        vec![ConstArgument::new("policies", string_list_list(policies))],
+    )
 }
 
 fn create_requires_scopes_directive_node(scopes: &[Vec<String>]) -> ConstDirective {
-    ConstDirective::new("requiresScopes", vec![ConstArgument::new("scopes", string_list_list(scopes))])
+    ConstDirective::new(
+        "requiresScopes",
+        vec![ConstArgument::new("scopes", string_list_list(scopes))],
+    )
 }
 
 fn create_tag_directive_node(name: String) -> ConstDirective {
@@ -853,13 +874,19 @@ fn create_deprecated_directive_node(deprecated: &Deprecated) -> ConstDirective {
 }
 
 fn create_specified_by_directive_node(url: &str) -> ConstDirective {
-    ConstDirective::new("specifiedBy", vec![graphql_rs::Argument::new("url", ConstValue::string(url))])
+    ConstDirective::new(
+        "specifiedBy",
+        vec![graphql_rs::Argument::new("url", ConstValue::string(url))],
+    )
 }
 
 fn create_cost_directive_node(input: &CostAst) -> ConstDirective {
     ConstDirective::new(
         input.directive_name.as_str(),
-        vec![ConstArgument::new("weight", ConstValue::int(number_to_string(input.cost)))],
+        vec![ConstArgument::new(
+            "weight",
+            ConstValue::int(number_to_string(input.cost)),
+        )],
     )
 }
 
@@ -874,20 +901,33 @@ fn create_list_size_directive_node(input: &ListSizeAst) -> ConstDirective {
     }
 
     if let Some(assumed_size) = input.assumed_size {
-        args.push(ConstArgument::new("assumedSize", ConstValue::int(number_to_string(assumed_size))));
+        args.push(ConstArgument::new(
+            "assumedSize",
+            ConstValue::int(number_to_string(assumed_size)),
+        ));
     }
 
     if let Some(slicing_arguments) = &input.slicing_arguments {
         args.push(ConstArgument::new(
             "slicingArguments",
-            ConstValue::list(slicing_arguments.iter().map(|arg| ConstValue::string(arg.as_str())).collect()),
+            ConstValue::list(
+                slicing_arguments
+                    .iter()
+                    .map(|arg| ConstValue::string(arg.as_str()))
+                    .collect(),
+            ),
         ));
     }
 
     if let Some(sized_fields) = &input.sized_fields {
         args.push(ConstArgument::new(
             "sizedFields",
-            ConstValue::list(sized_fields.iter().map(|arg| ConstValue::string(arg.as_str())).collect()),
+            ConstValue::list(
+                sized_fields
+                    .iter()
+                    .map(|arg| ConstValue::string(arg.as_str()))
+                    .collect(),
+            ),
         ));
     }
 
@@ -949,7 +989,11 @@ fn apply_directives(common: CommonDirectivesAst<'_>) -> Vec<ConstDirective> {
         directives.extend(join.r#type.into_iter().map(create_join_type_directive_node));
         directives.extend(join.implements.into_iter().map(create_join_implements_directive_node));
         directives.extend(join.field.into_iter().map(create_join_field_directive_node));
-        directives.extend(join.union_member.into_iter().map(create_join_union_member_directive_node));
+        directives.extend(
+            join.union_member
+                .into_iter()
+                .map(create_join_union_member_directive_node),
+        );
         directives.extend(join.enum_value.into_iter().map(create_join_enum_value_directive_node));
     }
     directives.extend(common.contexts.iter().map(|name| create_context_directive_node(name)));
@@ -1057,10 +1101,8 @@ impl EditVisitor for StripFederationVisitor {
                     return EditAction::Delete;
                 }
             }
-            NodeRef::ScalarTypeDefinition(node) => {
-                if is_federation_scalar(&node.name.value) {
-                    return EditAction::Delete;
-                }
+            NodeRef::ScalarTypeDefinition(node) if is_federation_scalar(&node.name.value) => {
+                return EditAction::Delete;
             }
             _ => {}
         }
@@ -1150,7 +1192,8 @@ impl EditVisitor for HideInaccessibleVisitor<'_> {
                 })),
                 Ok(None) => EditAction::Continue,
             },
-            NodeRef::InterfaceTypeDefinition(node) => match self.hide_object_or_interface(&node.name, &node.interfaces) {
+            NodeRef::InterfaceTypeDefinition(node) => match self.hide_object_or_interface(&node.name, &node.interfaces)
+            {
                 Err(()) => EditAction::Delete,
                 Ok(Some(interfaces)) => EditAction::Replace(Node::InterfaceTypeDefinition(InterfaceTypeDefinition {
                     interfaces,
@@ -1470,7 +1513,10 @@ mod tests {
         // `createJoinGraphEnumTypeNode` itself dedupes the value directives with the library
         // printer (`crate::graphql::printer`), so only its directives are checked here.
         assert_eq!(
-            print_js(&create_join_graph_directive_node("products", Some("http://products.com"))),
+            print_js(&create_join_graph_directive_node(
+                "products",
+                Some("http://products.com")
+            )),
             "@join__graph(name: \"products\", url: \"http://products.com\")"
         );
         assert_eq!(

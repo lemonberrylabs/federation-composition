@@ -119,10 +119,7 @@ fn mutate(v: &Json, variant: Variant) -> Json {
                             out.entry(*key).or_insert(Json::Null);
                         }
                         out.insert("loc".into(), serde_json::json!({ "start": 0, "end": 1 }));
-                        out.insert(
-                            "someUnknownKey".into(),
-                            serde_json::json!([1, { "x": null }]),
-                        );
+                        out.insert("someUnknownKey".into(), serde_json::json!([1, { "x": null }]));
                     }
                     Variant::KindLast => {
                         out.insert("kind".into(), map["kind"].clone());
@@ -154,16 +151,9 @@ fn documents() {
             (Ok(out), Some(expected), None) => check(&mut failures, out == s(expected), || {
                 format!("{}: strip\n  ours: {out:?}\n  js:   {:?}", l(), s(expected))
             }),
-            (Err(e), None, Some(expected)) => {
-                check(&mut failures, e.message == s(expected), || {
-                    format!(
-                        "{}: strip error\n  ours: {}\n  js:   {}",
-                        l(),
-                        e.message,
-                        s(expected)
-                    )
-                })
-            }
+            (Err(e), None, Some(expected)) => check(&mut failures, e.message == s(expected), || {
+                format!("{}: strip error\n  ours: {}\n  js:   {}", l(), e.message, s(expected))
+            }),
             (ours, _, _) => failures.push(format!("{}: strip mismatch, ours: {ours:?}", l())),
         }
 
@@ -178,45 +168,29 @@ fn documents() {
                 let printed = print(ast);
                 let expected_print = s(&doc["printed"]);
                 check(&mut failures, printed == expected_print, || {
-                    format!(
-                        "{}: print\n  ours: {printed:?}\n  js:   {expected_print:?}",
-                        l()
-                    )
+                    format!("{}: print\n  ours: {printed:?}\n  js:   {expected_print:?}", l())
                 });
                 let js_value: Json = serde_json::from_str(s(json)).unwrap();
                 let from_js: Document = serde_json::from_value(js_value.clone()).unwrap();
-                check(&mut failures, &from_js == ast, || {
-                    format!("{}: JSON deserialize", l())
-                });
+                check(&mut failures, &from_js == ast, || format!("{}: JSON deserialize", l()));
                 check(&mut failures, print(&from_js) == expected_print, || {
                     format!("{}: print of deserialized JSON", l())
                 });
                 let from_str: Document = serde_json::from_str(s(json)).unwrap();
-                check(&mut failures, &from_str == ast, || {
-                    format!("{}: JSON from_str", l())
-                });
+                check(&mut failures, &from_str == ast, || format!("{}: JSON from_str", l()));
                 for variant in [Variant::EmptyLists, Variant::Nulls, Variant::KindLast] {
                     let mutated = serde_json::to_string(&mutate(&js_value, variant)).unwrap();
                     match serde_json::from_str::<Document>(&mutated) {
                         Ok(d) => check(&mut failures, &d == ast, || {
                             format!("{}: JSON variant mismatch {mutated}", l())
                         }),
-                        Err(e) => {
-                            failures.push(format!("{}: JSON variant error {e}: {mutated}", l()))
-                        }
+                        Err(e) => failures.push(format!("{}: JSON variant error {e}: {mutated}", l())),
                     }
                 }
             }
-            (Err(e), None, Some(expected)) => {
-                check(&mut failures, e.message == s(expected), || {
-                    format!(
-                        "{}: parse error\n  ours: {}\n  js:   {}",
-                        l(),
-                        e.message,
-                        s(expected)
-                    )
-                })
-            }
+            (Err(e), None, Some(expected)) => check(&mut failures, e.message == s(expected), || {
+                format!("{}: parse error\n  ours: {}\n  js:   {}", l(), e.message, s(expected))
+            }),
             (ours, _, expected) => failures.push(format!(
                 "{}: parse outcome differs\n  ours: {:?}\n  js error: {expected:?}",
                 l(),
@@ -242,19 +216,21 @@ fn documents() {
                 let json_ok = expected_json.is_some_and(|j| s(j) == ours)
                     && (doc.get("fragmentArgumentsError").is_none() || doc.get("json").is_some());
                 check(&mut failures, json_ok, || {
-                    format!("{}: fragment arguments JSON\n  ours: {ours}\n  js: {expected_json:?} / {expected_error:?}", l())
+                    format!(
+                        "{}: fragment arguments JSON\n  ours: {ours}\n  js: {expected_json:?} / {expected_error:?}",
+                        l()
+                    )
                 });
-                check(
-                    &mut failures,
-                    expected_printed.is_some_and(|p| s(p) == printed),
-                    || {
-                        format!("{}: fragment arguments print\n  ours: {printed:?}\n  js: {expected_printed:?}", l())
-                    },
-                );
+                check(&mut failures, expected_printed.is_some_and(|p| s(p) == printed), || {
+                    format!(
+                        "{}: fragment arguments print\n  ours: {printed:?}\n  js: {expected_printed:?}",
+                        l()
+                    )
+                });
             }
             Err(e) => {
-                let ok = doc.get("fragmentArgumentsJson").is_none()
-                    && expected_error.is_some_and(|x| s(x) == e.message);
+                let ok =
+                    doc.get("fragmentArgumentsJson").is_none() && expected_error.is_some_and(|x| s(x) == e.message);
                 check(&mut failures, ok, || {
                     format!(
                         "{}: fragment arguments error\n  ours: {}\n  js: {expected_error:?}",
@@ -297,9 +273,7 @@ fn max_tokens() {
     assert_no_failures("max_tokens", cases.len(), failures);
 }
 
-fn compare_parse<
-    T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
->(
+fn compare_parse<T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug>(
     failures: &mut Vec<String>,
     case: &Json,
     what: &str,
@@ -315,15 +289,10 @@ fn compare_parse<
             });
             let printed = print_fn(&v);
             check(failures, printed == s(&case["printed"]), || {
-                format!(
-                    "{what} {text:?}: print {printed:?} vs {:?}",
-                    case["printed"]
-                )
+                format!("{what} {text:?}: print {printed:?} vs {:?}", case["printed"])
             });
             let back: T = serde_json::from_str(s(json)).unwrap();
-            check(failures, back == v, || {
-                format!("{what} {text:?}: deserialize")
-            });
+            check(failures, back == v, || format!("{what} {text:?}: deserialize"));
         }
         (Err(e), None) => check(failures, e.message == s(&case["error"]), || {
             format!(
@@ -331,9 +300,7 @@ fn compare_parse<
                 e.message, case["error"]
             )
         }),
-        (ours, _) => failures.push(format!(
-            "{what} {text:?}: outcome differs, ours {ours:?}, js {case}"
-        )),
+        (ours, _) => failures.push(format!("{what} {text:?}: outcome differs, ours {ours:?}, js {case}")),
     }
 }
 
@@ -353,13 +320,7 @@ fn values_types_and_coordinates() {
     }
     for case in corpus()["types"].as_array().unwrap() {
         total += 1;
-        compare_parse(
-            &mut failures,
-            case,
-            "type",
-            parse_type(s(&case["text"])),
-            |v| print(v),
-        );
+        compare_parse(&mut failures, case, "type", parse_type(s(&case["text"])), |v| print(v));
     }
     for case in corpus()["coordinates"].as_array().unwrap() {
         total += 1;
@@ -441,21 +402,11 @@ fn trace_line(phase: &str, node: NodeRef<'_>, info: &VisitInfo<'_, '_>) -> Strin
 struct Tracer;
 
 impl<'a> Visitor<'a, String> for Tracer {
-    fn enter(
-        &mut self,
-        node: NodeRef<'a>,
-        out: &mut String,
-        info: &VisitInfo<'a, '_>,
-    ) -> VisitAction {
+    fn enter(&mut self, node: NodeRef<'a>, out: &mut String, info: &VisitInfo<'a, '_>) -> VisitAction {
         out.push_str(&trace_line("enter", node, info));
         VisitAction::Continue
     }
-    fn leave(
-        &mut self,
-        node: NodeRef<'a>,
-        out: &mut String,
-        info: &VisitInfo<'a, '_>,
-    ) -> VisitAction {
+    fn leave(&mut self, node: NodeRef<'a>, out: &mut String, info: &VisitInfo<'a, '_>) -> VisitAction {
         out.push_str(&trace_line("leave", node, info));
         VisitAction::Continue
     }
@@ -483,9 +434,7 @@ fn traversal_order() {
             result == EditResult::Node(Node::Document(doc.clone())),
             || "edit visit without edits changed the document".to_owned(),
         );
-        check(&mut failures, edit_out == out, || {
-            "edit traversal differs".to_owned()
-        });
+        check(&mut failures, edit_out == out, || "edit traversal differs".to_owned());
         match case.get("trace") {
             Some(expected) => check(&mut failures, out == s(expected), || {
                 let diff = out
@@ -657,33 +606,24 @@ fn run_scenario(name: &str, doc: &Document) -> (EditResult, Vec<String>) {
             doc,
             &mut fn_edit(
                 |node, info| match node {
-                    NodeRef::StringValue(_) if info.key == Some(PathKey::Key("description")) => {
-                        EditAction::Delete
-                    }
-                    NodeRef::SelectionSet(_)
-                        if matches!(info.parent, Some(Ancestor::Node(NodeRef::Field(_)))) =>
-                    {
+                    NodeRef::StringValue(_) if info.key == Some(PathKey::Key("description")) => EditAction::Delete,
+                    NodeRef::SelectionSet(_) if matches!(info.parent, Some(Ancestor::Node(NodeRef::Field(_)))) => {
                         EditAction::Delete
                     }
                     NodeRef::NamedType(n)
                         if info.key == Some(PathKey::Key("typeCondition"))
-                            && matches!(
-                                info.parent,
-                                Some(Ancestor::Node(NodeRef::InlineFragment(_)))
-                            )
+                            && matches!(info.parent, Some(Ancestor::Node(NodeRef::InlineFragment(_))))
                             && n.name.value.len() % 2 == 0 =>
                     {
                         EditAction::Delete
                     }
-                    NodeRef::VariableDefinition(v) if v.default_value.is_some() => {
-                        EditAction::Replace(
-                            VariableDefinition {
-                                default_value: None,
-                                ..v.clone()
-                            }
-                            .into(),
-                        )
-                    }
+                    NodeRef::VariableDefinition(v) if v.default_value.is_some() => EditAction::Replace(
+                        VariableDefinition {
+                            default_value: None,
+                            ..v.clone()
+                        }
+                        .into(),
+                    ),
                     _ => EditAction::Continue,
                 },
                 |node, _| {
@@ -691,10 +631,7 @@ fn run_scenario(name: &str, doc: &Document) -> (EditResult, Vec<String>) {
                     // that have their own entry.
                     if !matches!(
                         node.kind(),
-                        Kind::StringValue
-                            | Kind::SelectionSet
-                            | Kind::NamedType
-                            | Kind::VariableDefinition
+                        Kind::StringValue | Kind::SelectionSet | Kind::NamedType | Kind::VariableDefinition
                     ) {
                         log.push(node.kind().to_string());
                     }
@@ -767,11 +704,8 @@ fn run_scenario(name: &str, doc: &Document) -> (EditResult, Vec<String>) {
                 let logger = |id: &'static str| {
                     let log = &log;
                     move |phase: &str, node: NodeRef<'_>, info: &VisitInfo<'_, '_>| {
-                        log.borrow_mut().push(format!(
-                            "{id} {phase} {} {}",
-                            node.kind(),
-                            path_str(info.path)
-                        ));
+                        log.borrow_mut()
+                            .push(format!("{id} {phase} {} {}", node.kind(), path_str(info.path)));
                     }
                 };
                 let a = logger("A");
@@ -801,9 +735,7 @@ fn run_scenario(name: &str, doc: &Document) -> (EditResult, Vec<String>) {
                         move |node, info| {
                             b("enter", node, info);
                             match node {
-                                NodeRef::Directive(d) if d.name.value.len() % 2 == 0 => {
-                                    EditAction::Delete
-                                }
+                                NodeRef::Directive(d) if d.name.value.len() % 2 == 0 => EditAction::Delete,
                                 _ => EditAction::Continue,
                             }
                         },
@@ -829,9 +761,7 @@ fn run_scenario(name: &str, doc: &Document) -> (EditResult, Vec<String>) {
                         move |node, info| {
                             c2("leave", node, info);
                             match node {
-                                NodeRef::InputValueDefinition(i) if i.name.value.len() % 2 == 1 => {
-                                    EditAction::Delete
-                                }
+                                NodeRef::InputValueDefinition(i) if i.name.value.len() % 2 == 1 => EditAction::Delete,
                                 _ => EditAction::Continue,
                             }
                         },
@@ -844,9 +774,7 @@ fn run_scenario(name: &str, doc: &Document) -> (EditResult, Vec<String>) {
                         move |node, info| {
                             d2("leave", node, info);
                             match node {
-                                NodeRef::FieldDefinition(f) if f.name.value.starts_with('w') => {
-                                    EditAction::Break
-                                }
+                                NodeRef::FieldDefinition(f) if f.name.value.starts_with('w') => EditAction::Break,
                                 _ => EditAction::Continue,
                             }
                         },
@@ -863,32 +791,12 @@ fn run_scenario(name: &str, doc: &Document) -> (EditResult, Vec<String>) {
                 leave_break: Option<Kind>,
             }
             impl<'a, F: FnMut(NodeRef<'a>) -> VisitAction> Visitor<'a, Vec<String>> for Logged<F> {
-                fn enter(
-                    &mut self,
-                    node: NodeRef<'a>,
-                    log: &mut Vec<String>,
-                    info: &VisitInfo<'a, '_>,
-                ) -> VisitAction {
-                    log.push(format!(
-                        "{} enter {} {}",
-                        self.id,
-                        node.kind(),
-                        path_str(info.path)
-                    ));
+                fn enter(&mut self, node: NodeRef<'a>, log: &mut Vec<String>, info: &VisitInfo<'a, '_>) -> VisitAction {
+                    log.push(format!("{} enter {} {}", self.id, node.kind(), path_str(info.path)));
                     (self.enter)(node)
                 }
-                fn leave(
-                    &mut self,
-                    node: NodeRef<'a>,
-                    log: &mut Vec<String>,
-                    info: &VisitInfo<'a, '_>,
-                ) -> VisitAction {
-                    log.push(format!(
-                        "{} leave {} {}",
-                        self.id,
-                        node.kind(),
-                        path_str(info.path)
-                    ));
+                fn leave(&mut self, node: NodeRef<'a>, log: &mut Vec<String>, info: &VisitInfo<'a, '_>) -> VisitAction {
+                    log.push(format!("{} leave {} {}", self.id, node.kind(), path_str(info.path)));
                     if Some(node.kind()) == self.leave_break {
                         VisitAction::Break
                     } else {
@@ -987,12 +895,7 @@ fn run_scenario(name: &str, doc: &Document) -> (EditResult, Vec<String>) {
                 limit: usize,
             }
             impl<'a> Visitor<'a, Vec<String>> for Counter {
-                fn enter(
-                    &mut self,
-                    node: NodeRef<'a>,
-                    log: &mut Vec<String>,
-                    info: &VisitInfo<'a, '_>,
-                ) -> VisitAction {
+                fn enter(&mut self, node: NodeRef<'a>, log: &mut Vec<String>, info: &VisitInfo<'a, '_>) -> VisitAction {
                     self.count += 1;
                     let key = match info.key {
                         None => "undefined".to_owned(),
@@ -1008,12 +911,7 @@ fn run_scenario(name: &str, doc: &Document) -> (EditResult, Vec<String>) {
                         VisitAction::Continue
                     }
                 }
-                fn leave(
-                    &mut self,
-                    node: NodeRef<'a>,
-                    log: &mut Vec<String>,
-                    _: &VisitInfo<'a, '_>,
-                ) -> VisitAction {
+                fn leave(&mut self, node: NodeRef<'a>, log: &mut Vec<String>, _: &VisitInfo<'a, '_>) -> VisitAction {
                     self.count += 1;
                     log.push(format!("leave {}", node.kind()));
                     if self.count == self.limit {
@@ -1090,28 +988,16 @@ fn editing_visits() {
         match case.get("result") {
             Some(expected) => {
                 check(&mut failures, json == s(expected), || {
-                    format!(
-                        "{}: result\n  ours: {json}\n  js:   {}",
-                        what(),
-                        s(expected)
-                    )
+                    format!("{}: result\n  ours: {json}\n  js:   {}", what(), s(expected))
                 });
-                let expected_log: Vec<String> =
-                    serde_json::from_value(case["log"].clone()).unwrap();
+                let expected_log: Vec<String> = serde_json::from_value(case["log"].clone()).unwrap();
                 check(&mut failures, log == expected_log, || {
                     let diff = log
                         .iter()
                         .zip(&expected_log)
                         .position(|(a, b)| a != b)
-                        .map(|i| {
-                            format!(
-                                "first difference at {i}: ours {:?} js {:?}",
-                                log[i], expected_log[i]
-                            )
-                        })
-                        .unwrap_or_else(|| {
-                            format!("lengths {} vs {}", log.len(), expected_log.len())
-                        });
+                        .map(|i| format!("first difference at {i}: ours {:?} js {:?}", log[i], expected_log[i]))
+                        .unwrap_or_else(|| format!("lengths {} vs {}", log.len(), expected_log.len()));
                     format!("{}: log {diff}", what())
                 });
             }
@@ -1119,11 +1005,9 @@ fn editing_visits() {
                 check(&mut failures, fnv(&json) == s(&case["hash"]), || {
                     format!("{}: result hash", what())
                 });
-                check(
-                    &mut failures,
-                    fnv(&log.join("\n")) == s(&case["logHash"]),
-                    || format!("{}: log hash", what()),
-                );
+                check(&mut failures, fnv(&log.join("\n")) == s(&case["logHash"]), || {
+                    format!("{}: log hash", what())
+                });
             }
         }
     }
@@ -1148,18 +1032,9 @@ fn specified_definitions() {
         serde_json::to_value(INTROSPECTION_TYPE_NAMES).unwrap(),
         spec["introspectionTypes"]
     );
-    assert_eq!(
-        VERSION_INFO.major as u64,
-        spec["version"]["major"].as_u64().unwrap()
-    );
-    assert_eq!(
-        VERSION_INFO.minor as u64,
-        spec["version"]["minor"].as_u64().unwrap()
-    );
-    assert_eq!(
-        VERSION_INFO.patch as u64,
-        spec["version"]["patch"].as_u64().unwrap()
-    );
+    assert_eq!(VERSION_INFO.major as u64, spec["version"]["major"].as_u64().unwrap());
+    assert_eq!(VERSION_INFO.minor as u64, spec["version"]["minor"].as_u64().unwrap());
+    assert_eq!(VERSION_INFO.patch as u64, spec["version"]["patch"].as_u64().unwrap());
     assert!(spec["version"]["preReleaseTag"].is_null() && VERSION_INFO.pre_release_tag.is_none());
     for d in graphql_rs::specified_directives() {
         assert!(is_specified_directive(&d.name.value));
@@ -1178,9 +1053,7 @@ fn scalar_literal_coercion() {
         let value = parse_value(s(&case["text"])).unwrap();
         let ours = scalar.coerce_input_literal(&value);
         let ok = match (&ours, case.get("result"), case.get("error")) {
-            (Ok(CoercedLiteral::Number(n)), Some(Json::Number(e)), None) => {
-                *n == e.as_f64().unwrap()
-            }
+            (Ok(CoercedLiteral::Number(n)), Some(Json::Number(e)), None) => *n == e.as_f64().unwrap(),
             (Ok(CoercedLiteral::Number(n)), Some(Json::String(e)), None) => match e.as_str() {
                 "-0" => *n == 0.0 && n.is_sign_negative(),
                 "NaN" => n.is_nan(),

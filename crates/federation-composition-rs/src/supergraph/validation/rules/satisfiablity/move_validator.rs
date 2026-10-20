@@ -5,7 +5,9 @@ use std::rc::Rc;
 
 use super::edge::{is_abstract_edge, is_entity_edge, EdgeId, EdgeResolvabilityResult};
 use super::errors::{LazyErrors, OneOrMany, SatisfiabilityError};
-use super::finder::{concat_edge, concat_if_not_exists_fields, concat_if_not_exists_string, PathFinder, PathFinderResult};
+use super::finder::{
+    concat_edge, concat_if_not_exists_fields, concat_if_not_exists_string, PathFinder, PathFinderResult,
+};
 use super::graph::Graph;
 use super::helpers::{lazy, OverrideLabels};
 use super::moves::Move;
@@ -37,8 +39,12 @@ fn is_field_requirement(requirement: &MoveRequirement<'_>) -> bool {
 /// `RequirementResult`.
 #[derive(Clone, Debug)]
 pub enum RequirementResult<'s, 'a> {
-    Success { requirements: Vec<MoveRequirement<'a>> },
-    Failure { errors: LazyErrors<'s, SatisfiabilityError> },
+    Success {
+        requirements: Vec<MoveRequirement<'a>>,
+    },
+    Failure {
+        errors: LazyErrors<'s, SatisfiabilityError>,
+    },
 }
 
 impl RequirementResult<'_, '_> {
@@ -100,7 +106,13 @@ impl<'s> MoveValidator<'s> {
 
         // it's important to pop from the end as we want to process the last added requirement first
         while let Some(requirement) = requirements.pop_back() {
-            let result = self.validate_requirement(&requirement, visited_edges, visited_graphs, visited_fields, label_values)?;
+            let result = self.validate_requirement(
+                &requirement,
+                visited_edges,
+                visited_graphs,
+                visited_fields,
+                label_values,
+            )?;
 
             match result {
                 RequirementResult::Failure { errors } => return Ok(RequirementResult::Failure { errors }),
@@ -112,7 +124,9 @@ impl<'s> MoveValidator<'s> {
             }
         }
 
-        Ok(RequirementResult::Success { requirements: Vec::new() })
+        Ok(RequirementResult::Success {
+            requirements: Vec::new(),
+        })
     }
 
     /// `requirement.selection` is a `Fragment`.
@@ -128,7 +142,8 @@ impl<'s> MoveValidator<'s> {
             return Err(JsError::error("Expected a fragment requirement"));
         };
         let graph = &*self.supergraph;
-        self.logger.log(|| format!("Validating: ... on {}", selection.type_name));
+        self.logger
+            .log(|| format!("Validating: ... on {}", selection.type_name));
 
         let mut next_paths: Vec<OperationPath> = Vec::new();
         let mut errors = LazyErrors::new();
@@ -137,7 +152,9 @@ impl<'s> MoveValidator<'s> {
         // It means that it's a fragment spread on an object type, not a union or interface.
         // We can ignore the fragment and continue with the selection set.
         let Some(first_path) = requirement.paths.first() else {
-            return Err(JsError::type_error("Cannot read properties of undefined (reading 'tail')"));
+            return Err(JsError::type_error(
+                "Cannot read properties of undefined (reading 'tail')",
+            ));
         };
         if first_path.tail(graph).map(|t| graph.node(t).type_name.as_str()) == Some(selection.type_name.as_str()) {
             return Ok(RequirementResult::Success {
@@ -216,7 +233,9 @@ impl<'s> MoveValidator<'s> {
 
         if selection.selection_set.is_empty() {
             // we reached the end of the path
-            return Ok(RequirementResult::Success { requirements: Vec::new() });
+            return Ok(RequirementResult::Success {
+                requirements: Vec::new(),
+            });
         }
 
         let next_paths = Rc::new(next_paths);
@@ -302,7 +321,8 @@ impl<'s> MoveValidator<'s> {
         }
 
         if next_paths.is_empty() {
-            self.logger.log(|| format!("Failed to resolve field {type_name}.{field_name} from:"));
+            self.logger
+                .log(|| format!("Failed to resolve field {type_name}.{field_name} from:"));
             if self.logger.is_enabled {
                 for path in requirement.paths.iter() {
                     self.logger.log(|| format!(" {}", path.to_string(graph)));
@@ -327,7 +347,9 @@ impl<'s> MoveValidator<'s> {
                 })
             }
             // we reached the end of the path
-            _ => Ok(RequirementResult::Success { requirements: Vec::new() }),
+            _ => Ok(RequirementResult::Success {
+                requirements: Vec::new(),
+            }),
         }
     }
 
@@ -340,11 +362,23 @@ impl<'s> MoveValidator<'s> {
         label_values: &OverrideLabels,
     ) -> JsResult<RequirementResult<'s, 'a>> {
         if is_fragment_requirement(requirement) {
-            return self.validate_fragment_requirement(requirement, visited_edges, visited_graphs, visited_fields, label_values);
+            return self.validate_fragment_requirement(
+                requirement,
+                visited_edges,
+                visited_graphs,
+                visited_fields,
+                label_values,
+            );
         }
 
         if is_field_requirement(requirement) {
-            return self.validate_field_requirement(requirement, visited_edges, visited_graphs, visited_fields, label_values);
+            return self.validate_field_requirement(
+                requirement,
+                visited_edges,
+                visited_graphs,
+                visited_fields,
+                label_values,
+            );
         }
 
         // NOTE(port): unreachable, `SelectionNode` has two kinds
@@ -374,7 +408,9 @@ impl<'s> MoveValidator<'s> {
         let object_type_state_in_graph = type_state.by_graph.get(&head.graph_id);
         let field_state_in_graph = field_state.by_graph.get(&head.graph_id);
 
-        let (Some(field_state_in_graph), Some(object_type_state_in_graph)) = (field_state_in_graph, object_type_state_in_graph) else {
+        let (Some(field_state_in_graph), Some(object_type_state_in_graph)) =
+            (field_state_in_graph, object_type_state_in_graph)
+        else {
             return false;
         };
 
@@ -442,8 +478,10 @@ impl<'s> MoveValidator<'s> {
         let e = graph.edge(edge);
         let head = graph.node(e.head);
         let tail = graph.node(e.tail);
-        self.logger.group(|| format!("Checking resolvability of {}", graph.edge_to_string(edge)));
-        self.logger.log(|| format!("Visited graphs: {}", graph.graph_names.join(visited_graphs, ",")));
+        self.logger
+            .group(|| format!("Checking resolvability of {}", graph.edge_to_string(edge)));
+        self.logger
+            .log(|| format!("Visited graphs: {}", graph.graph_names.join(visited_graphs, ",")));
 
         // Access guards always run and are never cached.
         // Keep this order so override/external errors are reported before context errors.
@@ -455,19 +493,30 @@ impl<'s> MoveValidator<'s> {
                         graph.edge_to_string(edge)
                     )
                 });
-                let (graph_name, type_name, field_name) =
-                    (tail.graph_name.clone(), field_move.type_name.clone(), field_move.field_name.clone());
+                let (graph_name, type_name, field_name) = (
+                    tail.graph_name.clone(),
+                    field_move.type_name.clone(),
+                    field_move.field_name.clone(),
+                );
                 return Ok(EdgeResolvabilityResult::Failure {
-                    error: lazy_error(move || SatisfiabilityError::for_missing_field(&graph_name, &type_name, &field_name)),
+                    error: lazy_error(move || {
+                        SatisfiabilityError::for_missing_field(&graph_name, &type_name, &field_name)
+                    }),
                 });
             }
 
             if self.is_external(edge) {
                 self.logger.group_end(|| {
-                    format!("Cannot move to {} because it is external and cross-graph", graph.edge_to_string(edge))
+                    format!(
+                        "Cannot move to {} because it is external and cross-graph",
+                        graph.edge_to_string(edge)
+                    )
                 });
-                let (graph_name, type_name, field_name) =
-                    (head.graph_name.clone(), field_move.type_name.clone(), field_move.field_name.clone());
+                let (graph_name, type_name, field_name) = (
+                    head.graph_name.clone(),
+                    field_move.type_name.clone(),
+                    field_move.field_name.clone(),
+                );
                 return Ok(EdgeResolvabilityResult::Failure {
                     error: lazy_error(move || SatisfiabilityError::for_external(&graph_name, &type_name, &field_name)),
                 });
@@ -475,12 +524,20 @@ impl<'s> MoveValidator<'s> {
 
             if !path.has_contexts(&field_move.required_contexts) {
                 self.logger.group_end(|| {
-                    format!("Cannot move to {} because an ancestor context is missing", graph.edge_to_string(edge))
+                    format!(
+                        "Cannot move to {} because an ancestor context is missing",
+                        graph.edge_to_string(edge)
+                    )
                 });
-                let (graph_name, type_name, field_name) =
-                    (head.graph_name.clone(), field_move.type_name.clone(), field_move.field_name.clone());
+                let (graph_name, type_name, field_name) = (
+                    head.graph_name.clone(),
+                    field_move.type_name.clone(),
+                    field_move.field_name.clone(),
+                );
                 return Ok(EdgeResolvabilityResult::Failure {
-                    error: lazy_error(move || SatisfiabilityError::for_required_context(&graph_name, &type_name, &field_name)),
+                    error: lazy_error(move || {
+                        SatisfiabilityError::for_required_context(&graph_name, &type_name, &field_name)
+                    }),
                 });
             }
         }
@@ -509,7 +566,8 @@ impl<'s> MoveValidator<'s> {
                     visited_graphs.to_vec()
                 };
                 let new_visited_fields = concat_if_not_exists_fields(visited_fields, requires);
-                self.logger.log(|| format!("Visited graphs: {}", graph.graph_names.join(&new_visited_graphs, ",")));
+                self.logger
+                    .log(|| format!("Visited graphs: {}", graph.graph_names.join(&new_visited_graphs, ",")));
                 let new_visited_edges = concat_edge(visited_edges, edge);
                 if self
                     .can_resolve_selection_set(
@@ -523,22 +581,30 @@ impl<'s> MoveValidator<'s> {
                     )?
                     .success()
                 {
-                    self.logger.group_end(|| format!("Can move to {}", graph.edge_to_string(edge)));
+                    self.logger
+                        .group_end(|| format!("Can move to {}", graph.edge_to_string(edge)));
                     return Ok(e.set_resolvable(true, new_visited_graphs, label_values.clone_labels(), None));
                 }
 
                 self.logger.group_end(|| {
-                    format!("Cannot move to {} because @require is not resolvable", graph.edge_to_string(edge))
+                    format!(
+                        "Cannot move to {} because @require is not resolvable",
+                        graph.edge_to_string(edge)
+                    )
                 });
 
-                let (graph_name, type_name, field_name) =
-                    (head.graph_name.clone(), field_move.type_name.clone(), field_move.field_name.clone());
+                let (graph_name, type_name, field_name) = (
+                    head.graph_name.clone(),
+                    field_move.type_name.clone(),
+                    field_move.field_name.clone(),
+                );
                 return Ok(EdgeResolvabilityResult::Failure {
                     error: lazy_error(move || SatisfiabilityError::for_require(&graph_name, &type_name, &field_name)),
                 });
             }
 
-            self.logger.group_end(|| format!("Can move to {}", graph.edge_to_string(edge)));
+            self.logger
+                .group_end(|| format!("Can move to {}", graph.edge_to_string(edge)));
             return Ok(e.set_resolvable(true, visited_graphs.to_vec(), label_values.clone_labels(), None));
         }
 
@@ -553,7 +619,8 @@ impl<'s> MoveValidator<'s> {
         };
 
         let Some(key_fields) = key_fields else {
-            self.logger.group_end(|| format!("Can move to {}", graph.edge_to_string(edge)));
+            self.logger
+                .group_end(|| format!("Can move to {}", graph.edge_to_string(edge)));
             return Ok(e.set_resolvable(true, visited_graphs.to_vec(), label_values.clone_labels(), None));
         };
 
@@ -561,7 +628,8 @@ impl<'s> MoveValidator<'s> {
         let new_visited_fields = concat_if_not_exists_fields(visited_fields, &key_fields);
 
         self.logger.log("Detected @key");
-        self.logger.log(|| format!("Visited graphs: {}", graph.graph_names.join(&new_visited_graphs, ",")));
+        self.logger
+            .log(|| format!("Visited graphs: {}", graph.graph_names.join(&new_visited_graphs, ",")));
         let new_visited_edges = concat_edge(visited_edges, edge);
         let resolvable = self
             .can_resolve_selection_set(
@@ -575,12 +643,16 @@ impl<'s> MoveValidator<'s> {
             .success();
 
         if resolvable {
-            self.logger.group_end(|| format!("Can move to {}", graph.edge_to_string(edge)));
+            self.logger
+                .group_end(|| format!("Can move to {}", graph.edge_to_string(edge)));
             return Ok(e.set_resolvable(true, new_visited_graphs, label_values.clone_labels(), None));
         }
 
         self.logger.group_end(|| {
-            format!("Cannot move to {} because key fields are not resolvable", graph.edge_to_string(edge))
+            format!(
+                "Cannot move to {} because key fields are not resolvable",
+                graph.edge_to_string(edge)
+            )
         });
 
         // NOTE(port): this lazy error is cached in the edge, so it captures owned values rather
@@ -592,7 +664,12 @@ impl<'s> MoveValidator<'s> {
             new_visited_graphs,
             label_values.clone_labels(),
             Some(lazy_error(move || {
-                SatisfiabilityError::for_key(&source_graph_name, &target_graph_name, &type_name, &key_fields.to_string())
+                SatisfiabilityError::for_key(
+                    &source_graph_name,
+                    &target_graph_name,
+                    &type_name,
+                    &key_fields.to_string(),
+                )
             })),
         ))
     }

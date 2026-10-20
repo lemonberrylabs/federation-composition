@@ -79,8 +79,7 @@ fn p(node: NodeRef<'_>) -> String {
         NodeRef::FragmentArgument(n) => pn(&n.name) + ": " + &pn(&n.value),
         NodeRef::FragmentSpread(n) => {
             let prefix = "...".to_owned() + &pn(&n.name);
-            wrapped_line_and_args(prefix, &ps(&n.arguments))
-                + &wrap(" ", &join(&ps(&n.directives), " "), "")
+            wrapped_line_and_args(prefix, &ps(&n.arguments)) + &wrap(" ", &join(&ps(&n.directives), " "), "")
         }
         NodeRef::InlineFragment(n) => join(
             &[
@@ -132,9 +131,7 @@ fn p(node: NodeRef<'_>) -> String {
             }
         }
         NodeRef::ObjectField(n) => pn(&n.name) + ": " + &pn(&n.value),
-        NodeRef::Directive(n) => {
-            "@".to_owned() + &pn(&n.name) + &wrap("(", &join(&ps(&n.arguments), ", "), ")")
-        }
+        NodeRef::Directive(n) => "@".to_owned() + &pn(&n.name) + &wrap("(", &join(&ps(&n.arguments), ", "), ")"),
         NodeRef::NamedType(n) => pn(&n.name),
         NodeRef::ListType(n) => "[".to_owned() + &pn(&n.ty) + "]",
         NodeRef::NonNullType(n) => pn(&n.ty) + "!",
@@ -152,14 +149,7 @@ fn p(node: NodeRef<'_>) -> String {
         NodeRef::OperationTypeDefinition(n) => n.operation.as_str().to_owned() + ": " + &pn(&n.ty),
         NodeRef::ScalarTypeDefinition(n) => {
             wrap("", &po(&n.description), "\n")
-                + &join(
-                    &[
-                        "scalar".to_owned(),
-                        pn(&n.name),
-                        join(&ps(&n.directives), " "),
-                    ],
-                    " ",
-                )
+                + &join(&["scalar".to_owned(), pn(&n.name), join(&ps(&n.directives), " ")], " ")
         }
         NodeRef::ObjectTypeDefinition(n) => {
             wrap("", &po(&n.description), "\n")
@@ -231,8 +221,7 @@ fn p(node: NodeRef<'_>) -> String {
                 )
         }
         NodeRef::EnumValueDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + &join(&[pn(&n.name), join(&ps(&n.directives), " ")], " ")
+            wrap("", &po(&n.description), "\n") + &join(&[pn(&n.name), join(&ps(&n.directives), " ")], " ")
         }
         NodeRef::InputObjectTypeDefinition(n) => {
             wrap("", &po(&n.description), "\n")
@@ -265,11 +254,7 @@ fn p(node: NodeRef<'_>) -> String {
             " ",
         ),
         NodeRef::ScalarTypeExtension(n) => join(
-            &[
-                "extend scalar".to_owned(),
-                pn(&n.name),
-                join(&ps(&n.directives), " "),
-            ],
+            &["extend scalar".to_owned(), pn(&n.name), join(&ps(&n.directives), " ")],
             " ",
         ),
         NodeRef::ObjectTypeExtension(n) => join(
@@ -327,9 +312,7 @@ fn p(node: NodeRef<'_>) -> String {
             " ",
         ),
         NodeRef::TypeCoordinate(n) => pn(&n.name),
-        NodeRef::MemberCoordinate(n) => {
-            join(&[pn(&n.name), wrap(".", &pn(&n.member_name), "")], "")
-        }
+        NodeRef::MemberCoordinate(n) => join(&[pn(&n.name), wrap(".", &pn(&n.member_name), "")], ""),
         NodeRef::ArgumentCoordinate(n) => join(
             &[
                 pn(&n.name),
@@ -340,11 +323,7 @@ fn p(node: NodeRef<'_>) -> String {
         ),
         NodeRef::DirectiveCoordinate(n) => join(&["@".to_owned(), pn(&n.name)], ""),
         NodeRef::DirectiveArgumentCoordinate(n) => join(
-            &[
-                "@".to_owned(),
-                pn(&n.name),
-                wrap("(", &pn(&n.argument_name), ":)"),
-            ],
+            &["@".to_owned(), pn(&n.name), wrap("(", &pn(&n.argument_name), ":)")],
             "",
         ),
     }

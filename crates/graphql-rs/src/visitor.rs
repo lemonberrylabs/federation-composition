@@ -217,12 +217,7 @@ struct Walker<'a, 'w, V: ?Sized, C: ?Sized> {
 
 impl<'a, V: Visitor<'a, C> + ?Sized, C: ?Sized> Walker<'a, '_, V, C> {
     /// Returns `true` on break.
-    fn walk(
-        &mut self,
-        node: NodeRef<'a>,
-        key: Option<PathKey>,
-        parent: Option<Ancestor<'a>>,
-    ) -> bool {
+    fn walk(&mut self, node: NodeRef<'a>, key: Option<PathKey>, parent: Option<Ancestor<'a>>) -> bool {
         let node_id = self.next_id;
         self.next_id += 1;
         let info = VisitInfo {
@@ -338,9 +333,7 @@ impl VisitorsByKind {
 /// that skips a node is not called again until that node is left; a visitor
 /// that breaks is not called again. The merged visitor never breaks.
 /// A visitor is called only for the kinds in its [`Visitor::kinds`].
-pub fn visit_in_parallel<'a, 'v, C: ?Sized>(
-    visitors: Vec<Box<dyn Visitor<'a, C> + 'v>>,
-) -> ParallelVisitor<'a, 'v, C> {
+pub fn visit_in_parallel<'a, 'v, C: ?Sized>(visitors: Vec<Box<dyn Visitor<'a, C> + 'v>>) -> ParallelVisitor<'a, 'v, C> {
     let skipping = vec![SkipState::Active; visitors.len()];
     let kinds: Vec<VisitKinds> = visitors.iter().map(|v| v.kinds()).collect();
     ParallelVisitor {
@@ -376,9 +369,7 @@ impl<'a, C: ?Sized> Visitor<'a, C> for ParallelVisitor<'a, '_, C> {
     fn leave(&mut self, node: NodeRef<'a>, cx: &mut C, info: &VisitInfo<'a, '_>) -> VisitAction {
         for &i in self.leave_by_kind.of(node.kind()) {
             let i = i as usize;
-            if self.skipping[i] == SkipState::Active
-                && self.visitors[i].leave(node, cx, info) == VisitAction::Break
-            {
+            if self.skipping[i] == SkipState::Active && self.visitors[i].leave(node, cx, info) == VisitAction::Break {
                 self.skipping[i] = SkipState::Broken;
             }
         }
@@ -490,10 +481,7 @@ impl EditResult {
 /// Panics when an edit cannot be represented in the typed AST: deleting a
 /// required field (e.g. a `Field`'s `name`) or replacing a node with a node
 /// of a kind its field cannot hold (e.g. a `Directive` with a `Name`).
-pub fn visit_edit<'a, V: EditVisitor + ?Sized>(
-    root: impl Into<NodeRef<'a>>,
-    visitor: &mut V,
-) -> EditResult {
+pub fn visit_edit<'a, V: EditVisitor + ?Sized>(root: impl Into<NodeRef<'a>>, visitor: &mut V) -> EditResult {
     let root = root.into();
     let mut walker = EditWalker {
         visitor,
@@ -559,20 +547,12 @@ impl<V: EditVisitor + ?Sized> EditWalker<'_, V> {
             EditAction::Break => Err(Break::Fresh(Vec::new())),
             EditAction::Skip => Ok(Vec::new()),
             EditAction::Delete => Ok(vec![EditVal::Null]),
-            EditAction::Continue => {
-                self.walk_children_and_leave(node, key, parent, ancestors, node_id)
-            }
+            EditAction::Continue => self.walk_children_and_leave(node, key, parent, ancestors, node_id),
             EditAction::Replace(replacement) => {
                 // The replacement lives only in this frame, so its subtree is
                 // walked with a copy of the ancestor list of shorter lifetime.
                 let mut inner: Vec<Ancestor<'_>> = ancestors.clone();
-                let result = self.walk_children_and_leave(
-                    replacement.as_ref(),
-                    key,
-                    parent,
-                    &mut inner,
-                    node_id,
-                );
+                let result = self.walk_children_and_leave(replacement.as_ref(), key, parent, &mut inner, node_id);
                 match result {
                     Ok(rest) => {
                         drop(inner);
@@ -610,17 +590,10 @@ impl<V: EditVisitor + ?Sized> EditWalker<'_, V> {
                 SlotRef::Absent => {}
                 SlotRef::One(child) => {
                     self.path.push(PathKey::Key(name));
-                    let result = self.walk(
-                        child,
-                        Some(PathKey::Key(name)),
-                        Some(Ancestor::Node(node)),
-                        ancestors,
-                    );
+                    let result = self.walk(child, Some(PathKey::Key(name)), Some(Ancestor::Node(node)), ancestors);
                     self.path.pop();
                     match result {
-                        Ok(child_edits) => {
-                            edits.extend(child_edits.into_iter().map(|e| (index, e)))
-                        }
+                        Ok(child_edits) => edits.extend(child_edits.into_iter().map(|e| (index, e))),
                         Err(Break::Fresh(child_edits)) => {
                             edits.extend(child_edits.into_iter().map(|e| (index, e)));
                             return Err(Break::Resolved(edits.pop().map(|(_, e)| Box::new(e))));
@@ -642,14 +615,10 @@ impl<V: EditVisitor + ?Sized> EditWalker<'_, V> {
                         );
                         self.path.pop();
                         match result {
-                            Ok(item_edits) => {
-                                list_edits.extend(item_edits.into_iter().map(|e| (i, e)))
-                            }
+                            Ok(item_edits) => list_edits.extend(item_edits.into_iter().map(|e| (i, e))),
                             Err(Break::Fresh(item_edits)) => {
                                 list_edits.extend(item_edits.into_iter().map(|e| (i, e)));
-                                return Err(Break::Resolved(
-                                    list_edits.pop().map(|(_, e)| Box::new(e)),
-                                ));
+                                return Err(Break::Resolved(list_edits.pop().map(|(_, e)| Box::new(e))));
                             }
                             Err(resolved) => return Err(resolved),
                         }
@@ -721,10 +690,7 @@ fn rebuild_list(list: ListRef<'_>, edits: Vec<(usize, EditVal)>) -> Vec<Node> {
 }
 
 fn incompatible(node: &Node, kind: &str, key: &str) -> ! {
-    panic!(
-        "visit_edit: a {} node cannot be stored in {kind}.{key}",
-        node.kind()
-    )
+    panic!("visit_edit: a {} node cannot be stored in {kind}.{key}", node.kind())
 }
 
 pub(crate) fn edit_one<T: FromNode>(v: EditVal, kind: &str, key: &str) -> T {
@@ -766,9 +732,7 @@ pub struct ParallelEditVisitor<'v> {
 /// graphql-js `visitInParallel` for [`visit_edit`]. The first visitor that
 /// returns a replacement or deletion for a node decides the edit, and the
 /// visitors after it are not called for that node.
-pub fn visit_in_parallel_edit<'v>(
-    visitors: Vec<Box<dyn EditVisitor + 'v>>,
-) -> ParallelEditVisitor<'v> {
+pub fn visit_in_parallel_edit<'v>(visitors: Vec<Box<dyn EditVisitor + 'v>>) -> ParallelEditVisitor<'v> {
     let skipping = vec![SkipState::Active; visitors.len()];
     ParallelEditVisitor { visitors, skipping }
 }
@@ -827,7 +791,11 @@ mod tests {
             self.kinds
         }
         fn enter(&mut self, node: NodeRef<'a>, log: &mut Vec<String>, _: &VisitInfo<'a, '_>) -> VisitAction {
-            log.push(format!("{} enter {}", self.id, node.name().map_or("", |n| n.value.as_str())));
+            log.push(format!(
+                "{} enter {}",
+                self.id,
+                node.name().map_or("", |n| n.value.as_str())
+            ));
             if matches!(node, NodeRef::ObjectTypeDefinition(t) if t.name.value == "A") {
                 VisitAction::Skip
             } else {
@@ -835,7 +803,11 @@ mod tests {
             }
         }
         fn leave(&mut self, node: NodeRef<'a>, log: &mut Vec<String>, _: &VisitInfo<'a, '_>) -> VisitAction {
-            log.push(format!("{} leave {}", self.id, node.name().map_or("", |n| n.value.as_str())));
+            log.push(format!(
+                "{} leave {}",
+                self.id,
+                node.name().map_or("", |n| n.value.as_str())
+            ));
             VisitAction::Continue
         }
     }

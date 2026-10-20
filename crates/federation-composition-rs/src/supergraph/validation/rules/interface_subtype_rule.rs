@@ -1,17 +1,17 @@
 //! Port of `src/supergraph/validation/rules/interface-subtype-rule.ts`.
 
-use graphql_rs::GraphQLError;
+use crate::supergraph::composition::enum_type::EnumTypeState;
+use crate::supergraph::composition::interface_type::InterfaceTypeState;
 use crate::supergraph::composition::object_type::{ObjectTypeFieldState, ObjectTypeState};
+use crate::supergraph::composition::scalar_type::ScalarTypeState;
+use crate::supergraph::composition::union_type::UnionTypeState;
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
+use crate::utils::collections::{IndexMap, IndexSet};
 use crate::utils::js::JsResult;
 use crate::utils::state::{is_list, is_non_null, strip_list, strip_non_null};
-use crate::utils::collections::{IndexMap, IndexSet};
-use crate::supergraph::composition::enum_type::EnumTypeState;
-use crate::supergraph::composition::interface_type::InterfaceTypeState;
-use crate::supergraph::composition::scalar_type::ScalarTypeState;
-use crate::supergraph::composition::union_type::UnionTypeState;
+use graphql_rs::GraphQLError;
 
 /// `InterfaceSubtypeRule(context, supergraph)`. Fields: `implementations_map` (built in `new`).
 /// Visitor callbacks: `ObjectTypeField`.
@@ -134,7 +134,12 @@ fn is_type_sub_type_of(
     }
     if is_non_null(maybe_sub_type_name) {
         // If superType is nullable, maybeSubType may be non-null or nullable.
-        return is_type_sub_type_of(state, implementations_map, &strip_non_null(maybe_sub_type_name), super_type_name);
+        return is_type_sub_type_of(
+            state,
+            implementations_map,
+            &strip_non_null(maybe_sub_type_name),
+            super_type_name,
+        );
     }
 
     // If superType type is a list, maybeSubType type must also be a list.

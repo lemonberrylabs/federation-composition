@@ -49,53 +49,65 @@ fn federation_schema(version: &str, document: Document, extra_imports: &[&str]) 
 fn expect_context_spec_definitions(supergraph_sdl: Option<&str>) {
     to_contain_graphql(
         supergraph_sdl,
-        graphql!(r#"
+        graphql!(
+            r#"
         schema
           @link(for: EXECUTION, url: "https://specs.apollo.dev/join/v0.5")
           @link(for: SECURITY, url: "https://specs.apollo.dev/context/v0.1")
           @link(url: "https://specs.apollo.dev/link/v1.0") {
           query: Query
         }
-      "#),
+      "#
+        ),
     );
     to_contain_graphql(
         supergraph_sdl,
-        graphql!(r#"
+        graphql!(
+            r#"
         directive @context(
           name: String!
         ) repeatable on INTERFACE | OBJECT | UNION
-      "#),
+      "#
+        ),
     );
     to_contain_graphql(
         supergraph_sdl,
-        graphql!(r#"
+        graphql!(
+            r#"
         scalar context__ContextFieldValue
-      "#),
+      "#
+        ),
     );
     to_contain_graphql(
         supergraph_sdl,
-        graphql!(r#"
+        graphql!(
+            r#"
         directive @context__fromContext(
           field: context__ContextFieldValue
         ) on ARGUMENT_DEFINITION
-      "#),
+      "#
+        ),
     );
     to_contain_graphql(
         supergraph_sdl,
-        graphql!(r#"
+        graphql!(
+            r#"
         input join__ContextArgument {
           name: String!
           type: String!
           context: String!
           selection: join__FieldValue!
         }
-      "#),
+      "#
+        ),
     );
 }
 
 /// `contextNotFound(graphName, typeName, fieldName)` of the "context reachability" tests.
 fn context_not_found(graph_name: &str, type_name: &str, field_name: &str) -> String {
-    format!(r#"- from subgraph "{graph_name}": could not find a match for required context for field "{type_name}.{field_name}"."#)
+    format!(
+        r#"- from subgraph "{graph_name}": could not find a match for required context for field "{type_name}.{field_name}"."#
+    )
 }
 
 /// `unsatisfiable(queryString, ...reasons)` of the "context reachability" tests.

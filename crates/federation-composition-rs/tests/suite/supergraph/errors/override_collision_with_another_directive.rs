@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn override_collision_with_another_directive(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("billing", graphql!(r#"
             extend schema
               @link(

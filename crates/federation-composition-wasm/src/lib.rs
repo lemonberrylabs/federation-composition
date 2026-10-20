@@ -143,9 +143,7 @@ pub(crate) fn from_json<T: serde::de::DeserializeOwned>(what: &str, json: &[u8])
         Ok(json) => serde_json::from_str(json),
         Err(_) => serde_json::from_slice(json),
     };
-    parsed.map_err(|e| {
-        ThrownError::error(format!("composition-wasm: invalid {what} argument: {e}")).into()
-    })
+    parsed.map_err(|e| ThrownError::error(format!("composition-wasm: invalid {what} argument: {e}")).into())
 }
 
 /// Serializes a result for the shim.

@@ -54,12 +54,8 @@ impl<'a> Visitor<'a, SDLValidationContext<'a>> for UniqueEnumValueNamesRule<'a> 
         _info: &VisitInfo<'a, '_>,
     ) -> VisitAction {
         match node {
-            NodeRef::EnumTypeDefinition(node) => {
-                self.check_value_uniqueness(context, &node.name, &node.values)
-            }
-            NodeRef::EnumTypeExtension(node) => {
-                self.check_value_uniqueness(context, &node.name, &node.values)
-            }
+            NodeRef::EnumTypeDefinition(node) => self.check_value_uniqueness(context, &node.name, &node.values),
+            NodeRef::EnumTypeExtension(node) => self.check_value_uniqueness(context, &node.name, &node.values),
             _ => VisitAction::Continue,
         }
     }

@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-argument-names-rule.ts`.
 
-use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::IndexSet;
+use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_rs::Argument;
@@ -28,10 +28,7 @@ impl UniqueArgumentNamesRule {
         for argument_node in argument_nodes {
             if seen_args.contains(argument_node.name.value.as_str()) {
                 context.report_error(GraphQLError::with_code(
-                    format!(
-                        "There can be only one argument named \"{}\".",
-                        argument_node.name.value
-                    ),
+                    format!("There can be only one argument named \"{}\".", argument_node.name.value),
                     "INVALID_GRAPHQL",
                 ));
             } else {
@@ -48,7 +45,12 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueArgumentNamesRule {
         VisitKinds::enter(&[Kind::Field, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         match node {
             NodeRef::Field(n) => self.check_arg_uniqueness(cx, &n.arguments),
             NodeRef::Directive(n) => self.check_arg_uniqueness(cx, &n.arguments),

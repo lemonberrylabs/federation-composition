@@ -113,7 +113,7 @@ mod external {
 
         fn exact_same_definition_with_an_import(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[service("users", graphql!(r#"
+                api.compose_services(&[service("users", graphql!(r#"
                 extend schema
                   @link(
                     url: "https://specs.apollo.dev/federation/${version}"
@@ -141,7 +141,7 @@ mod external {
 
         fn no_object(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[service("users", graphql!(r#"
+                api.compose_services(&[service("users", graphql!(r#"
                 extend schema
                   @link(
                     url: "https://specs.apollo.dev/federation/${version}"
@@ -169,7 +169,7 @@ mod external {
 
         fn no_field_definition(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[service("users", graphql!(r#"
+                api.compose_services(&[service("users", graphql!(r#"
                 extend schema
                   @link(
                     url: "https://specs.apollo.dev/federation/${version}"
@@ -203,7 +203,7 @@ mod tag {
     test_versions! {
         fn exact_same_definition_should_be_ignored_if_not_imported(api, version) {
             assert_no_error_matches(
-                &api.compose_services(&[
+                api.compose_services(&[
                     service("users", graphql!(r#"
                 extend schema
                   @link(
@@ -254,7 +254,7 @@ mod tag {
 
         fn exact_same_definition_with_import(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     service("users", graphql!(r#"
                 extend schema
                   @link(
@@ -318,7 +318,7 @@ mod inaccessible {
     test_versions! {
         fn exact_same_definition_and_imported(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     service("users", graphql!(r#"
                 extend schema
                   @link(
@@ -367,7 +367,7 @@ mod inaccessible {
 
         fn exact_same_definition_should_be_ignored_when_not_imported(api, version) {
             assert_no_error_matches(
-                &api.compose_services(&[
+                api.compose_services(&[
                     service("users", graphql!(r#"
                 extend schema
                   @link(
@@ -424,7 +424,7 @@ mod r#override {
     test_versions! {
         fn exact_same_definition_and_imported(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[service("billing", graphql!(r#"
+                api.compose_services(&[service("billing", graphql!(r#"
                 extend schema
                   @link(
                     url: "https://specs.apollo.dev/federation/${version}"
@@ -450,7 +450,7 @@ mod r#override {
 
         fn exact_same_definition_should_be_ignored_if_not_imported(api, version) {
             assert_no_error_matches(
-                &api.compose_services(&[service("billing", graphql!(r#"
+                api.compose_services(&[service("billing", graphql!(r#"
                 extend schema
                   @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 
@@ -557,7 +557,7 @@ mod key {
               "#, version))]));
 
             assert_errors_contain(
-                &api.compose_services(&[service("users", graphql!(r#"
+                api.compose_services(&[service("users", graphql!(r#"
                 schema
                   @link(
                     url: "https://specs.apollo.dev/federation/${version}"
@@ -631,7 +631,7 @@ mod key {
 
         fn missing_default_value_for_resolvable(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[service("users", graphql!(r#"
+                api.compose_services(&[service("users", graphql!(r#"
                 schema
                   @link(
                     url: "https://specs.apollo.dev/federation/${version}"
@@ -690,7 +690,7 @@ mod key {
 
         fn missing_fields(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[service("users", graphql!(r#"
+                api.compose_services(&[service("users", graphql!(r#"
                 schema
                   @link(
                     url: "https://specs.apollo.dev/federation/${version}"
@@ -793,7 +793,7 @@ mod key {
 
         fn on_field(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[service("users", graphql!(r#"
+                api.compose_services(&[service("users", graphql!(r#"
                 schema
                   @link(
                     url: "https://specs.apollo.dev/federation/${version}"
@@ -824,7 +824,7 @@ mod key {
 
         fn fed_v1_uses_field_set(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[service("users", graphql!(r#"
+                api.compose_services(&[service("users", graphql!(r#"
               scalar FieldSet
               directive @key(
                 fields: FieldSet!
@@ -1006,7 +1006,7 @@ mod requires {
             let stars_stuff = create_stars_stuff();
 
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     stars_stuff.users,
                     stars_stuff.pandas,
                     stars_stuff.products,
@@ -1063,7 +1063,7 @@ mod requires {
             let stars_stuff = create_stars_stuff();
 
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     stars_stuff.users,
                     stars_stuff.pandas,
                     stars_stuff.products,
@@ -1118,7 +1118,7 @@ mod requires {
             let stars_stuff = create_stars_stuff();
 
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     stars_stuff.users,
                     stars_stuff.pandas,
                     stars_stuff.products,

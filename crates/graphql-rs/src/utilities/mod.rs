@@ -26,16 +26,11 @@ pub fn strip_ignored_characters(source: &str) -> Result<String, GraphQLError> {
             break;
         }
         let is_non_punctuator = !current_token.kind.is_punctuator();
-        if was_last_added_token_non_punctuator
-            && (is_non_punctuator || current_token.kind == TokenKind::Spread)
-        {
+        if was_last_added_token_non_punctuator && (is_non_punctuator || current_token.kind == TokenKind::Spread) {
             stripped_body.push(' ');
         }
         if current_token.kind == TokenKind::BlockString {
-            stripped_body.push_str(&print_block_string(
-                current_token.value.as_deref().unwrap_or(""),
-                true,
-            ));
+            stripped_body.push_str(&print_block_string(current_token.value.as_deref().unwrap_or(""), true));
         } else {
             stripped_body.push_str(&source[current_token.start..current_token.end]);
         }

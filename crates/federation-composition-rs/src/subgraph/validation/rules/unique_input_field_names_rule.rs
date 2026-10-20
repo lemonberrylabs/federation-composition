@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-input-field-names-rule.ts`.
 
-use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::IndexSet;
+use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 
@@ -32,7 +32,12 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueInputFieldNamesRule 
         VisitKinds::enter_leave(&[Kind::ObjectValue, Kind::ObjectField], &[Kind::ObjectValue])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         match node {
             NodeRef::ObjectValue(_) => {
                 self.known_name_stack.push(std::mem::take(&mut self.known_names));
@@ -53,7 +58,12 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueInputFieldNamesRule 
         VisitAction::Continue
     }
 
-    fn leave(&mut self, node: NodeRef<'a>, _cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn leave(
+        &mut self,
+        node: NodeRef<'a>,
+        _cx: &mut SimpleValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         if let NodeRef::ObjectValue(_) = node {
             // NOTE(port): the TS throws `Assertion failed: nothing else in the stack` on an empty
             // stack, which cannot happen: every leave follows its enter.

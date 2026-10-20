@@ -6,12 +6,7 @@ pub fn and_list(items: &[String], comma_before_conjunction: bool, wrapper: Optio
     format_list("and", items, comma_before_conjunction, wrapper)
 }
 
-fn format_list(
-    conjunction: &str,
-    items: &[String],
-    comma_before_conjunction: bool,
-    wrapper: Option<&str>,
-) -> String {
+fn format_list(conjunction: &str, items: &[String], comma_before_conjunction: bool, wrapper: Option<&str>) -> String {
     match items.len() {
         0 => String::new(),
         1 => with_wrapper(&items[0], wrapper),
@@ -22,8 +17,7 @@ fn format_list(
             with_wrapper(&items[1], wrapper)
         ),
         n => {
-            let all_but_last: Vec<String> =
-                items[..n - 1].iter().map(|item| with_wrapper(item, wrapper)).collect();
+            let all_but_last: Vec<String> = items[..n - 1].iter().map(|item| with_wrapper(item, wrapper)).collect();
             let last_item = with_wrapper(&items[n - 1], wrapper);
             format!(
                 "{}{}{} {}",

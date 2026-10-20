@@ -1,6 +1,5 @@
 //! Port of `src/supergraph/validation/rules/only-inaccessible-children-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::supergraph::composition::enum_type::EnumTypeState;
 use crate::supergraph::composition::input_object_type::InputObjectTypeState;
 use crate::supergraph::composition::interface_type::InterfaceTypeState;
@@ -9,6 +8,7 @@ use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::GraphQLError;
 
 /// `OnlyInaccessibleChildrenRule(context, supergraph)`.
 /// Visitor callbacks: `EnumType`, `ObjectType`, `InterfaceType`, `InputObjectType`.
@@ -25,11 +25,7 @@ impl<'s> SupergraphRule<'s> for OnlyInaccessibleChildrenRule {
 }
 
 impl<'s> SupergraphVisitor<'s> for OnlyInaccessibleChildrenRule {
-    fn enum_type(
-        &mut self,
-        cx: &mut SupergraphValidationContext,
-        enum_state: &'s EnumTypeState,
-    ) -> JsResult<()> {
+    fn enum_type(&mut self, cx: &mut SupergraphValidationContext, enum_state: &'s EnumTypeState) -> JsResult<()> {
         if !enum_state.inaccessible && are_all_inaccessible(enum_state.values.values().map(|v| v.inaccessible)) {
             cx.report_error(GraphQLError::with_code(
                 format!(
@@ -42,11 +38,7 @@ impl<'s> SupergraphVisitor<'s> for OnlyInaccessibleChildrenRule {
         Ok(())
     }
 
-    fn object_type(
-        &mut self,
-        cx: &mut SupergraphValidationContext,
-        object_state: &'s ObjectTypeState,
-    ) -> JsResult<()> {
+    fn object_type(&mut self, cx: &mut SupergraphValidationContext, object_state: &'s ObjectTypeState) -> JsResult<()> {
         if !object_state.inaccessible && are_all_inaccessible(object_state.fields.values().map(|f| f.inaccessible)) {
             cx.report_error(GraphQLError::with_code(
                 format!(

@@ -112,7 +112,10 @@ mod tests {
 
     #[test]
     fn parses_references() {
-        assert_eq!(parse_context_reference("$userCtx { id }"), reference("userCtx", " { id }"));
+        assert_eq!(
+            parse_context_reference("$userCtx { id }"),
+            reference("userCtx", " { id }")
+        );
         assert_eq!(
             parse_context_reference(" ,# c\n\u{feff}$ \t_ctx1{ id }"),
             reference("_ctx1", "{ id }")

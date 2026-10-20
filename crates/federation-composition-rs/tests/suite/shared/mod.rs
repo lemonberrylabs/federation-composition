@@ -58,10 +58,10 @@ pub use testkit::*;
 pub use utils::*;
 
 pub use federation_composition_rs::compose::{CompositionFailure, CompositionResult, CompositionSuccess};
+pub use federation_composition_rs::sort_sdl;
 pub use federation_composition_rs::subgraph::validation::validate_subgraph::InternalOptions;
 pub use federation_composition_rs::types::ServiceDefinition;
 pub use federation_composition_rs::utils::js::{JsError, JsResult};
-pub use federation_composition_rs::sort_sdl;
 pub use graphql_rs::{parse, print, Document, GraphQLError};
 
 /// A JS template literal: replaces each `${name}` with the value of `name`.

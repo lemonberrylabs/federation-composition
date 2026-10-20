@@ -61,36 +61,24 @@ impl<'a> Visitor<'a, SDLValidationContext<'a>> for UniqueFieldDefinitionNamesRul
         _info: &VisitInfo<'a, '_>,
     ) -> VisitAction {
         match node {
-            NodeRef::InputObjectTypeDefinition(node) => self.check_field_uniqueness(
-                context,
-                &node.name,
-                node.fields.iter().map(|f| &f.name),
-            ),
-            NodeRef::InputObjectTypeExtension(node) => self.check_field_uniqueness(
-                context,
-                &node.name,
-                node.fields.iter().map(|f| &f.name),
-            ),
-            NodeRef::InterfaceTypeDefinition(node) => self.check_field_uniqueness(
-                context,
-                &node.name,
-                node.fields.iter().map(|f| &f.name),
-            ),
-            NodeRef::InterfaceTypeExtension(node) => self.check_field_uniqueness(
-                context,
-                &node.name,
-                node.fields.iter().map(|f| &f.name),
-            ),
-            NodeRef::ObjectTypeDefinition(node) => self.check_field_uniqueness(
-                context,
-                &node.name,
-                node.fields.iter().map(|f| &f.name),
-            ),
-            NodeRef::ObjectTypeExtension(node) => self.check_field_uniqueness(
-                context,
-                &node.name,
-                node.fields.iter().map(|f| &f.name),
-            ),
+            NodeRef::InputObjectTypeDefinition(node) => {
+                self.check_field_uniqueness(context, &node.name, node.fields.iter().map(|f| &f.name))
+            }
+            NodeRef::InputObjectTypeExtension(node) => {
+                self.check_field_uniqueness(context, &node.name, node.fields.iter().map(|f| &f.name))
+            }
+            NodeRef::InterfaceTypeDefinition(node) => {
+                self.check_field_uniqueness(context, &node.name, node.fields.iter().map(|f| &f.name))
+            }
+            NodeRef::InterfaceTypeExtension(node) => {
+                self.check_field_uniqueness(context, &node.name, node.fields.iter().map(|f| &f.name))
+            }
+            NodeRef::ObjectTypeDefinition(node) => {
+                self.check_field_uniqueness(context, &node.name, node.fields.iter().map(|f| &f.name))
+            }
+            NodeRef::ObjectTypeExtension(node) => {
+                self.check_field_uniqueness(context, &node.name, node.fields.iter().map(|f| &f.name))
+            }
             _ => VisitAction::Continue,
         }
     }

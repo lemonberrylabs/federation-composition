@@ -118,18 +118,14 @@ impl<'a> Visitor<'a, SDLValidationContext<'a>> for UniqueDirectivesPerLocationRu
         // either way nothing below happens.
         let mut own_map = IndexMap::default();
         let seen_directives: &mut IndexMap<&'a str, &'a Directive> = match node {
-            NodeRef::SchemaDefinition(_) | NodeRef::SchemaExtension(_) => {
-                &mut self.schema_directives
-            }
+            NodeRef::SchemaDefinition(_) | NodeRef::SchemaExtension(_) => &mut self.schema_directives,
             _ if is_type_definition_node(node) || is_type_extension_node(node) => {
                 let type_name = node.name().expect("types have a name").value.as_str();
                 self.type_directives_map.entry(type_name).or_default()
             }
             NodeRef::DirectiveDefinition(_) | NodeRef::DirectiveExtension(_) => {
                 let directive_name = node.name().expect("directives have a name").value.as_str();
-                self.directive_directives_map
-                    .entry(directive_name)
-                    .or_default()
+                self.directive_directives_map.entry(directive_name).or_default()
             }
             _ => &mut own_map,
         };

@@ -2,8 +2,8 @@
 
 use std::rc::Rc;
 
-use graphql_rs::{is_specified_scalar_type, print, specified_scalar_types, GraphQLError, ObjectField, Value};
 use crate::utils::collections::IndexMap;
+use graphql_rs::{is_specified_scalar_type, print, specified_scalar_types, GraphQLError, ObjectField, Value};
 
 use super::satisfiablity::edge::is_field_edge;
 use super::satisfiablity::errors::SatisfiabilityError;
@@ -75,7 +75,10 @@ fn js_object_key_order<'a>(keys: impl IntoIterator<Item = &'a String>) -> Vec<&'
             return None;
         }
         // Array indexes are 0 ..= 2^32 - 2.
-        key.parse::<u64>().ok().filter(|&n| n < u32::MAX as u64).map(|n| n as u32)
+        key.parse::<u64>()
+            .ok()
+            .filter(|&n| n < u32::MAX as u64)
+            .map(|n| n as u32)
     }
 
     let mut integer_keys: Vec<(u32, &String)> = Vec::new();
@@ -92,7 +95,12 @@ fn js_object_key_order<'a>(keys: impl IntoIterator<Item = &'a String>) -> Vec<&'
 
 impl<'s> SatisfiabilityRule<'s> {
     /// `check(typeName, fieldName?)`: reports the unreachable paths recorded for the coordinate.
-    fn check(&mut self, cx: &mut SupergraphValidationContext, type_name: &str, field_name: Option<&str>) -> JsResult<()> {
+    fn check(
+        &mut self,
+        cx: &mut SupergraphValidationContext,
+        type_name: &str,
+        field_name: Option<&str>,
+    ) -> JsResult<()> {
         // PERF: runs for every type and field; when nothing is unreachable the lookup below
         // always misses, so skip building the coordinate.
         if self.error_by_coordinate.is_empty() {
@@ -148,7 +156,10 @@ impl<'s> SatisfiabilityRule<'s> {
             // NOTE(port): subgraph names could be integer-like, so the JS key order is applied.
             for source_graph_name in js_object_key_order(errors_by_source_graph.keys()) {
                 let errors = &errors_by_source_graph[source_graph_name];
-                reasons.push((source_graph_name.clone(), errors.iter().map(|e| e.message.clone()).collect()));
+                reasons.push((
+                    source_graph_name.clone(),
+                    errors.iter().map(|e| e.message.clone()).collect(),
+                ));
             }
 
             if reasons.is_empty() {
@@ -166,7 +177,11 @@ impl<'s> SatisfiabilityRule<'s> {
                 } else {
                     lines.push(format!(
                         "- from subgraph \"{graph_name}\":\n{}",
-                        reasons.iter().map(|r| format!("  - {r}")).collect::<Vec<_>>().join("\n")
+                        reasons
+                            .iter()
+                            .map(|r| format!("  - {r}"))
+                            .collect::<Vec<_>>()
+                            .join("\n")
                     ));
                 }
             }
@@ -191,11 +206,7 @@ impl<'s> SupergraphVisitor<'s> for SatisfiabilityRule<'s> {
         Ok(())
     }
 
-    fn object_type(
-        &mut self,
-        cx: &mut SupergraphValidationContext,
-        object_state: &'s ObjectTypeState,
-    ) -> JsResult<()> {
+    fn object_type(&mut self, cx: &mut SupergraphValidationContext, object_state: &'s ObjectTypeState) -> JsResult<()> {
         self.check(cx, &object_state.name, None)
     }
 
@@ -252,7 +263,14 @@ impl<'a> PrintedField<'a> {
             args: f
                 .args
                 .iter()
-                .map(|(name, a)| (name.as_str(), a.r#type.as_str(), a.from_context.is_some(), a.by_graph.len()))
+                .map(|(name, a)| {
+                    (
+                        name.as_str(),
+                        a.r#type.as_str(),
+                        a.from_context.is_some(),
+                        a.by_graph.len(),
+                    )
+                })
                 .collect(),
         }
     }
@@ -264,7 +282,14 @@ impl<'a> PrintedField<'a> {
             args: f
                 .args
                 .iter()
-                .map(|(name, a)| (name.as_str(), a.r#type.as_str(), a.from_context.is_some(), a.by_graph.len()))
+                .map(|(name, a)| {
+                    (
+                        name.as_str(),
+                        a.r#type.as_str(),
+                        a.from_context.is_some(),
+                        a.by_graph.len(),
+                    )
+                })
                 .collect(),
         }
     }
@@ -323,7 +348,11 @@ fn print_query_path(supergraph_state: &SupergraphState, query_path: &QueryPath) 
                 ));
             }
             let args = printed_args.join(", ");
-            let args_printed = if !args.is_empty() { format!("({args})") } else { String::new() };
+            let args_printed = if !args.is_empty() {
+                format!("({args})")
+            } else {
+                String::new()
+            };
 
             if i == query_path.len() - 1 {
                 let output_type_name = strip_type_modifiers(field_state.r#type);
@@ -356,7 +385,9 @@ fn print_query_path(supergraph_state: &SupergraphState, query_path: &QueryPath) 
     }
 
     let Some(first) = query_path.first() else {
-        return Err(JsError::type_error("Cannot read properties of undefined (reading 'typeName')"));
+        return Err(JsError::type_error(
+            "Cannot read properties of undefined (reading 'typeName')",
+        ));
     };
     if first.type_name == "Query" {
         lines.insert(0, "{".to_string());
@@ -385,7 +416,9 @@ fn create_empty_value_node(full_type: &str, supergraph_state: &SupergraphState) 
     if let Some(enum_state) = supergraph_state.enum_types.get(full_type) {
         // NOTE(port): an enum without values gives `undefined` in TS; composition rejects
         // empty enums before this rule runs.
-        return Ok(Value::enum_value(enum_state.values.keys().next().cloned().unwrap_or_default()));
+        return Ok(Value::enum_value(
+            enum_state.values.keys().next().cloned().unwrap_or_default(),
+        ));
     }
 
     if supergraph_state.scalar_types.contains_key(full_type) {
@@ -455,7 +488,10 @@ mod tests {
     #[test]
     fn empty_values_for_builtin_types() {
         let state = SupergraphState::default();
-        assert_eq!(print(&create_empty_value_node("String!", &state).unwrap()), "\"A string value\"");
+        assert_eq!(
+            print(&create_empty_value_node("String!", &state).unwrap()),
+            "\"A string value\""
+        );
         assert_eq!(print(&create_empty_value_node("Int", &state).unwrap()), "0");
         assert_eq!(print(&create_empty_value_node("Float!", &state).unwrap()), "0");
         assert_eq!(print(&create_empty_value_node("Boolean", &state).unwrap()), "true");
@@ -588,9 +624,10 @@ mod tests {
             let mut state = SupergraphState::default();
             state.subgraphs.insert("a".into(), subgraph("a"));
             state.subgraphs.insert("b".into(), subgraph("b"));
-            state
-                .object_types
-                .insert("Query".into(), object("Query", &["a"], vec![field("user", "User", &["a"])]));
+            state.object_types.insert(
+                "Query".into(),
+                object("Query", &["a"], vec![field("user", "User", &["a"])]),
+            );
             state.object_types.insert(
                 "User".into(),
                 object(
@@ -606,9 +643,10 @@ mod tests {
         pub fn satisfiable() -> SupergraphState {
             let mut state = SupergraphState::default();
             state.subgraphs.insert("a".into(), subgraph("a"));
-            state
-                .object_types
-                .insert("Query".into(), object("Query", &["a"], vec![field("user", "User", &["a"])]));
+            state.object_types.insert(
+                "Query".into(),
+                object("Query", &["a"], vec![field("user", "User", &["a"])]),
+            );
             state.object_types.insert(
                 "User".into(),
                 object(
@@ -669,7 +707,10 @@ mod tests {
                 },
             })
             .collect();
-        assert_eq!(print_query_path(&state, &query_path).unwrap(), "{\n  user {\n    name\n  }\n}");
+        assert_eq!(
+            print_query_path(&state, &query_path).unwrap(),
+            "{\n  user {\n    name\n  }\n}"
+        );
 
         let messages: Vec<String> = unreachable
             .list_errors(graph)

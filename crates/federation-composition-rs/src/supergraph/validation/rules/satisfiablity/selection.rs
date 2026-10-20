@@ -5,8 +5,8 @@ use std::rc::Rc;
 
 use std::cmp::Ordering;
 
-use graphql_rs::{Field as FieldNode, InlineFragment, Selection as SelectionAstNode, SelectionSet};
 use crate::utils::collections::IndexMap;
+use graphql_rs::{Field as FieldNode, InlineFragment, Selection as SelectionAstNode, SelectionSet};
 
 use crate::subgraph::helpers::parse_fields;
 use crate::supergraph::state::SupergraphState;
@@ -25,13 +25,8 @@ fn is_js_whitespace(c: char) -> bool {
             | '\u{0020}'
             | '\u{00A0}'
             | '\u{1680}'
-            | '\u{2000}'..='\u{200A}'
-            | '\u{2028}'
-            | '\u{2029}'
-            | '\u{202F}'
-            | '\u{205F}'
-            | '\u{3000}'
-            | '\u{FEFF}'
+            | '\u{2000}'
+            ..='\u{200A}' | '\u{2028}' | '\u{2029}' | '\u{202F}' | '\u{205F}' | '\u{3000}' | '\u{FEFF}'
     )
 }
 
@@ -142,7 +137,8 @@ impl Selection {
             // See: SelectionResolver#sort
             let same_kind = matches!(
                 (selection_node, other_selection_node),
-                (SelectionNode::Field(_), SelectionNode::Field(_)) | (SelectionNode::Fragment(_), SelectionNode::Fragment(_))
+                (SelectionNode::Field(_), SelectionNode::Field(_))
+                    | (SelectionNode::Fragment(_), SelectionNode::Fragment(_))
             );
             if !same_kind {
                 return false;
@@ -260,7 +256,12 @@ impl<'s> SelectionResolver<'s> {
         None
     }
 
-    fn resolve_field_node(&self, type_name: &str, field_node: &FieldNode, selection_set: &mut Vec<SelectionNode>) -> JsResult<()> {
+    fn resolve_field_node(
+        &self,
+        type_name: &str,
+        field_node: &FieldNode,
+        selection_set: &mut Vec<SelectionNode>,
+    ) -> JsResult<()> {
         if field_node.name.value == "__typename" {
             return Ok(());
         }
@@ -307,7 +308,9 @@ impl<'s> SelectionResolver<'s> {
         let type_name = match &fragment_node.type_condition {
             Some(type_condition) if !type_condition.name.value.is_empty() => type_condition.name.value.clone(),
             _ => {
-                return Err(JsError::error("Inline fragment without type condition is not supported."));
+                return Err(JsError::error(
+                    "Inline fragment without type condition is not supported.",
+                ));
             }
         };
 
@@ -327,7 +330,11 @@ impl<'s> SelectionResolver<'s> {
         Ok(())
     }
 
-    fn resolve_selection_set_node(&self, type_name: &str, selection_set_node: &SelectionSet) -> JsResult<Vec<SelectionNode>> {
+    fn resolve_selection_set_node(
+        &self,
+        type_name: &str,
+        selection_set_node: &SelectionSet,
+    ) -> JsResult<Vec<SelectionNode>> {
         let mut selection_set = Vec::new();
 
         for selection in &selection_set_node.selections {

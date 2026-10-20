@@ -11,8 +11,8 @@
 
 use std::sync::LazyLock;
 
-use graphql_rs::{Definition, Document, GraphQLError, OperationType};
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::{Definition, Document, GraphQLError, OperationType};
 
 use super::rules::elements::authenticated::AuthenticatedRule;
 use super::rules::elements::compose_directive::ComposeDirectiveRules;
@@ -208,25 +208,23 @@ pub fn validate_subgraph(
         .into_iter()
         .filter(|def| {
             // `def.name.value`: every spec definition has a name.
-            !def
-                .name()
+            !def.name()
                 .is_some_and(|name| federation_definition_replacements.contains(&name.value))
         })
         .collect();
-    let link_spec_document: Option<Vec<&'static Definition>> = if validation_context.satisfies_version_range("> v1.0")
-        && !validation_context.state_builder.state.specs.link
-    {
-        // TODO: If Link v1.0 spec is detected in the subgraph (`schema @link(url: ".../link/v1.0")`)
-        // We should validate its directives and types
-        // just like we do with Federation directives and types.
-        if !link_spec_definitions_to_include.is_empty() {
-            Some(link_spec_definitions_to_include)
+    let link_spec_document: Option<Vec<&'static Definition>> =
+        if validation_context.satisfies_version_range("> v1.0") && !validation_context.state_builder.state.specs.link {
+            // TODO: If Link v1.0 spec is detected in the subgraph (`schema @link(url: ".../link/v1.0")`)
+            // We should validate its directives and types
+            // just like we do with Federation directives and types.
+            if !link_spec_definitions_to_include.is_empty() {
+                Some(link_spec_definitions_to_include)
+            } else {
+                None
+            }
         } else {
             None
-        }
-    } else {
-        None
-    };
+        };
     // PERF: `concatAST([availableFederationDefinitions, linkSpecDocument, typeDefs])` built
     // directly: the federation definitions are moved instead of cloned twice, and the link spec
     // definitions are cloned once from the shared parsed copy. The subgraph's own definitions
@@ -393,9 +391,10 @@ fn enrich_error_with_subgraph_name(mut error: GraphQLError, subgraph_name: &str)
     }
 
     error.message = format!("[{subgraph_name}] {}", error.message);
-    error
-        .extensions
-        .insert("subgraphName".to_string(), serde_json::Value::String(subgraph_name.to_string()));
+    error.extensions.insert(
+        "subgraphName".to_string(),
+        serde_json::Value::String(subgraph_name.to_string()),
+    );
     error
 }
 
@@ -524,8 +523,8 @@ fn extract_links(subgraph: SubgraphCoreInput<'_>) -> ExtractedLinks {
 
             identities.insert(link.identity.clone());
 
-            let has_invalid_version = is_truthy_str(&link.version)
-                && !is_version_string(link.version.as_deref().unwrap_or_default());
+            let has_invalid_version =
+                is_truthy_str(&link.version) && !is_version_string(link.version.as_deref().unwrap_or_default());
             if has_invalid_version {
                 errors.push(GraphQLError::with_code(
                     format!(
@@ -723,7 +722,10 @@ mod tests {
         let error = enrich_error_with_subgraph_name(GraphQLError::with_code("boom", "X"), "users");
         assert_eq!(error.message, "[users] boom");
         assert_eq!(error.extensions.get("subgraphName"), Some(&serde_json::json!("users")));
-        assert_eq!(error.extensions.keys().collect::<Vec<_>>(), vec!["code", "subgraphName"]);
+        assert_eq!(
+            error.extensions.keys().collect::<Vec<_>>(),
+            vec!["code", "subgraphName"]
+        );
         let again = enrich_error_with_subgraph_name(error, "other");
         assert_eq!(again.message, "[users] boom");
 
@@ -779,7 +781,12 @@ mod tests {
     #[test]
     fn link_spec_definitions_parse() {
         let doc = graphql_rs::parse(LINK_SPEC_DEFINITIONS_SDL).unwrap();
-        let names: Vec<&str> = doc.definitions.iter().filter_map(|d| d.name()).map(|n| n.value.as_str()).collect();
+        let names: Vec<&str> = doc
+            .definitions
+            .iter()
+            .filter_map(|d| d.name())
+            .map(|n| n.value.as_str())
+            .collect();
         assert_eq!(names, vec!["Purpose", "link", "link__Import", "link__Purpose"]);
     }
 

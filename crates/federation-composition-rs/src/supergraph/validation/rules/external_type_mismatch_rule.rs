@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/external-type-mismatch-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::utils::collections::IndexMap;
+use graphql_rs::GraphQLError;
 
 use crate::specifications::federation::FederationVersion;
 use crate::supergraph::composition::object_type::{is_federation_extension, ObjectTypeFieldState, ObjectTypeState};

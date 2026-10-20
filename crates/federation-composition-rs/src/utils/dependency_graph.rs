@@ -32,11 +32,7 @@ struct Dfs<'g> {
     visited: IndexMap<String, bool>,
 }
 
-fn create_dfs<'g>(
-    edges: &'g IndexMap<String, Vec<String>>,
-    leaves_only: Option<bool>,
-    circular: bool,
-) -> Dfs<'g> {
+fn create_dfs<'g>(edges: &'g IndexMap<String, Vec<String>>, leaves_only: Option<bool>, circular: bool) -> Dfs<'g> {
     Dfs {
         edges,
         leaves_only: leaves_only.unwrap_or(false),
@@ -373,7 +369,9 @@ mod tests {
     use super::*;
 
     fn graph(circular: bool) -> DepGraph<()> {
-        DepGraph::new(Some(Options { circular: Some(circular) }))
+        DepGraph::new(Some(Options {
+            circular: Some(circular),
+        }))
     }
 
     fn chain(g: &mut DepGraph<()>) {

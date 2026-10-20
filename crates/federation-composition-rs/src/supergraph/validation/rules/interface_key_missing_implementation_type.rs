@@ -1,12 +1,12 @@
 //! Port of `src/supergraph/validation/rules/interface-key-missing-implementation-type.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::supergraph::composition::interface_type::InterfaceTypeState;
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
 use crate::utils::version::satisfies_version_range;
+use graphql_rs::GraphQLError;
 
 /// `InterfaceKeyMissingImplementationTypeRule(context, supergraph)`.
 /// Visitor callbacks: `InterfaceType`.

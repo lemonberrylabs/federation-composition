@@ -24,19 +24,13 @@ impl KnownArgumentNamesOnDirectivesRule {
         let mut directive_args = IndexMap::default();
         // NOTE(port): no schema, so the defined directives are the specified ones.
         for directive in specified_directives() {
-            directive_args.insert(
-                directive.name,
-                directive.args.into_iter().map(|arg| arg.name).collect(),
-            );
+            directive_args.insert(directive.name, directive.args.into_iter().map(|arg| arg.name).collect());
         }
         for def in &context.get_document().definitions {
             if let Definition::DirectiveDefinition(def) = def {
                 directive_args.insert(
                     def.name.value.clone(),
-                    def.arguments
-                        .iter()
-                        .map(|arg| arg.name.value.clone())
-                        .collect(),
+                    def.arguments.iter().map(|arg| arg.name.value.clone()).collect(),
                 );
             }
         }

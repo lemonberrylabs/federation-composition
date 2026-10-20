@@ -1,12 +1,12 @@
 //! Port of `src/supergraph/validation/rules/interface-field-no-implementation-rule.ts`.
 
-use graphql_rs::GraphQLError;
+use crate::supergraph::composition::interface_type::InterfaceTypeState;
 use crate::supergraph::composition::object_type::ObjectTypeState;
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::{JsError, JsResult};
-use crate::supergraph::composition::interface_type::InterfaceTypeState;
+use graphql_rs::GraphQLError;
 
 /// `InterfaceFieldNoImplementationRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectType`.

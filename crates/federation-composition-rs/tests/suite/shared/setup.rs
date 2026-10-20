@@ -88,8 +88,12 @@ impl<T: GraphQLValue> GraphQLValue for Result<T, JsError> {
 /// `print(sortSDL(ensureDocumentNode(value)))` for both sides, or the matcher's failure message
 /// when a side is not a string or AST node.
 fn printed(received: impl GraphQLValue, expected: impl GraphQLValue) -> Result<(String, String), &'static str> {
-    let received = received.ensure_document_node().map_err(|()| "received value is not a string or AST node")?;
-    let expected = expected.ensure_document_node().map_err(|()| "expected value is not a string or AST node")?;
+    let received = received
+        .ensure_document_node()
+        .map_err(|()| "received value is not a string or AST node")?;
+    let expected = expected
+        .ensure_document_node()
+        .map_err(|()| "expected value is not a string or AST node")?;
     let print_sorted = |document: &Document| match sort_sdl(document) {
         Ok(sorted) => graphql_rs::print(&sorted),
         Err(error) => panic!("sortSDL threw: {}", error.to_js_string()),

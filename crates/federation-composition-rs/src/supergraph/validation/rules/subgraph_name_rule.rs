@@ -1,10 +1,10 @@
 //! Port of `src/supergraph/validation/rules/subgraph-name-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::GraphQLError;
 
 /// `SubgraphNameRule(context, supergraph)`. Its body runs in `new` (the TS returns `{}`).
 /// Visitor callbacks: none.

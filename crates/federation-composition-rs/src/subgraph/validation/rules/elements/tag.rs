@@ -1,10 +1,10 @@
 //! Port of `src/subgraph/validation/rules/elements/tag.ts`.
 
-use graphql_rs::{Directive, Kind, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 use crate::subgraph::helpers::validate_directive_against_original;
 use crate::subgraph::state::SpecName;
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use crate::utils::js::{JsError, JsResult};
+use graphql_rs::{Directive, Kind, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 
 use super::{find_annotated_node, finish, is_interface_kind, is_object_kind, node_name};
 
@@ -28,7 +28,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for TagRules {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "tag", cx),
             NodeRef::Directive(node) => directive(node, cx, info),
@@ -39,7 +44,11 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for TagRules {
 }
 
 /// The `Directive(node, _key, _parent, paths, ancestors)` callback.
-fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> JsResult<()> {
+fn directive<'a>(
+    node: &'a Directive,
+    context: &mut SubgraphValidationContext<'a>,
+    info: &VisitInfo<'a, '_>,
+) -> JsResult<()> {
     if !context.is_available_federation_directive("tag", &node.name.value) {
         return Ok(());
     }
@@ -91,7 +100,10 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
                 ));
             };
 
-            if matches!(type_def.kind(), Kind::InputObjectTypeDefinition | Kind::InputObjectTypeExtension) {
+            if matches!(
+                type_def.kind(),
+                Kind::InputObjectTypeDefinition | Kind::InputObjectTypeExtension
+            ) {
                 context
                     .state_builder
                     .input_object_type()

@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/composition/object-type.ts`.
 
-use graphql_rs::{Definition, Selection, SelectionSet};
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::{Definition, Selection, SelectionSet};
 
 use super::ast::{
     create_object_type_node, CostAst, FieldArgumentAst, FieldAst, JoinAst, JoinFieldAst, JoinFieldContextArgumentAst,
@@ -14,7 +14,7 @@ use super::interface_type::{
 use crate::specifications::federation::FederationVersion;
 use crate::subgraph::helpers::parse_fields;
 use crate::subgraph::state::{
-    Ast, ArgumentKind, Deprecated, Description, ExtensionType, FromContext, ListSize, ObjectType,
+    ArgumentKind, Ast, Deprecated, Description, ExtensionType, FromContext, ListSize, ObjectType,
 };
 use crate::supergraph::state::{SubgraphStates, SupergraphState};
 use crate::utils::auth::merge_scope_policies;
@@ -142,7 +142,9 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
             object_type_state.tags.insert(tag.clone());
         }
         for context_name in &ty.contexts {
-            object_type_state.contexts.insert(format!("{}__{}", graph.name, context_name));
+            object_type_state
+                .contexts
+                .insert(format!("{}__{}", graph.name, context_name));
         }
 
         if ty.inaccessible {
@@ -212,7 +214,10 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
         // graph.version)` per external field; that pure result does not change during the loop,
         // so it is computed once here (the field state borrow excludes `byGraph`).
         let type_in_graph_is_federation_extension = is_federation_extension(
-            object_type_state.by_graph.get(&graph.id).expect("typeInGraph was just set"),
+            object_type_state
+                .by_graph
+                .get(&graph.id)
+                .expect("typeInGraph was just set"),
             graph.version,
         );
 
@@ -427,7 +432,10 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
                             graph: graph_id.clone(),
                             key: Some(key.fields.clone()),
                             // To support Fed v1, we need to only apply `extension: true` when it's a type annotated with @extends (not by using `extend type` syntax, this needs to be ignored)
-                            extension: Some(is_federation_extension(meta, graph_federation_version(graphs, graph_id))),
+                            extension: Some(is_federation_extension(
+                                meta,
+                                graph_federation_version(graphs, graph_id),
+                            )),
                             resolvable: Some(key.resolvable),
                             is_interface_object: None,
                         });
@@ -542,7 +550,12 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
             let field_in_graphs: Vec<(&String, &FieldStateInGraph)> = field.by_graph.iter().collect();
             let field_coordinate = write_field_coordinate(&mut field_coordinate_buffer, &object_type.name, &field.name);
             let is_effectively_required = |graph_id: &str, meta: &FieldStateInGraph| {
-                is_field_coordinate_effectively_required(requires_usage_index, field_coordinate, graph_id, meta.required)
+                is_field_coordinate_effectively_required(
+                    requires_usage_index,
+                    field_coordinate,
+                    graph_id,
+                    meta.required,
+                )
             };
             let has_only_overridden_requires_usage = |graph_id: &str| {
                 has_only_overridden_requires_dependency(requires_usage_index, field_coordinate, graph_id)
@@ -632,34 +645,36 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
                 .map_or(&empty_override_labels, |info| &info.override_labels);
             let overridden_graphs = override_join_field_info.as_ref().map(|info| &info.overridden_graphs);
 
-            let should_emit_override_join_field =
-                |graph_id: &str, meta: &FieldStateInGraph, mode: OverrideJoinFieldMode| -> bool {
-                    let override_label = override_labels.get(graph_id);
+            let should_emit_override_join_field = |graph_id: &str,
+                                                   meta: &FieldStateInGraph,
+                                                   mode: OverrideJoinFieldMode|
+             -> bool {
+                let override_label = override_labels.get(graph_id);
 
-                    if mode == OverrideJoinFieldMode::Query {
-                        let has_explicit_override = meta.r#override.is_some();
-                        let has_override_label = override_label.is_some_and(|l| !l.is_empty());
-                        let is_shareable_source_graph =
-                            meta.shareable && overridden_graphs.is_some_and(|g| !g.contains(graph_id));
+                if mode == OverrideJoinFieldMode::Query {
+                    let has_explicit_override = meta.r#override.is_some();
+                    let has_override_label = override_label.is_some_and(|l| !l.is_empty());
+                    let is_shareable_source_graph =
+                        meta.shareable && overridden_graphs.is_some_and(|g| !g.contains(graph_id));
 
-                        return has_explicit_override || has_override_label || is_shareable_source_graph;
-                    }
+                    return has_explicit_override || has_override_label || is_shareable_source_graph;
+                }
 
-                    let graph_state = graph_join_field_state
-                        .get(graph_id)
-                        .expect("graphJoinFieldState has every graph of the field");
-                    let is_overridden_source_graph = overridden_graphs.is_some_and(|g| g.contains(graph_id));
-                    let needs_override_label =
-                        meta.override_label.is_some() || override_label.is_some_and(|l| !l.is_empty());
-                    let needs_external_for_required = graph_state.external_on_join_field && graph_state.is_required;
-                    let has_used_overridden = graph_state.used_overridden
-                        || (is_overridden_source_graph && graph_state.is_required && !graph_state.external_on_join_field);
+                let graph_state = graph_join_field_state
+                    .get(graph_id)
+                    .expect("graphJoinFieldState has every graph of the field");
+                let is_overridden_source_graph = overridden_graphs.is_some_and(|g| g.contains(graph_id));
+                let needs_override_label =
+                    meta.override_label.is_some() || override_label.is_some_and(|l| !l.is_empty());
+                let needs_external_for_required = graph_state.external_on_join_field && graph_state.is_required;
+                let has_used_overridden = graph_state.used_overridden
+                    || (is_overridden_source_graph && graph_state.is_required && !graph_state.external_on_join_field);
 
-                    needs_external_for_required
-                        || needs_override_label
-                        || has_used_overridden
-                        || !is_overridden_source_graph
-                };
+                needs_external_for_required
+                    || needs_override_label
+                    || has_used_overridden
+                    || !is_overridden_source_graph
+            };
 
             let build_override_join_fields =
                 |mode: OverrideJoinFieldMode, graphs_to_emit: &[(&String, &FieldStateInGraph)]| -> Vec<JoinFieldAst> {
@@ -771,7 +786,9 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
                 if differences_between_graphs.r#override {
                     let graphs_to_emit: Vec<(&String, &FieldStateInGraph)> = field_in_graphs
                         .iter()
-                        .filter(|(graph_id, f)| should_emit_override_join_field(graph_id, f, OverrideJoinFieldMode::Object))
+                        .filter(|(graph_id, f)| {
+                            should_emit_override_join_field(graph_id, f, OverrideJoinFieldMode::Object)
+                        })
                         .copied()
                         .collect();
 
@@ -839,9 +856,7 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
 
             // If there's only one graph on both field and type
             // and it has no properties, we don't need to emit `@join__field`
-            let join_field = if join_fields.len() == 1
-                && join_types.len() == 1
-                && is_empty_join_field(&join_fields[0])
+            let join_field = if join_fields.len() == 1 && join_types.len() == 1 && is_empty_join_field(&join_fields[0])
             {
                 Vec::new()
             } else {
@@ -1014,26 +1029,28 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
             }
         }
 
-        Ok(Definition::ObjectTypeDefinition(create_object_type_node(ObjectTypeAst {
-            name: object_type.name.clone(),
-            // DirectiveNode and ConstDirectiveNode are identical (except the readonly shit...)
-            ast: convert_to_const(&object_type.ast.directives),
-            cost,
-            description: object_type.description.clone(),
-            fields,
-            interfaces: object_type.interfaces.iter().cloned().collect(),
-            tags: object_type.tags.iter().cloned().collect(),
-            inaccessible: object_type.inaccessible,
-            authenticated: object_type.authenticated,
-            policies: object_type.policies.clone(),
-            scopes: object_type.scopes.clone(),
-            contexts: object_type.contexts.iter().cloned().collect(),
-            join: JoinAst {
-                r#type: join_types,
-                implements,
-                ..Default::default()
+        Ok(Definition::ObjectTypeDefinition(create_object_type_node(
+            ObjectTypeAst {
+                name: object_type.name.clone(),
+                // DirectiveNode and ConstDirectiveNode are identical (except the readonly shit...)
+                ast: convert_to_const(&object_type.ast.directives),
+                cost,
+                description: object_type.description.clone(),
+                fields,
+                interfaces: object_type.interfaces.iter().cloned().collect(),
+                tags: object_type.tags.iter().cloned().collect(),
+                inaccessible: object_type.inaccessible,
+                authenticated: object_type.authenticated,
+                policies: object_type.policies.clone(),
+                scopes: object_type.scopes.clone(),
+                contexts: object_type.contexts.iter().cloned().collect(),
+                join: JoinAst {
+                    r#type: join_types,
+                    implements,
+                    ..Default::default()
+                },
             },
-        })))
+        )))
     }
 }
 
@@ -1117,7 +1134,11 @@ impl ObjectComposeCx<'_> {
             .expect("Cannot read properties of undefined (reading 'extension')")
     }
 
-    fn build_context_arguments(&self, graph_id: &str, field: &ObjectTypeFieldState) -> Vec<JoinFieldContextArgumentAst> {
+    fn build_context_arguments(
+        &self,
+        graph_id: &str,
+        field: &ObjectTypeFieldState,
+    ) -> Vec<JoinFieldContextArgumentAst> {
         field
             .args
             .values()
@@ -1778,7 +1799,10 @@ pub struct ArgStateInGraph {
     pub version: FederationVersion,
 }
 
-fn get_or_create_object_type<'s>(state: &'s mut IndexMap<String, ObjectTypeState>, type_name: &str) -> &'s mut ObjectTypeState {
+fn get_or_create_object_type<'s>(
+    state: &'s mut IndexMap<String, ObjectTypeState>,
+    type_name: &str,
+) -> &'s mut ObjectTypeState {
     get_or_insert_with(state, type_name, || ObjectTypeState {
         name: type_name.to_string(),
         tags: IndexSet::default(),
@@ -1852,7 +1876,11 @@ fn get_or_create_arg<'s>(
 mod tests {
     use super::*;
 
-    fn type_in_graph(extension: bool, extension_type: Option<ExtensionType>, has_definition: bool) -> ObjectTypeStateInGraph {
+    fn type_in_graph(
+        extension: bool,
+        extension_type: Option<ExtensionType>,
+        has_definition: bool,
+    ) -> ObjectTypeStateInGraph {
         ObjectTypeStateInGraph {
             has_definition,
             extension,
@@ -1874,16 +1902,34 @@ mod tests {
         let v1 = FederationVersion::V1_0;
         let v2 = FederationVersion::V2_0;
         // not an extension
-        assert!(!is_federation_extension(&type_in_graph(false, Some(ExtensionType::Extends), false), v2));
+        assert!(!is_federation_extension(
+            &type_in_graph(false, Some(ExtensionType::Extends), false),
+            v2
+        ));
         // v1 `extend type` is ignored
-        assert!(!is_federation_extension(&type_in_graph(true, Some(ExtensionType::Extend), false), v1));
+        assert!(!is_federation_extension(
+            &type_in_graph(true, Some(ExtensionType::Extend), false),
+            v1
+        ));
         assert!(!is_federation_extension(&type_in_graph(true, None, false), v1));
         // `@extends` always counts
-        assert!(is_federation_extension(&type_in_graph(true, Some(ExtensionType::Extends), true), v1));
-        assert!(is_federation_extension(&type_in_graph(true, Some(ExtensionType::Extends), true), v2));
+        assert!(is_federation_extension(
+            &type_in_graph(true, Some(ExtensionType::Extends), true),
+            v1
+        ));
+        assert!(is_federation_extension(
+            &type_in_graph(true, Some(ExtensionType::Extends), true),
+            v2
+        ));
         // v2 `extend type`: only without a definition
-        assert!(!is_federation_extension(&type_in_graph(true, Some(ExtensionType::Extend), true), v2));
-        assert!(is_federation_extension(&type_in_graph(true, Some(ExtensionType::Extend), false), v2));
+        assert!(!is_federation_extension(
+            &type_in_graph(true, Some(ExtensionType::Extend), true),
+            v2
+        ));
+        assert!(is_federation_extension(
+            &type_in_graph(true, Some(ExtensionType::Extend), false),
+            v2
+        ));
     }
 
     #[test]
@@ -1908,7 +1954,12 @@ mod tests {
         assert!(has_only_overridden_requires_dependency(&index, "User.id", "A"));
         // unknown coordinate/graph falls back
         assert!(is_field_coordinate_effectively_required(&index, "User.id", "B", true));
-        assert!(!is_field_coordinate_effectively_required(&index, "User.name", "A", false));
+        assert!(!is_field_coordinate_effectively_required(
+            &index,
+            "User.name",
+            "A",
+            false
+        ));
         assert!(!has_only_overridden_requires_dependency(&index, "User.id", "B"));
 
         mark_requires_usage_for_coordinate("User.id", "A", false, &mut index);
@@ -1943,8 +1994,9 @@ mod tests {
         add_field(&mut supergraph_state.object_types, "Profile", "name", "String");
         add_field(&mut supergraph_state.object_types, "Dog", "barks", "Boolean");
 
-        let selection =
-            selection_set("{ id unknown profile { name } pets { ... on Dog { barks } ... on Cat { meows } } ... { id } }");
+        let selection = selection_set(
+            "{ id unknown profile { name } pets { ... on Dog { barks } ... on Cat { meows } } ... { id } }",
+        );
         let mut index = RequiresFieldUsageIndex::default();
         let user = ObjectOrInterfaceTypeState::Object(&supergraph_state.object_types["User"]);
         mark_requires_usage_from_selection_set(&supergraph_state, user, &selection, "A", false, &mut index);

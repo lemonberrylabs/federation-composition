@@ -24,11 +24,7 @@ pub fn is_equal_type(type_a: &GraphQLType, type_b: &GraphQLType) -> bool {
 }
 
 /// graphql-js `isTypeSubTypeOf`.
-pub fn is_type_sub_type_of(
-    schema: &GraphQLSchema,
-    maybe_sub_type: &GraphQLType,
-    super_type: &GraphQLType,
-) -> bool {
+pub fn is_type_sub_type_of(schema: &GraphQLSchema, maybe_sub_type: &GraphQLType, super_type: &GraphQLType) -> bool {
     if is_same_type(maybe_sub_type, super_type) {
         return true;
     }
@@ -50,9 +46,7 @@ pub fn is_type_sub_type_of(
     if maybe_sub_type.is_list() {
         return false;
     }
-    let (GraphQLType::Named(super_name), GraphQLType::Named(sub_name)) =
-        (super_type, maybe_sub_type)
-    else {
+    let (GraphQLType::Named(super_name), GraphQLType::Named(sub_name)) = (super_type, maybe_sub_type) else {
         return false;
     };
     let Some(super_named) = schema.get_type(super_name) else {

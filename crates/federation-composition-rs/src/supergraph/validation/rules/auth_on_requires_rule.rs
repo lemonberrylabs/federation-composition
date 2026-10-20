@@ -1,19 +1,19 @@
 //! Port of `src/supergraph/validation/rules/auth-on-requires-rule.ts`.
 
-use graphql_rs::{is_specified_scalar_type, GraphQLError, Selection};
 use crate::subgraph::helpers::parse_fields;
 use crate::supergraph::composition::enum_type::EnumTypeState;
+use crate::supergraph::composition::interface_type::InterfaceTypeState;
 use crate::supergraph::composition::object_type::{ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::scalar_type::ScalarTypeState;
+use crate::supergraph::composition::union_type::UnionTypeState;
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::auth::merge_scope_policies;
 use crate::utils::graphql::extract_named_type_name;
 use crate::utils::js::{JsError, JsResult};
+use graphql_rs::{is_specified_scalar_type, GraphQLError, Selection};
 use graphql_rs::{Field, InlineFragment, SelectionSet};
-use crate::supergraph::composition::interface_type::InterfaceTypeState;
-use crate::supergraph::composition::union_type::UnionTypeState;
 
 /// `AuthOnRequiresRule(context, supergraph)`. Validates that fields annotated with `@requires`
 /// have appropriate auth directives (`@authenticated`, `@requiresScopes`, `@policy`) to ensure
@@ -145,8 +145,7 @@ pub fn ensure_access_to_selection_set(
                     return Ok(None);
                 }
 
-                let field_lacking_access =
-                    ensure_access_to_field(supergraph, current_type, field, provisioned_access)?;
+                let field_lacking_access = ensure_access_to_field(supergraph, current_type, field, provisioned_access)?;
 
                 if field_lacking_access.is_some() {
                     return Ok(field_lacking_access);
@@ -390,10 +389,19 @@ fn ensure_access_to_inline_fragment(
         }
     }
 
-    ensure_access_to_selection_set(supergraph, concrete_type, &inline_fragment.selection_set, provisioned_access)
+    ensure_access_to_selection_set(
+        supergraph,
+        concrete_type,
+        &inline_fragment.selection_set,
+        provisioned_access,
+    )
 }
 
-fn create_access_requirement_error(graph_name: &str, field_with_requires_coordinate: &str, auth_coordinate: &str) -> GraphQLError {
+fn create_access_requirement_error(
+    graph_name: &str,
+    field_with_requires_coordinate: &str,
+    auth_coordinate: &str,
+) -> GraphQLError {
     let str_data_ref = if auth_coordinate.contains('.') {
         format!("field \"{auth_coordinate}\"")
     } else {
@@ -496,10 +504,11 @@ impl ProvisionedAccess {
 
         // Check policies
         for required_policy_group in required.policies {
-            let satisfied_by_any = self
-                .policies
-                .iter()
-                .any(|provided_group| required_policy_group.iter().all(|policy| provided_group.contains(policy)));
+            let satisfied_by_any = self.policies.iter().any(|provided_group| {
+                required_policy_group
+                    .iter()
+                    .all(|policy| provided_group.contains(policy))
+            });
 
             if !satisfied_by_any {
                 return false;

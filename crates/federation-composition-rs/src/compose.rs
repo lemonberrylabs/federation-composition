@@ -17,7 +17,10 @@ use crate::validate::{validate, ValidationResult};
 
 /// `composeServices(services, __internal?)`.
 /// `Err` is a throw escaping the TS (`validate` and the parse of the core schema).
-pub fn compose_services(services: &[ServiceDefinition], internal: Option<&InternalOptions>) -> JsResult<CompositionResult> {
+pub fn compose_services(
+    services: &[ServiceDefinition],
+    internal: Option<&InternalOptions>,
+) -> JsResult<CompositionResult> {
     let validation_result = match validate(services, internal)? {
         ValidationResult::Failure { errors } => {
             return Ok(CompositionResult::Failure(CompositionFailure { errors }));
@@ -209,9 +212,9 @@ pub fn compose_services(services: &[ServiceDefinition], internal: Option<&Intern
     definitions.extend(validation_result.supergraph);
     let supergraph_document = Document { definitions };
 
-    Ok(CompositionResult::Success(create_composition_success_read_cache_container(
-        supergraph_document,
-    )))
+    Ok(CompositionResult::Success(
+        create_composition_success_read_cache_container(supergraph_document),
+    ))
 }
 
 /// `createLinkImportValue(name, alias)`.
@@ -336,11 +339,15 @@ mod tests {
             "Error: Unexpected test failure"
         );
         assert_eq!(
-            assert_composition_success(&failure, Some("")).unwrap_err().to_js_string(),
+            assert_composition_success(&failure, Some(""))
+                .unwrap_err()
+                .to_js_string(),
             "Error: Unexpected test failure"
         );
         assert_eq!(
-            assert_composition_success(&failure, Some("boom")).unwrap_err().to_js_string(),
+            assert_composition_success(&failure, Some("boom"))
+                .unwrap_err()
+                .to_js_string(),
             "Error: boom"
         );
         assert!(assert_composition_failure(&failure, None).is_ok());
@@ -351,7 +358,9 @@ mod tests {
         assert!(!composition_has_errors(&success));
         assert!(assert_composition_success(&success, None).is_ok());
         assert_eq!(
-            assert_composition_failure(&success, Some("x")).unwrap_err().to_js_string(),
+            assert_composition_failure(&success, Some("x"))
+                .unwrap_err()
+                .to_js_string(),
             "Error: x"
         );
     }

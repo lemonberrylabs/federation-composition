@@ -141,7 +141,8 @@ impl FederatedLink {
     /// The private `defaultImport` getter: `this.namespace && "@" + this.namespace`.
     /// NOTE(port): an empty namespace is falsy and is returned as is (`""`).
     fn default_import(&self) -> Option<String> {
-        self.namespace().map(|ns| if ns.is_empty() { String::new() } else { format!("@{ns}") })
+        self.namespace()
+            .map(|ns| if ns.is_empty() { String::new() } else { format!("@{ns}") })
     }
 
     /// `identity`.
@@ -195,7 +196,11 @@ mod tests {
     use super::*;
 
     fn trim_multiline(s: &str) -> String {
-        s.split('\n').map(str::trim).filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n")
+        s.split('\n')
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// `__tests__/utils/link.spec.ts`.
@@ -242,7 +247,10 @@ mod tests {
         assert_eq!(federation.resolve_import_name("@key"), "lookup");
         assert_eq!(federation.resolve_import_name("@external"), "federation__external");
         assert_eq!(federation.resolve_import_name("@provides"), "provides");
-        assert_eq!(find("https://specs.apollo.dev/link").resolve_import_name("@link"), "link");
+        assert_eq!(
+            find("https://specs.apollo.dev/link").resolve_import_name("@link"),
+            "link"
+        );
         let unnamed = find("https://unnamed.graphql-hive.com");
         assert_eq!(unnamed.resolve_import_name("@meta"), "meta");
         assert_eq!(unnamed.resolve_import_name("@unmentioned"), "unmentioned");

@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn directive_composition_error(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[service("users", graphql!(r#"
+            api.compose_services(&[service("users", graphql!(r#"
             extend schema
               @link(url: "https://specs.apollo.dev/link/v1.0")
               @link(
@@ -34,7 +34,7 @@ test_versions! {
         );
 
         assert_errors_contain(
-            &api.compose_services(&[service("foo", graphql!(r#"
+            api.compose_services(&[service("foo", graphql!(r#"
           directive @composeDirective(name: String!) repeatable on SCHEMA
           directive @block on FIELD_DEFINITION
           extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@composeDirective"]) @composeDirective(name: "@block")

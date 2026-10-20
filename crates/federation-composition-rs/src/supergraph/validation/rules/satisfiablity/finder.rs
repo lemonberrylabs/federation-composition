@@ -53,8 +53,12 @@ pub fn concat_edge(visited_edges: &[EdgeId], edge: EdgeId) -> Vec<EdgeId> {
 /// `PathFinderResult`.
 #[derive(Clone, Debug)]
 pub enum PathFinderResult<'s> {
-    Success { paths: Vec<OperationPath> },
-    Failure { errors: LazyErrors<'s, SatisfiabilityError> },
+    Success {
+        paths: Vec<OperationPath>,
+    },
+    Failure {
+        errors: LazyErrors<'s, SatisfiabilityError>,
+    },
 }
 
 /// An entry of the `queue` of `findIndirectPaths`: `[visitedGraphs, visitedFields, path]`.
@@ -225,8 +229,11 @@ impl<'s> PathFinder<'s> {
                 let (type_name, field_name) = (&graph.names.get(type_name), &graph.names.get(field_name));
                 let tail_graph_name = &graph.node(tail).graph_name;
                 // In case of no errors, we know that there were no edges matching the field name.
-                let mut errors: Vec<SatisfiabilityError> =
-                    vec![SatisfiabilityError::for_missing_field(tail_graph_name, &type_name, &field_name)];
+                let mut errors: Vec<SatisfiabilityError> = vec![SatisfiabilityError::for_missing_field(
+                    tail_graph_name,
+                    type_name,
+                    field_name,
+                )];
                 // find graphs with the same type and field name, but no @key defined
                 let type_nodes = graph.nodes_of(type_name, true)?;
                 for type_node in type_nodes {
@@ -308,8 +315,7 @@ impl<'s> PathFinder<'s> {
                 .and_then(|f| f.by_graph.get(&tail.graph_id));
 
             if field_in_edge.is_none() {
-                self.logger
-                    .group_end("Ignore edge: tail type does not have this field");
+                self.logger.group_end("Ignore edge: tail type does not have this field");
                 return Ok(());
             }
         }
@@ -336,8 +342,7 @@ impl<'s> PathFinder<'s> {
             // prevent a situation where we are doing a second abstract move
             if let Some(tail_edge) = path.edge() {
                 if is_abstract_edge(graph.edge(tail_edge)) && key_fields.is_none() {
-                    self.logger
-                        .group_end("Ignore: cannot do two abstract moves in a row");
+                    self.logger.group_end("Ignore: cannot do two abstract moves in a row");
                     return Ok(());
                 }
             }
@@ -386,13 +391,8 @@ impl<'s> PathFinder<'s> {
 
         match direct {
             PathFinderResult::Success { paths } => {
-                self.logger.group_end(|| {
-                    format!(
-                        "Resolvable: {} with {} paths",
-                        graph.edge_to_string(edge),
-                        paths.len()
-                    )
-                });
+                self.logger
+                    .group_end(|| format!("Resolvable: {} with {} paths", graph.edge_to_string(edge), paths.len()));
 
                 final_paths.extend(paths);
                 resolved_graphs.push(new_path_tail_graph_name);
@@ -501,8 +501,11 @@ impl<'s> PathFinder<'s> {
         self.logger
             .group(|| format!("Indirect paths to {} from: {}", id(), graph.node(tail).to_string()));
 
-        let mut queue: Vec<IndirectPathsQueueItem<'_>> =
-            vec![(Cow::Borrowed(visited_graphs), Cow::Borrowed(visited_fields), Cow::Borrowed(path))];
+        let mut queue: Vec<IndirectPathsQueueItem<'_>> = vec![(
+            Cow::Borrowed(visited_graphs),
+            Cow::Borrowed(visited_fields),
+            Cow::Borrowed(path),
+        )];
         let mut final_paths: Vec<OperationPath> = Vec::new();
         let mut resolved_graphs = GraphNameSet::default();
 

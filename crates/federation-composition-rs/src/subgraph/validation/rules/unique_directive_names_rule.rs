@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-directive-names-rule.ts`.
 
-use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::IndexSet;
+use graphql_rs::{GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 
@@ -33,7 +33,12 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueDirectiveNamesVisito
         VisitKinds::enter(&[Kind::DirectiveDefinition])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         if let NodeRef::DirectiveDefinition(node) = node {
             let directive_name = &node.name.value;
             let existing_name_node = self.known_directive_name_nodes.contains(directive_name.as_str());

@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/link-import-name-mismatch-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::utils::collections::IndexMap;
+use graphql_rs::GraphQLError;
 
 use crate::supergraph::validation::validation_context::SupergraphValidationContext;
 use crate::utils::format::and_list;

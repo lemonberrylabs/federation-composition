@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn interface_field_no_implem_entity(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}" import: ["@key"])
             
@@ -49,7 +49,7 @@ test_versions! {
 
     fn interface_field_no_implem_data(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("foo", graphql!(r#"
             type Query {
               foo: Foo

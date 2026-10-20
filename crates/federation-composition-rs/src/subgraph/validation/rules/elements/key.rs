@@ -2,15 +2,15 @@
 
 use std::rc::Rc;
 
-use graphql_rs::{Directive, GraphQLError, NodeRef, Value, VisitAction, VisitInfo, Visitor};
-use crate::utils::collections::IndexSet;
 use crate::graphql::printer::print;
 use crate::subgraph::helpers::{
     get_fields_argument, parse_fields, validate_directive_against_original, visit_fields, InterceptDirectiveInfo,
     InterceptFieldInfo, Intercepts, ObjectOrInterface, VisitFieldsInterceptor,
 };
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
+use crate::utils::collections::IndexSet;
 use crate::utils::js::{JsError, JsResult};
+use graphql_rs::{Directive, GraphQLError, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 
 use super::{finish, is_interface_kind, is_object_kind, node_name};
 
@@ -34,7 +34,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for KeyRules {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "key", cx),
             NodeRef::Directive(node) => directive(node, cx),
@@ -54,7 +59,11 @@ struct KeyFieldsInterceptor<'r> {
 }
 
 impl<'a> VisitFieldsInterceptor<'a> for KeyFieldsInterceptor<'_> {
-    fn intercept_field(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_field(
+        &mut self,
+        context: &mut SubgraphValidationContext<'a>,
+        info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         // Mark the field as used in the key when it's a field of the type annotated with @key
         if info.type_definition.name.value == self.type_name {
             self.fields_used_in_key.insert(info.field_name.clone());
@@ -63,7 +72,11 @@ impl<'a> VisitFieldsInterceptor<'a> for KeyFieldsInterceptor<'_> {
         Ok(())
     }
 
-    fn intercept_unknown_field(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_unknown_field(
+        &mut self,
+        context: &mut SubgraphValidationContext<'a>,
+        info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         self.is_valid = false;
         context.report_error(GraphQLError::with_code(
             format!(
@@ -75,7 +88,11 @@ impl<'a> VisitFieldsInterceptor<'a> for KeyFieldsInterceptor<'_> {
         Ok(())
     }
 
-    fn intercept_directive(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptDirectiveInfo) -> JsResult<()> {
+    fn intercept_directive(
+        &mut self,
+        context: &mut SubgraphValidationContext<'a>,
+        info: &InterceptDirectiveInfo,
+    ) -> JsResult<()> {
         self.is_valid = false;
         if info.is_known {
             context.report_error(GraphQLError::with_code(
@@ -97,7 +114,11 @@ impl<'a> VisitFieldsInterceptor<'a> for KeyFieldsInterceptor<'_> {
         Ok(())
     }
 
-    fn intercept_arguments(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_arguments(
+        &mut self,
+        context: &mut SubgraphValidationContext<'a>,
+        info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         self.is_valid = false;
         context.report_error(GraphQLError::with_code(
             format!(
@@ -109,7 +130,11 @@ impl<'a> VisitFieldsInterceptor<'a> for KeyFieldsInterceptor<'_> {
         Ok(())
     }
 
-    fn intercept_interface_type(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_interface_type(
+        &mut self,
+        context: &mut SubgraphValidationContext<'a>,
+        info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         self.is_valid = false;
         context.report_error(GraphQLError::with_code(
             format!(
@@ -254,8 +279,11 @@ fn directive<'a>(directive_node: &'a Directive, context: &mut SubgraphValidation
     if used_on_interface {
         // TODO: It's a poor's man implementation of the check, we should compare the selected fields, but just a string
         let expected_fields_value = &normalized_fields_arg_value;
-        let known_objects_and_interfaces: Vec<Rc<ObjectOrInterface>> =
-            context.get_subgraph_object_or_interface_types().values().cloned().collect();
+        let known_objects_and_interfaces: Vec<Rc<ObjectOrInterface>> = context
+            .get_subgraph_object_or_interface_types()
+            .values()
+            .cloned()
+            .collect();
         for def in known_objects_and_interfaces {
             let def_is_object_type = is_object_kind(def.kind);
 
@@ -315,10 +343,12 @@ fn directive<'a>(directive_node: &'a Directive, context: &mut SubgraphValidation
             return Ok(());
         }
 
-        context
-            .state_builder
-            .object_type()
-            .set_key(type_name, &normalized_fields_arg_value, &fields_used_in_key, resolvable)?;
+        context.state_builder.object_type().set_key(
+            type_name,
+            &normalized_fields_arg_value,
+            &fields_used_in_key,
+            resolvable,
+        )?;
     }
 
     Ok(())

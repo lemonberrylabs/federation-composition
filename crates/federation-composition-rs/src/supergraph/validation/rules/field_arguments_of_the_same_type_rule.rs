@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/validation/rules/field-arguments-of-the-same-type-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::GraphQLError;
 
 use crate::supergraph::composition::directive::{DirectiveArgState, DirectiveState};
 use crate::supergraph::composition::object_type::{ObjectTypeFieldArgState, ObjectTypeFieldState, ObjectTypeState};
@@ -44,7 +44,8 @@ impl<'s> SupergraphVisitor<'s> for FieldArgumentsOfTheSameTypeRule {
             // TODO: This needs a good comparison logic (e.g. `String!` and `String` are the same in context of fields and arguments)
             let is_non_nullable = arg.r#type.ends_with('!');
             let is_non_nullable_in_supergraph = arg_state.r#type.ends_with('!');
-            let is_matching_non_nullable_part = strip_trailing_bang(&arg_state.r#type) == strip_trailing_bang(&arg.r#type);
+            let is_matching_non_nullable_part =
+                strip_trailing_bang(&arg_state.r#type) == strip_trailing_bang(&arg.r#type);
 
             // Turn User into User! (if super type is non-nullable)
             // Supergraph type | sign | Local type

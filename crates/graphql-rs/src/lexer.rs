@@ -233,9 +233,7 @@ impl<'s> Lexer<'s> {
             }
             match code {
                 // U+FEFF (BOM), encoded EF BB BF.
-                0xEF if body.get(position + 1) == Some(&0xBB)
-                    && body.get(position + 2) == Some(&0xBF) =>
-                {
+                0xEF if body.get(position + 1) == Some(&0xBB) && body.get(position + 2) == Some(&0xBF) => {
                     position += 3;
                     continue;
                 }
@@ -259,9 +257,7 @@ impl<'s> Lexer<'s> {
                         return Ok(self.punct(TokenKind::Spread, position, 3));
                     }
                     if next_code == b'.' {
-                        return Err(GraphQLError::syntax(
-                            "Unexpected \"..\", did you mean \"...\"?",
-                        ));
+                        return Err(GraphQLError::syntax("Unexpected \"..\", did you mean \"...\"?"));
                     } else if next_code.is_ascii_digit() {
                         let end = self.read_digits(position + 1, next_code)?;
                         let digits = &self.source[position + 1..end];
@@ -296,13 +292,9 @@ impl<'s> Lexer<'s> {
             // graphql-js `Invalid character` branch (lone surrogates) cannot
             // occur here.
             return Err(GraphQLError::syntax(if code == b'\'' {
-                "Unexpected single quote character ('), did you mean to use a double quote (\")?"
-                    .to_owned()
+                "Unexpected single quote character ('), did you mean to use a double quote (\")?".to_owned()
             } else {
-                format!(
-                    "Unexpected character: {}.",
-                    self.print_code_point_at(position)
-                )
+                format!("Unexpected character: {}.", self.print_code_point_at(position))
             }));
         }
         Ok(Token::new(TokenKind::Eof, body_length, body_length, None))
@@ -412,11 +404,7 @@ impl<'s> Lexer<'s> {
             )));
         }
         Ok(Token::new(
-            if is_float {
-                TokenKind::Float
-            } else {
-                TokenKind::Int
-            },
+            if is_float { TokenKind::Float } else { TokenKind::Int },
             start,
             position,
             Some(Cow::Borrowed(&self.source[start..position])),
@@ -452,12 +440,7 @@ impl<'s> Lexer<'s> {
                         Cow::Owned(v)
                     }
                 };
-                return Ok(Token::new(
-                    TokenKind::String,
-                    start,
-                    position + 1,
-                    Some(value),
-                ));
+                return Ok(Token::new(TokenKind::String, start, position + 1, Some(value)));
             }
             if code == b'\\' {
                 let v = value.get_or_insert_with(String::new);
@@ -485,10 +468,7 @@ impl<'s> Lexer<'s> {
         Err(GraphQLError::syntax("Unterminated string."))
     }
 
-    fn read_escaped_unicode_variable_width(
-        &self,
-        position: usize,
-    ) -> Result<(char, usize), Box<GraphQLError>> {
+    fn read_escaped_unicode_variable_width(&self, position: usize) -> Result<(char, usize), Box<GraphQLError>> {
         let mut point: i32 = 0;
         let mut size = 3;
         // Only ASCII is consumed before the loop ends (any other char is not a
@@ -513,18 +493,12 @@ impl<'s> Lexer<'s> {
         )))
     }
 
-    fn read_escaped_unicode_fixed_width(
-        &self,
-        position: usize,
-    ) -> Result<(char, usize), Box<GraphQLError>> {
+    fn read_escaped_unicode_fixed_width(&self, position: usize) -> Result<(char, usize), Box<GraphQLError>> {
         let code = self.read_16_bit_hex_code(position + 2);
         if is_unicode_scalar_value(code) {
             return Ok((char::from_u32(code as u32).unwrap(), 6));
         }
-        if is_leading_surrogate(code)
-            && self.at(position + 6) == b'\\'
-            && self.at(position + 7) == b'u'
-        {
+        if is_leading_surrogate(code) && self.at(position + 6) == b'\\' && self.at(position + 7) == b'u' {
             let trailing_code = self.read_16_bit_hex_code(position + 8);
             if is_trailing_surrogate(trailing_code) {
                 let point = 0x10000 + ((code - 0xd800) << 10) + (trailing_code - 0xdc00);

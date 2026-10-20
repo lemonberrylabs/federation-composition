@@ -8,7 +8,7 @@ mod invalid_field_sharing {
     test_versions! {
         fn set_of_tests(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     service("users", graphql!(r#"
               extend schema
                 @link(
@@ -54,7 +54,7 @@ mod invalid_field_sharing {
             );
 
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     service("users", graphql!(r#"
               extend schema
                 @link(
@@ -96,7 +96,7 @@ mod invalid_field_sharing {
             );
 
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     service("users", graphql!(r#"
               extend schema
                 @link(
@@ -149,7 +149,7 @@ mod invalid_field_sharing {
             );
 
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     service("foo", graphql!(r#"
               extend schema
               @link(
@@ -199,7 +199,7 @@ mod invalid_field_sharing {
 
         fn fed_v1(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     service("foo", graphql!(r#"
               extend type Note {
                 url: String!
@@ -268,7 +268,7 @@ mod invalid_field_sharing {
 
         fn subscription_fields_fed_v1(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     service("foo", graphql!(r#"
               type Query {
                 foo: String
@@ -298,7 +298,7 @@ mod invalid_field_sharing {
 
         fn subscription_fields(api, version) {
             assert_errors_contain(
-                &api.compose_services(&[
+                api.compose_services(&[
                     service("foo", graphql!(r#"
               extend schema
                 @link(

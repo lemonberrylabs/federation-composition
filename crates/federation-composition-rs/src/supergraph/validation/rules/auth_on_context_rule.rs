@@ -1,14 +1,14 @@
 //! Port of `src/supergraph/validation/rules/auth-on-context-rule.ts`.
 
-use graphql_rs::GraphQLError;
+use super::auth_on_requires_rule::{ensure_access_to_selection_set, ProvisionedAccess, RequiresCurrentType};
 use crate::subgraph::helpers::parse_fields;
+use crate::subgraph::state::{FromContext, SubgraphState, SubgraphType};
 use crate::supergraph::composition::object_type::{ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
-use crate::subgraph::state::{FromContext, SubgraphState, SubgraphType};
-use super::auth_on_requires_rule::{ensure_access_to_selection_set, ProvisionedAccess, RequiresCurrentType};
+use graphql_rs::GraphQLError;
 
 /// `AuthOnContextRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectTypeField`.
@@ -48,7 +48,10 @@ impl<'s> SupergraphVisitor<'s> for AuthOnContextRule<'s> {
                 } else if let Some(t) = supergraph.interface_types.get(&provider_name) {
                     Some(RequiresCurrentType::Interface(t))
                 } else {
-                    supergraph.union_types.get(&provider_name).map(RequiresCurrentType::Union)
+                    supergraph
+                        .union_types
+                        .get(&provider_name)
+                        .map(RequiresCurrentType::Union)
                 };
 
                 let Some(provider_type) = provider_type else {
@@ -117,7 +120,11 @@ fn find_context_providers(subgraph_state: &SubgraphState, context_name: &str) ->
     providers
 }
 
-fn create_context_access_requirement_error(graph_name: &str, field_coordinate: &str, context_name: &str) -> GraphQLError {
+fn create_context_access_requirement_error(
+    graph_name: &str,
+    field_coordinate: &str,
+    context_name: &str,
+) -> GraphQLError {
     GraphQLError::with_code(
         format!(
             "[{graph_name}] Field \"{field_coordinate}\" does not specify necessary @authenticated, @requiresScopes and/or @policy auth requirements to access the transitive data in context {context_name} from @fromContext selection set."

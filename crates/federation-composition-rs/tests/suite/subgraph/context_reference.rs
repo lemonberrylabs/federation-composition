@@ -9,13 +9,22 @@ mod parse_context_reference {
     fn assert_parses(input: &str, context: &str, selection: &str) {
         assert_eq!(
             parse_context_reference(input),
-            ContextReference { context: Some(context.to_string()), selection: Some(selection.to_string()) }
+            ContextReference {
+                context: Some(context.to_string()),
+                selection: Some(selection.to_string())
+            }
         );
     }
 
     /// The body of `rejects %j`: `{ context: undefined, selection: undefined }`.
     fn assert_rejects(input: &str) {
-        assert_eq!(parse_context_reference(input), ContextReference { context: None, selection: None });
+        assert_eq!(
+            parse_context_reference(input),
+            ContextReference {
+                context: None,
+                selection: None
+            }
+        );
     }
 
     #[test]

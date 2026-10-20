@@ -2,11 +2,11 @@
 
 use std::sync::LazyLock;
 
+use crate::utils::collections::IndexSet;
 use graphql_rs::{
     visit_edit, Definition, Directive, Document, EditAction, EditVisitor, Kind, NamedType, Node, NodeRef, Value,
     VisitInfo,
 };
-use crate::utils::collections::IndexSet;
 
 use super::supergraph_spec::{
     get_supergraph_spec_nodes, EXTRA_FEDERATION_DIRECTIVE_NAMES, EXTRA_FEDERATION_TYPE_NAMES,
@@ -97,19 +97,26 @@ impl PublicSchemaVisitor {
         self.belongs_to_linked_spec(name)
             || self.supergraph_directives.contains(name)
             || EXTRA_FEDERATION_DIRECTIVE_NAMES.contains(name)
-            || self.additional_federation_directives.as_ref().is_some_and(|d| d.contains(name))
+            || self
+                .additional_federation_directives
+                .as_ref()
+                .is_some_and(|d| d.contains(name))
             || self.directives_to_remove.contains(name)
             || (kind == Kind::DirectiveDefinition && SPECIFIED_DIRECTIVES.contains(name))
     }
 
     /// `belongsToLinkedSpec(node)`.
     fn belongs_to_linked_spec(&self, name: &str) -> bool {
-        self.spec_prefixes.iter().any(|prefix| name.starts_with(prefix.as_str()))
+        self.spec_prefixes
+            .iter()
+            .any(|prefix| name.starts_with(prefix.as_str()))
     }
 
     /// `hasInaccessibleDirective(node)`.
     fn has_inaccessible_directive(&self, directives: &[Directive]) -> bool {
-        directives.iter().any(|d| d.name.value == self.inaccessible_directive_name)
+        directives
+            .iter()
+            .any(|d| d.name.value == self.inaccessible_directive_name)
     }
 
     /// `removeInaccessibleNode(node)`: `true` for `return null`.
@@ -171,7 +178,9 @@ impl EditVisitor for PublicSchemaVisitor {
             NodeRef::InterfaceTypeDefinition(n) => {
                 delete_if(self.remove_inaccessible_node(kind, &n.name.value, &n.directives))
             }
-            NodeRef::UnionTypeDefinition(n) => delete_if(self.remove_inaccessible_node(kind, &n.name.value, &n.directives)),
+            NodeRef::UnionTypeDefinition(n) => {
+                delete_if(self.remove_inaccessible_node(kind, &n.name.value, &n.directives))
+            }
             NodeRef::InputObjectTypeDefinition(n) => {
                 let name = n.name.value.as_str();
                 delete_if(
@@ -284,7 +293,11 @@ pub fn transform_supergraph_to_public_schema(document_node: &Document) -> JsResu
 
     let imported_pieces: Vec<String> = spec_links
         .iter()
-        .flat_map(|l| l.imports().iter().map(|i| i.as_.clone().unwrap_or_else(|| i.name.clone())))
+        .flat_map(|l| {
+            l.imports()
+                .iter()
+                .map(|i| i.as_.clone().unwrap_or_else(|| i.name.clone()))
+        })
         .collect();
     // `name.replace("@", "")`: the first `@` anywhere.
     let definitions_to_remove: IndexSet<String> =

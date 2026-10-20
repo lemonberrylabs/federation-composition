@@ -1,11 +1,11 @@
 //! Port of `src/supergraph/validation/rules/required-input-field-missing-in-some-subgraph-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::supergraph::composition::input_object_type::{InputObjectTypeFieldState, InputObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::GraphQLError;
 
 /// `RequiredInputFieldMissingInSomeSubgraphRule(context, supergraph)`.
 /// Visitor callbacks: `InputObjectTypeField`.
@@ -51,12 +51,14 @@ impl<'s> SupergraphVisitor<'s> for RequiredInputFieldMissingInSomeSubgraphRule {
             let required_in = format!(
                 "subgraph{} \"{}\"",
                 if graphs_with_required_field.len() > 1 { "s" } else { "" },
-                cx.graph_ids_to_names(graphs_with_required_field.iter().copied())?.join("\", \"")
+                cx.graph_ids_to_names(graphs_with_required_field.iter().copied())?
+                    .join("\", \"")
             );
             let missing_in = format!(
                 "subgraph{} \"{}\"",
                 if graphs_without_field.len() > 1 { "s" } else { "" },
-                cx.graph_ids_to_names(graphs_without_field.iter().copied())?.join("\", \"")
+                cx.graph_ids_to_names(graphs_without_field.iter().copied())?
+                    .join("\", \"")
             );
             cx.report_error(GraphQLError::with_code(
                 format!(

@@ -26,9 +26,7 @@ pub fn parse(source: &str) -> Result<Document, GraphQLError> {
 
 /// graphql-js `parse` with options.
 pub fn parse_with_options(source: &str, options: ParseOptions) -> Result<Document, GraphQLError> {
-    Parser::new(source, options)
-        .parse_document()
-        .map_err(|e| *e)
+    Parser::new(source, options).parse_document().map_err(|e| *e)
 }
 
 /// graphql-js `parseValue`.
@@ -77,10 +75,7 @@ impl<'s> Parser<'s> {
 
     /// `<SOF>`, the production, `<EOF>`: how graphql-js parses a value, a
     /// type or a schema coordinate.
-    fn parse_whole<T>(
-        &mut self,
-        production: impl FnOnce(&mut Self) -> PResult<T>,
-    ) -> Result<T, GraphQLError> {
+    fn parse_whole<T>(&mut self, production: impl FnOnce(&mut Self) -> PResult<T>) -> Result<T, GraphQLError> {
         (|| {
             self.expect_token(TokenKind::Sof)?;
             let result = production(self)?;
@@ -105,9 +100,7 @@ impl<'s> Parser<'s> {
 
     fn parse_definition(&mut self) -> PResult<Definition> {
         if self.peek(TokenKind::BraceL) {
-            return Ok(Definition::OperationDefinition(
-                self.parse_operation_definition()?,
-            ));
+            return Ok(Definition::OperationDefinition(self.parse_operation_definition()?));
         }
         let has_description = self.peek_description();
         let (keyword_kind, keyword_value) = if has_description {
@@ -123,59 +116,29 @@ impl<'s> Parser<'s> {
         }
         if keyword_kind == TokenKind::Name {
             match keyword_value.as_deref() {
-                Some("schema") => {
-                    return Ok(Definition::SchemaDefinition(
-                        self.parse_schema_definition()?,
-                    ))
-                }
-                Some("scalar") => {
-                    return Ok(Definition::ScalarTypeDefinition(
-                        self.parse_scalar_type_definition()?,
-                    ))
-                }
-                Some("type") => {
-                    return Ok(Definition::ObjectTypeDefinition(
-                        self.parse_object_type_definition()?,
-                    ))
-                }
+                Some("schema") => return Ok(Definition::SchemaDefinition(self.parse_schema_definition()?)),
+                Some("scalar") => return Ok(Definition::ScalarTypeDefinition(self.parse_scalar_type_definition()?)),
+                Some("type") => return Ok(Definition::ObjectTypeDefinition(self.parse_object_type_definition()?)),
                 Some("interface") => {
                     return Ok(Definition::InterfaceTypeDefinition(
                         self.parse_interface_type_definition()?,
                     ))
                 }
-                Some("union") => {
-                    return Ok(Definition::UnionTypeDefinition(
-                        self.parse_union_type_definition()?,
-                    ))
-                }
-                Some("enum") => {
-                    return Ok(Definition::EnumTypeDefinition(
-                        self.parse_enum_type_definition()?,
-                    ))
-                }
+                Some("union") => return Ok(Definition::UnionTypeDefinition(self.parse_union_type_definition()?)),
+                Some("enum") => return Ok(Definition::EnumTypeDefinition(self.parse_enum_type_definition()?)),
                 Some("input") => {
                     return Ok(Definition::InputObjectTypeDefinition(
                         self.parse_input_object_type_definition()?,
                     ))
                 }
-                Some("directive") => {
-                    return Ok(Definition::DirectiveDefinition(
-                        self.parse_directive_definition()?,
-                    ))
-                }
+                Some("directive") => return Ok(Definition::DirectiveDefinition(self.parse_directive_definition()?)),
                 _ => {}
             }
             match keyword_value.as_deref() {
                 Some("query") | Some("mutation") | Some("subscription") => {
-                    return Ok(Definition::OperationDefinition(
-                        self.parse_operation_definition()?,
-                    ))
+                    return Ok(Definition::OperationDefinition(self.parse_operation_definition()?))
                 }
-                Some("fragment") => {
-                    return Ok(Definition::FragmentDefinition(
-                        self.parse_fragment_definition()?,
-                    ))
-                }
+                Some("fragment") => return Ok(Definition::FragmentDefinition(self.parse_fragment_definition()?)),
                 _ => {}
             }
             if has_description {
@@ -228,11 +191,7 @@ impl<'s> Parser<'s> {
     }
 
     fn parse_variable_definitions(&mut self) -> PResult<Vec<VariableDefinition>> {
-        self.optional_many(
-            TokenKind::ParenL,
-            Self::parse_variable_definition,
-            TokenKind::ParenR,
-        )
+        self.optional_many(TokenKind::ParenL, Self::parse_variable_definition, TokenKind::ParenR)
     }
 
     fn parse_variable_definition(&mut self) -> PResult<VariableDefinition> {
@@ -305,11 +264,7 @@ impl<'s> Parser<'s> {
     }
 
     fn parse_fragment_arguments(&mut self) -> PResult<Vec<FragmentArgument>> {
-        self.optional_many(
-            TokenKind::ParenL,
-            Self::parse_fragment_argument,
-            TokenKind::ParenR,
-        )
+        self.optional_many(TokenKind::ParenL, Self::parse_fragment_argument, TokenKind::ParenR)
     }
 
     fn parse_argument(&mut self, is_const: bool) -> PResult<Argument> {
@@ -411,9 +366,7 @@ impl<'s> Parser<'s> {
                     value: token_value(token),
                 }))
             }
-            TokenKind::String | TokenKind::BlockString => {
-                Ok(Value::String(self.parse_string_literal()?))
-            }
+            TokenKind::String | TokenKind::BlockString => Ok(Value::String(self.parse_string_literal()?)),
             TokenKind::Name => {
                 let token = self.advance_lexer()?;
                 Ok(match token.value.as_deref() {
@@ -593,11 +546,7 @@ impl<'s> Parser<'s> {
     }
 
     fn parse_fields_definition(&mut self) -> PResult<Vec<FieldDefinition>> {
-        self.optional_many(
-            TokenKind::BraceL,
-            Self::parse_field_definition,
-            TokenKind::BraceR,
-        )
+        self.optional_many(TokenKind::BraceL, Self::parse_field_definition, TokenKind::BraceR)
     }
 
     fn parse_field_definition(&mut self) -> PResult<FieldDefinition> {
@@ -617,11 +566,7 @@ impl<'s> Parser<'s> {
     }
 
     fn parse_argument_defs(&mut self) -> PResult<Vec<InputValueDefinition>> {
-        self.optional_many(
-            TokenKind::ParenL,
-            Self::parse_input_value_def,
-            TokenKind::ParenR,
-        )
+        self.optional_many(TokenKind::ParenL, Self::parse_input_value_def, TokenKind::ParenR)
     }
 
     fn parse_input_value_def(&mut self) -> PResult<InputValueDefinition> {
@@ -696,11 +641,7 @@ impl<'s> Parser<'s> {
     }
 
     fn parse_enum_values_definition(&mut self) -> PResult<Vec<EnumValueDefinition>> {
-        self.optional_many(
-            TokenKind::BraceL,
-            Self::parse_enum_value_definition,
-            TokenKind::BraceR,
-        )
+        self.optional_many(TokenKind::BraceL, Self::parse_enum_value_definition, TokenKind::BraceR)
     }
 
     fn parse_enum_value_definition(&mut self) -> PResult<EnumValueDefinition> {
@@ -742,11 +683,7 @@ impl<'s> Parser<'s> {
     }
 
     fn parse_input_fields_definition(&mut self) -> PResult<Vec<InputValueDefinition>> {
-        self.optional_many(
-            TokenKind::BraceL,
-            Self::parse_input_value_def,
-            TokenKind::BraceR,
-        )
+        self.optional_many(TokenKind::BraceL, Self::parse_input_value_def, TokenKind::BraceR)
     }
 
     fn parse_type_system_extension(&mut self) -> PResult<Definition> {
@@ -754,44 +691,22 @@ impl<'s> Parser<'s> {
         let (kind, value) = (keyword_token.kind, keyword_token.value.clone());
         if kind == TokenKind::Name {
             match value.as_deref() {
-                Some("schema") => {
-                    return Ok(Definition::SchemaExtension(self.parse_schema_extension()?))
-                }
-                Some("scalar") => {
-                    return Ok(Definition::ScalarTypeExtension(
-                        self.parse_scalar_type_extension()?,
-                    ))
-                }
-                Some("type") => {
-                    return Ok(Definition::ObjectTypeExtension(
-                        self.parse_object_type_extension()?,
-                    ))
-                }
+                Some("schema") => return Ok(Definition::SchemaExtension(self.parse_schema_extension()?)),
+                Some("scalar") => return Ok(Definition::ScalarTypeExtension(self.parse_scalar_type_extension()?)),
+                Some("type") => return Ok(Definition::ObjectTypeExtension(self.parse_object_type_extension()?)),
                 Some("interface") => {
                     return Ok(Definition::InterfaceTypeExtension(
                         self.parse_interface_type_extension()?,
                     ))
                 }
-                Some("union") => {
-                    return Ok(Definition::UnionTypeExtension(
-                        self.parse_union_type_extension()?,
-                    ))
-                }
-                Some("enum") => {
-                    return Ok(Definition::EnumTypeExtension(
-                        self.parse_enum_type_extension()?,
-                    ))
-                }
+                Some("union") => return Ok(Definition::UnionTypeExtension(self.parse_union_type_extension()?)),
+                Some("enum") => return Ok(Definition::EnumTypeExtension(self.parse_enum_type_extension()?)),
                 Some("input") => {
                     return Ok(Definition::InputObjectTypeExtension(
                         self.parse_input_object_type_extension()?,
                     ))
                 }
-                Some("directive") => {
-                    return Ok(Definition::DirectiveExtension(
-                        self.parse_directive_extension()?,
-                    ))
-                }
+                Some("directive") => return Ok(Definition::DirectiveExtension(self.parse_directive_extension()?)),
                 _ => {}
             }
         }
@@ -963,9 +878,7 @@ impl<'s> Parser<'s> {
             member_name = Some(self.parse_name()?);
         }
         let mut argument_name = None;
-        if (of_directive || member_name.is_some())
-            && self.expect_optional_token(TokenKind::ParenL)?
-        {
+        if (of_directive || member_name.is_some()) && self.expect_optional_token(TokenKind::ParenL)? {
             argument_name = Some(self.parse_name()?);
             self.expect_token(TokenKind::Colon)?;
             self.expect_token(TokenKind::ParenR)?;
@@ -973,10 +886,7 @@ impl<'s> Parser<'s> {
         Ok(if of_directive {
             match argument_name {
                 Some(argument_name) => {
-                    SchemaCoordinate::DirectiveArgumentCoordinate(DirectiveArgumentCoordinate {
-                        name,
-                        argument_name,
-                    })
+                    SchemaCoordinate::DirectiveArgumentCoordinate(DirectiveArgumentCoordinate { name, argument_name })
                 }
                 None => SchemaCoordinate::DirectiveCoordinate(DirectiveCoordinate { name }),
             }

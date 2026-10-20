@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/composition/interface-type.ts`.
 
-use graphql_rs::Definition;
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::Definition;
 
 use super::ast::{
     create_interface_type_node, CostAst, FieldArgumentAst, FieldAst, InterfaceTypeAst, JoinAst, JoinFieldAst,
@@ -10,7 +10,7 @@ use super::ast::{
 use super::common::{convert_to_const, get_or_insert_with, ComposeHelpers, Graph, Key, MapByGraph, TypeBuilder};
 use super::object_type::ObjectTypeState;
 use crate::specifications::federation::FederationVersion;
-use crate::subgraph::state::{Ast, ArgumentKind, Deprecated, Description, FromContext, InterfaceType, ListSize};
+use crate::subgraph::state::{ArgumentKind, Ast, Deprecated, Description, FromContext, InterfaceType, ListSize};
 use crate::supergraph::state::SubgraphStates;
 use crate::utils::auth::merge_scope_policies;
 use crate::utils::helpers::{ensure_value, math_max, math_max_nullable, nullable_array_union};
@@ -80,7 +80,9 @@ impl TypeBuilder<InterfaceType, InterfaceTypeState> for InterfaceTypeBuilder {
             interface_type_state.tags.insert(tag.clone());
         }
         for context_name in &ty.contexts {
-            interface_type_state.contexts.insert(format!("{}__{}", graph.name, context_name));
+            interface_type_state
+                .contexts
+                .insert(format!("{}__{}", graph.name, context_name));
         }
 
         if ty.inaccessible {
@@ -416,24 +418,26 @@ impl TypeBuilder<InterfaceType, InterfaceTypeState> for InterfaceTypeBuilder {
             }
         }
 
-        Ok(Definition::InterfaceTypeDefinition(create_interface_type_node(InterfaceTypeAst {
-            name: interface_type.name.clone(),
-            fields,
-            tags: interface_type.tags.iter().cloned().collect(),
-            inaccessible: interface_type.inaccessible,
-            authenticated: interface_type.authenticated,
-            policies: interface_type.policies.clone(),
-            scopes: interface_type.scopes.clone(),
-            contexts: interface_type.contexts.iter().cloned().collect(),
-            description: interface_type.description.clone(),
-            interfaces: interface_type.interfaces.iter().cloned().collect(),
-            ast: convert_to_const(&interface_type.ast.directives),
-            join: JoinAst {
-                r#type: join_types,
-                implements,
-                ..Default::default()
+        Ok(Definition::InterfaceTypeDefinition(create_interface_type_node(
+            InterfaceTypeAst {
+                name: interface_type.name.clone(),
+                fields,
+                tags: interface_type.tags.iter().cloned().collect(),
+                inaccessible: interface_type.inaccessible,
+                authenticated: interface_type.authenticated,
+                policies: interface_type.policies.clone(),
+                scopes: interface_type.scopes.clone(),
+                contexts: interface_type.contexts.iter().cloned().collect(),
+                description: interface_type.description.clone(),
+                interfaces: interface_type.interfaces.iter().cloned().collect(),
+                ast: convert_to_const(&interface_type.ast.directives),
+                join: JoinAst {
+                    r#type: join_types,
+                    implements,
+                    ..Default::default()
+                },
             },
-        })))
+        )))
     }
 }
 
@@ -460,7 +464,7 @@ pub(crate) fn merge_list_size(existing: Option<&ListSize>, incoming: &ListSize) 
         print_require_one_slicing_argument: false,
         assumed_size: math_max_nullable(existing.and_then(|l| l.assumed_size), incoming.assumed_size),
         // prefer `false`
-        require_one_slicing_argument: existing.map_or(true, |l| l.require_one_slicing_argument)
+        require_one_slicing_argument: existing.is_none_or(|l| l.require_one_slicing_argument)
             && incoming.require_one_slicing_argument,
         slicing_arguments: nullable_array_union(
             existing.and_then(|l| l.slicing_arguments.as_deref()),
@@ -610,23 +614,25 @@ fn get_or_create_interface_field<'s>(
     field_name: &str,
     field_type: &str,
 ) -> &'s mut InterfaceTypeFieldState {
-    get_or_insert_with(&mut interface_type_state.fields, field_name, || InterfaceTypeFieldState {
-        name: field_name.to_string(),
-        r#type: field_type.to_string(),
-        is_leaf: false,
-        used_as_key: false,
-        tags: IndexSet::default(),
-        inaccessible: false,
-        authenticated: false,
-        policies: Vec::new(),
-        scopes: Vec::new(),
-        cost: None,
-        list_size: None,
-        deprecated: None,
-        description: None,
-        by_graph: IndexMap::default(),
-        args: IndexMap::default(),
-        ast: Ast::default(),
+    get_or_insert_with(&mut interface_type_state.fields, field_name, || {
+        InterfaceTypeFieldState {
+            name: field_name.to_string(),
+            r#type: field_type.to_string(),
+            is_leaf: false,
+            used_as_key: false,
+            tags: IndexSet::default(),
+            inaccessible: false,
+            authenticated: false,
+            policies: Vec::new(),
+            scopes: Vec::new(),
+            cost: None,
+            list_size: None,
+            deprecated: None,
+            description: None,
+            by_graph: IndexMap::default(),
+            args: IndexMap::default(),
+            ast: Ast::default(),
+        }
     })
 }
 

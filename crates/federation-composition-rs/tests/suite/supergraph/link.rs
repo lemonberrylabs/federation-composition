@@ -6,7 +6,9 @@ use crate::shared::*;
 /// extensions: expect.objectContaining({ code: "INVALID_LINK_DIRECTIVE_USAGE" }) })`.
 fn unknown_compose_directive(subgraph: &str) -> ErrorMatcher {
     ErrorMatcher::new()
-        .message(format!(r#"[{subgraph}] Cannot import unknown element "@composeDirective"."#))
+        .message(format!(
+            r#"[{subgraph}] Cannot import unknown element "@composeDirective"."#
+        ))
         .code("INVALID_LINK_DIRECTIVE_USAGE")
 }
 

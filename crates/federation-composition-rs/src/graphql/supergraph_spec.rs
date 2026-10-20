@@ -2,8 +2,8 @@
 
 use std::sync::LazyLock;
 
-use graphql_rs::{is_type_definition_node, parse, Definition, Kind};
 use crate::utils::collections::IndexSet;
+use graphql_rs::{is_type_definition_node, parse, Definition, Kind};
 
 use crate::specifications::federation::get_latest_federation_version;
 use crate::specifications::{authenticated, context, cost, inaccessible, join, link, policy, requires_scopes, tag};
@@ -91,7 +91,15 @@ mod tests {
     fn spec_nodes() {
         let nodes = get_supergraph_spec_nodes();
         let names: Vec<&str> = nodes.iter().map(|n| n.name.as_str()).collect();
-        assert_eq!(&names[..4], ["authenticated", "context", "context__fromContext", "context__ContextFieldValue"]);
+        assert_eq!(
+            &names[..4],
+            [
+                "authenticated",
+                "context",
+                "context__fromContext",
+                "context__ContextFieldValue"
+            ]
+        );
         assert!(names.contains(&"join__ContextArgument"));
         assert!(names.contains(&"join__FieldValue"));
         assert_eq!(names.last(), Some(&"tag"));

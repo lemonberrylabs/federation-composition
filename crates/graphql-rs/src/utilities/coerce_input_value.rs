@@ -11,8 +11,7 @@ use crate::error::GraphQLError;
 use crate::jsutils::JsValue;
 use crate::printer::print;
 use crate::r#type::definition::{
-    is_required_input_field, DefaultInput, GraphQLInputValue, GraphQLNamedType, GraphQLType,
-    TypeLookup,
+    is_required_input_field, DefaultInput, GraphQLInputValue, GraphQLNamedType, GraphQLType, TypeLookup,
 };
 
 /// graphql-js `coerceInputValue(inputValue, type)`.
@@ -32,8 +31,9 @@ pub fn coerce_input_value(
     }
     if let GraphQLType::List(of_type) = ty {
         let JsValue::List(items) = input_value else {
-            return Ok(coerce_input_value(input_value, of_type, types)?
-                .map(|coerced_item| JsValue::List(vec![coerced_item])));
+            return Ok(
+                coerce_input_value(input_value, of_type, types)?.map(|coerced_item| JsValue::List(vec![coerced_item]))
+            );
         };
         let mut coerced_value = Vec::with_capacity(items.len());
         for item_value in items {
@@ -72,9 +72,7 @@ pub fn coerce_input_value(
                         }
                     }
                     Some(field_value) => {
-                        let Some(coerced_field) =
-                            coerce_input_value(field_value, &field.ty, types)?
-                        else {
+                        let Some(coerced_field) = coerce_input_value(field_value, &field.ty, types)? else {
                             return Ok(None);
                         };
                         coerced_value.insert(field.name.clone(), coerced_field);
@@ -93,9 +91,7 @@ pub fn coerce_input_value(
         }
         // `try { return leafType.coerceInputValue(inputValue) } catch {}`.
         GraphQLNamedType::Scalar(scalar) => Ok(scalar.coerce_input_value(input_value).ok()),
-        GraphQLNamedType::Enum(enum_type) => {
-            Ok(enum_type.coerce_input_value(input_value, false).ok())
-        }
+        GraphQLNamedType::Enum(enum_type) => Ok(enum_type.coerce_input_value(input_value, false).ok()),
         // TS: assertLeafType(type) throws for the output types, which are
         // never input value types.
         _ => Err(GraphQLError::new(format!(
@@ -128,8 +124,9 @@ pub fn coerce_input_literal(
     }
     if let GraphQLType::List(of_type) = ty {
         let Value::List(list) = value_node else {
-            return Ok(coerce_input_literal(value_node, of_type, types)?
-                .map(|item_value| JsValue::List(vec![item_value])));
+            return Ok(
+                coerce_input_literal(value_node, of_type, types)?.map(|item_value| JsValue::List(vec![item_value]))
+            );
         };
         let mut coerced_value = Vec::with_capacity(list.values.len());
         for item_node in &list.values {
@@ -176,9 +173,7 @@ pub fn coerce_input_literal(
                 let field_node = field_nodes.get(field.name.as_str());
                 match field_node {
                     Some(field_node) if !matches!(field_node.value, Value::Variable(_)) => {
-                        let Some(field_value) =
-                            coerce_input_literal(&field_node.value, &field.ty, types)?
-                        else {
+                        let Some(field_value) = coerce_input_literal(&field_node.value, &field.ty, types)? else {
                             return Ok(None);
                         };
                         coerced_value.insert(field.name.clone(), field_value);
@@ -215,9 +210,7 @@ pub fn coerce_input_literal(
         } else {
             scalar.parse_literal(value_node).ok().flatten()
         }),
-        GraphQLNamedType::Enum(enum_type) => {
-            Ok(enum_type.coerce_input_literal(value_node, false).ok())
-        }
+        GraphQLNamedType::Enum(enum_type) => Ok(enum_type.coerce_input_literal(value_node, false).ok()),
         _ => Err(GraphQLError::new(format!(
             "Expected {} to be a GraphQL leaf type.",
             named_type.name()
@@ -238,9 +231,7 @@ pub fn coerce_default_value(
         return Ok(None);
     };
     let coerced_default_value = match default_input {
-        DefaultInput::Literal(literal) => {
-            coerce_input_literal(literal, input_value.input_type(), types)?
-        }
+        DefaultInput::Literal(literal) => coerce_input_literal(literal, input_value.input_type(), types)?,
         DefaultInput::Value(value) => coerce_input_value(value, input_value.input_type(), types)?,
     };
     match coerced_default_value {

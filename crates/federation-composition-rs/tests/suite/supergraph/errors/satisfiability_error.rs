@@ -9,7 +9,9 @@ fn matches_js_regex_with_dots(text: &str, pattern: &str) -> bool {
     let text: Vec<char> = text.chars().collect();
     let pattern: Vec<char> = pattern.chars().collect();
     assert!(
-        !pattern.iter().any(|c| matches!(c, '\\' | '^' | '$' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '|')),
+        !pattern
+            .iter()
+            .any(|c| matches!(c, '\\' | '^' | '$' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '|')),
         "the pattern has regex syntax other than `.`"
     );
     assert!(
@@ -19,7 +21,10 @@ fn matches_js_regex_with_dots(text: &str, pattern: &str) -> bool {
     let is_line_terminator = |c: char| matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}');
     (0..=text.len().saturating_sub(pattern.len())).any(|start| {
         text.len() >= pattern.len()
-            && pattern.iter().zip(&text[start..]).all(|(&p, &c)| if p == '.' { !is_line_terminator(c) } else { p == c })
+            && pattern
+                .iter()
+                .zip(&text[start..])
+                .all(|(&p, &c)| if p == '.' { !is_line_terminator(c) } else { p == c })
     })
 }
 
@@ -98,7 +103,7 @@ test_versions! {
         // Cannot resolve User.name from Query.randomUser because key field "id" from subgraph "feed"
         // is not enough to fullfil the @key(fields: "id name") of User from subgraph "users"
         assert_errors_equal(
-          &api.compose_services(&[
+          api.compose_services(&[
             service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}" import: ["@key"])
 
@@ -143,7 +148,7 @@ test_versions! {
         // Both User.{name,email,profile} cannot be resolved as Federation Gateway cannot move between subgraphs using identical @key.
         // The key fields are not the same ("id" is not enough to move from subgraph "a" to subgraph "b" that requires "id email").
         assert_errors_equal(
-          &api.compose_services(&[
+          api.compose_services(&[
             service("a", graphql!(r#"
             extend type User @key(fields: "id") {
               id: ID @external
@@ -402,7 +407,7 @@ test_versions! {
         //   - cannot move to subgraph "bar", which has field "Queries.user", because type "Queries" has no @key defined in subgraph "bar".
 
         assert_errors_contain(
-          &api.compose_services(&[
+          api.compose_services(&[
             service("foo", graphql!(r#"
             directive @override(from: String!) on FIELD_DEFINITION
 
@@ -483,7 +488,7 @@ test_versions! {
 
     fn insufficient_key_fields_to_move_between_graphs_completely_different_key_fields(api, version) {
         assert_errors_equal(
-          &api.compose_services(&[
+          api.compose_services(&[
             service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}" import: ["@key"])
 
@@ -566,7 +571,7 @@ test_versions! {
         // Cannot resolve User.name from Query.usersByAge as User has no @key to move to subgraph "a"
         // Cannot resolve User.age from Query.users as User has no @key to move to subgraph "b"
         assert_errors_equal(
-          &api.compose_services(&[
+          api.compose_services(&[
             service("a", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}" import: ["@key"])
 
@@ -638,7 +643,7 @@ test_versions! {
 
         // Cannot resolve User.name from Query.usersByAge as User has no @key to move to subgraph "a"
         assert_errors_equal(
-          &api.compose_services(&[
+          api.compose_services(&[
             service("a", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}" import: ["@key"])
 
@@ -1166,7 +1171,7 @@ test_versions! {
 
     fn fed_v1_same_types_but_extra_root_field_in_a_subgraph_missing_a_field(api, version) {
         assert_errors_equal(
-          &api.compose_services(&[
+          api.compose_services(&[
             service("a", graphql!(r#"
             type Query {
               userById(id: ID): User
@@ -1531,7 +1536,7 @@ test_versions! {
 
     fn cannot_move_subgraphs_without_key_and_common_query_path(api, version) {
         assert_errors_contain(
-          &api.compose_services(&[
+          api.compose_services(&[
             service("a", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}" import: ["@key", "@external"])
 
@@ -1577,7 +1582,7 @@ test_versions! {
 
         // Federation v1
         assert_errors_contain(
-          &api.compose_services(&[
+          api.compose_services(&[
             service("a", graphql!(r#"
             type User {
               id: String!
@@ -1650,7 +1655,7 @@ test_versions! {
         );
 
         assert_errors_contain(
-          &api.compose_services(&[
+          api.compose_services(&[
             service("a", graphql!(r#"
           extend schema @link(url: "https://specs.apollo.dev/federation/${version}" import: ["@key"])
 

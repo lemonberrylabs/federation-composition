@@ -6,7 +6,11 @@ use federation_composition_rs::FederatedLink;
 
 /// `trimMultiline(str)`.
 fn trim_multiline(str: &str) -> String {
-    str.split('\n').map(js_trim).filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n")
+    str.split('\n')
+        .map(js_trim)
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 mod federated_link {
@@ -20,7 +24,11 @@ mod federated_link {
         // compare to parsed result
         let type_defs = parse(sdl).unwrap();
         let links = FederatedLink::from_typedefs(&type_defs).unwrap();
-        let joined = links.iter().map(FederatedLink::to_string).collect::<Vec<_>>().join("\n");
+        let joined = links
+            .iter()
+            .map(FederatedLink::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
         assert_eq!(joined, links_only);
     }
 
@@ -67,7 +75,9 @@ mod federated_link {
         @link(url: "https://specs.graphql-hive.com/hive/v0.1", import: ["@group"], as: "hivelink")
     "#;
         let links = FederatedLink::from_typedefs(&parse(sdl).unwrap()).unwrap();
-        let federation_link = links.iter().find(|l| l.identity() == "https://specs.apollo.dev/federation");
+        let federation_link = links
+            .iter()
+            .find(|l| l.identity() == "https://specs.apollo.dev/federation");
         assert!(federation_link.is_some());
         let federation_link = federation_link.unwrap();
         // aliased
@@ -79,18 +89,31 @@ mod federated_link {
 
         // default import
         let link_link = links.iter().find(|l| l.identity() == "https://specs.apollo.dev/link");
-        assert_eq!(link_link.map(|l| l.resolve_import_name("@link")).as_deref(), Some("link"));
+        assert_eq!(
+            link_link.map(|l| l.resolve_import_name("@link")).as_deref(),
+            Some("link")
+        );
 
         // unnamespaced
-        let unnamed_link = links.iter().find(|l| l.identity() == "https://unnamed.graphql-hive.com");
+        let unnamed_link = links
+            .iter()
+            .find(|l| l.identity() == "https://unnamed.graphql-hive.com");
         assert!(unnamed_link.is_some());
         let unnamed_link = unnamed_link.unwrap();
         assert_eq!(unnamed_link.resolve_import_name("@meta"), "meta");
         assert_eq!(unnamed_link.resolve_import_name("@unmentioned"), "unmentioned");
 
         // imported as
-        let hive_link = links.iter().find(|l| l.identity() == "https://specs.graphql-hive.com/hive");
-        assert_eq!(hive_link.map(|l| l.resolve_import_name("@group")).as_deref(), Some("group"));
-        assert_eq!(hive_link.map(|l| l.resolve_import_name("@eg")).as_deref(), Some("hivelink__eg"));
+        let hive_link = links
+            .iter()
+            .find(|l| l.identity() == "https://specs.graphql-hive.com/hive");
+        assert_eq!(
+            hive_link.map(|l| l.resolve_import_name("@group")).as_deref(),
+            Some("group")
+        );
+        assert_eq!(
+            hive_link.map(|l| l.resolve_import_name("@eg")).as_deref(),
+            Some("hivelink__eg")
+        );
     }
 }

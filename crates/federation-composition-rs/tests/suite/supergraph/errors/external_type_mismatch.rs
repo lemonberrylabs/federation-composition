@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn external_type_mismatch(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 
@@ -48,7 +48,7 @@ test_versions! {
         );
 
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("scores", graphql!(r#"
               extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key", "@external", "@requires"])
 
@@ -154,7 +154,7 @@ test_versions! {
         // but the merged Product.variant points at VariantV1, which has no "sku".
         // Composition has to report the mismatch, not blow up while resolving the selection set.
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("products", graphql!(r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 

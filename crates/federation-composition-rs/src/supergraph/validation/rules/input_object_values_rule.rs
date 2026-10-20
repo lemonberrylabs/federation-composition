@@ -1,11 +1,11 @@
 //! Port of `src/supergraph/validation/rules/input-object-values-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::supergraph::composition::input_object_type::InputObjectTypeState;
 use crate::supergraph::composition::visitor::SupergraphVisitor;
 use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::GraphQLError;
 
 /// `InputObjectValuesRule(context, supergraph)`.
 /// Visitor callbacks: `InputObjectType`.

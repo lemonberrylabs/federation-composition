@@ -2,8 +2,8 @@
 
 use std::rc::Rc;
 
-use graphql_rs::OperationType;
 use crate::utils::collections::IndexMap;
+use graphql_rs::OperationType;
 
 use super::contexts::ContextMask;
 use super::edge::{is_abstract_edge, is_field_edge, EdgeId};
@@ -154,7 +154,12 @@ pub struct Walker<'s> {
 }
 
 impl<'s> Walker<'s> {
-    pub fn new(logger: &Logger, move_checker: MoveValidator<'s>, supergraph: Rc<Graph<'s>>, merged_graph: Rc<Graph<'s>>) -> Self {
+    pub fn new(
+        logger: &Logger,
+        move_checker: MoveValidator<'s>,
+        supergraph: Rc<Graph<'s>>,
+        merged_graph: Rc<Graph<'s>>,
+    ) -> Self {
         let logger = logger.create("Walker");
         let path_finder = PathFinder::new(logger.clone(), merged_graph.clone(), move_checker.clone());
         Walker {
@@ -248,9 +253,8 @@ impl<'s> Walker<'s> {
                     } else {
                         unreachable = true;
                         self.logger.log("Dead end");
-                        self.logger.group_end(|| {
-                            format!("Unreachable path {}", next_state.super_path.to_string(supergraph))
-                        });
+                        self.logger
+                            .group_end(|| format!("Unreachable path {}", next_state.super_path.to_string(supergraph)));
                     }
 
                     next_state_slot = Some(next_state);
@@ -321,7 +325,9 @@ impl<'s> Walker<'s> {
             });
 
             // `${tailGraphName}#provides${contextsKey}` or `${tailGraphName}${contextsKey}`
-            let id = supergraph.graph_combo_ids.id(merged_graph, tail, has_provides, p.contexts());
+            let id = supergraph
+                .graph_combo_ids
+                .id(merged_graph, tail, has_provides, p.contexts());
             if !graphs_leading_to_node.contains(&id) {
                 graphs_leading_to_node.push(id);
             }
@@ -369,7 +375,10 @@ impl<'s> Walker<'s> {
                         let label_value = state.label_values.get(label);
                         if label_value.is_some_and(|v| v != r#override.value) {
                             self.logger.group_end(|| {
-                                format!("Different label value. Skipping {}", supergraph.edge_to_string(super_edge))
+                                format!(
+                                    "Different label value. Skipping {}",
+                                    supergraph.edge_to_string(super_edge)
+                                )
                             });
                             continue;
                         }
@@ -480,7 +489,12 @@ impl<'s> Walker<'s> {
         Ok(unreachable)
     }
 
-    fn dfs_inner(&self, super_tail: NodeId, state: WalkTracker<'s>, unreachable: &mut Vec<WalkTracker<'s>>) -> JsResult<()> {
+    fn dfs_inner(
+        &self,
+        super_tail: NodeId,
+        state: WalkTracker<'s>,
+        unreachable: &mut Vec<WalkTracker<'s>>,
+    ) -> JsResult<()> {
         if self.supergraph.node(super_tail).is_leaf {
             return Ok(());
         }

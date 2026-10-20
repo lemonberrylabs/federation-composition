@@ -167,7 +167,15 @@ mod tests {
 
     #[test]
     fn field_move_to_string() {
-        let plain = FieldMove::new("User".into(), "name".into(), None, None, None, false, ContextMask::zero());
+        let plain = FieldMove::new(
+            "User".into(),
+            "name".into(),
+            None,
+            None,
+            None,
+            false,
+            ContextMask::zero(),
+        );
         assert_eq!(plain.to_string(), "name");
 
         let full = FieldMove::new(

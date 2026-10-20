@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/known-argument-names-on-directives-rule.ts`.
 
-use graphql_rs::{Definition, GraphQLError, InputValueDefinition, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::IndexMap;
+use graphql_rs::{Definition, GraphQLError, InputValueDefinition, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 
@@ -43,7 +43,12 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for KnownArgumentNamesOnDirect
         VisitKinds::enter(&[Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         if let NodeRef::Directive(directive_node) = node {
             let directive_name = &directive_node.name.value;
             let known_args = self.directive_args.get(directive_name.as_str());

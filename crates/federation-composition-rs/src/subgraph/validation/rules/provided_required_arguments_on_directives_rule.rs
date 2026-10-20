@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/provided-required-arguments-on-directives-rule.ts`.
 
-use graphql_rs::{Definition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::{Definition, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use crate::graphql::printer::print;
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
@@ -49,15 +49,23 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for ProvidedRequiredArgumentsO
     }
 
     // Validate on leave to allow for deeper errors to appear first.
-    fn leave(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn leave(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let NodeRef::Directive(directive_node) = node else {
             return VisitAction::Continue;
         };
 
         let directive_name = &directive_node.name.value;
         if let Some(required_args) = self.required_args_map.get(directive_name.as_str()) {
-            let arg_node_map: IndexSet<&str> =
-                directive_node.arguments.iter().map(|arg| arg.name.value.as_str()).collect();
+            let arg_node_map: IndexSet<&str> = directive_node
+                .arguments
+                .iter()
+                .map(|arg| arg.name.value.as_str())
+                .collect();
             for (arg_name, arg_def) in required_args {
                 if !arg_node_map.contains(arg_name) {
                     let arg_type = print(&arg_def.ty);

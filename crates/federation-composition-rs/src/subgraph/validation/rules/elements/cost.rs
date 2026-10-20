@@ -1,10 +1,10 @@
 //! Port of `src/subgraph/validation/rules/elements/cost.ts`.
 
-use graphql_rs::{Directive, GraphQLError, Kind, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 use crate::subgraph::helpers::validate_directive_against_original;
 use crate::subgraph::state::CostSpecDirective;
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use crate::utils::js::{parse_int, JsError, JsResult};
+use graphql_rs::{Directive, GraphQLError, Kind, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 
 use super::{find_annotated_node, finish, is_interface_kind, is_object_kind, node_name};
 
@@ -28,7 +28,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for CostRule {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "cost", cx),
             NodeRef::Directive(node) => directive(node, cx, info),
@@ -39,7 +44,11 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for CostRule {
 }
 
 /// The `Directive(node, _key, _parent, paths, ancestors)` callback.
-fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a>, info: &VisitInfo<'a, '_>) -> JsResult<()> {
+fn directive<'a>(
+    node: &'a Directive,
+    context: &mut SubgraphValidationContext<'a>,
+    info: &VisitInfo<'a, '_>,
+) -> JsResult<()> {
     if !context.is_available_federation_directive("cost", &node.name.value) {
         return Ok(());
     }
@@ -56,7 +65,9 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
     // DIRECTIVE_COST_INVALID_WEIGHT, but `parseInt` never throws, so that branch is dead.
     let weight = parse_int(&weight_value.value);
 
-    context.state_builder.mark_cost_spec_as_used(CostSpecDirective::Cost, &node.name.value);
+    context
+        .state_builder
+        .mark_cost_spec_as_used(CostSpecDirective::Cost, &node.name.value);
 
     let parent = find_annotated_node(info, "Could not find the node annotated with @cost")?;
 
@@ -104,12 +115,15 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
                 ));
             };
 
-            if matches!(type_def.kind(), Kind::InputObjectTypeDefinition | Kind::InputObjectTypeExtension) {
-                context
-                    .state_builder
-                    .input_object_type()
-                    .field()
-                    .set_cost(node_name(type_def), node_name(field_def), weight)?;
+            if matches!(
+                type_def.kind(),
+                Kind::InputObjectTypeDefinition | Kind::InputObjectTypeExtension
+            ) {
+                context.state_builder.input_object_type().field().set_cost(
+                    node_name(type_def),
+                    node_name(field_def),
+                    weight,
+                )?;
             }
 
             if is_object_kind(type_def.kind()) {
@@ -143,10 +157,16 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
             }
         }
         Kind::ObjectTypeDefinition | Kind::ObjectTypeExtension => {
-            context.state_builder.object_type().set_cost(node_name(parent), weight)?;
+            context
+                .state_builder
+                .object_type()
+                .set_cost(node_name(parent), weight)?;
         }
         Kind::ScalarTypeDefinition | Kind::ScalarTypeExtension => {
-            context.state_builder.scalar_type().set_cost(node_name(parent), weight)?;
+            context
+                .state_builder
+                .scalar_type()
+                .set_cost(node_name(parent), weight)?;
         }
         Kind::EnumTypeDefinition | Kind::EnumTypeExtension => {
             context.state_builder.enum_type().set_cost(node_name(parent), weight)?;

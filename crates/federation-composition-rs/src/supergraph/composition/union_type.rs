@@ -1,7 +1,7 @@
 //! Port of `src/supergraph/composition/union-type.ts`.
 
-use graphql_rs::Definition;
 use crate::utils::collections::{IndexMap, IndexSet};
+use graphql_rs::Definition;
 
 use super::ast::{create_union_type_node, JoinAst, JoinTypeAst, JoinUnionMemberAst, UnionTypeAst};
 use super::common::{convert_to_const, get_or_insert_with, ComposeHelpers, Graph, MapByGraph, TypeBuilder};
@@ -33,7 +33,9 @@ impl TypeBuilder<UnionType, UnionTypeState> for UnionTypeBuilder {
             union_type_state.tags.insert(tag.clone());
         }
         for context_name in &ty.contexts {
-            union_type_state.contexts.insert(format!("{}__{}", graph.name, context_name));
+            union_type_state
+                .contexts
+                .insert(format!("{}__{}", graph.name, context_name));
         }
 
         if ty.inaccessible {
@@ -131,7 +133,10 @@ pub struct UnionTypeInGraph {
     pub version: FederationVersion,
 }
 
-fn get_or_create_union_type<'s>(state: &'s mut IndexMap<String, UnionTypeState>, type_name: &str) -> &'s mut UnionTypeState {
+fn get_or_create_union_type<'s>(
+    state: &'s mut IndexMap<String, UnionTypeState>,
+    type_name: &str,
+) -> &'s mut UnionTypeState {
     get_or_insert_with(state, type_name, || UnionTypeState {
         name: type_name.to_string(),
         members: IndexSet::default(),
@@ -180,7 +185,12 @@ mod tests {
         let mut builder = union_type_builder();
         let mut state = IndexMap::default();
         builder.visit_subgraph_state(&graph("a", "A"), &mut state, "U", &union(&["X", "Y"], &["ctx"], None));
-        builder.visit_subgraph_state(&graph("b", "B"), &mut state, "U", &union(&["Y", "Z"], &[], Some("second")));
+        builder.visit_subgraph_state(
+            &graph("b", "B"),
+            &mut state,
+            "U",
+            &union(&["Y", "Z"], &[], Some("second")),
+        );
         builder.visit_subgraph_state(&graph("c", "C"), &mut state, "U", &union(&[], &[], Some("third")));
 
         let union_state = &state["U"];

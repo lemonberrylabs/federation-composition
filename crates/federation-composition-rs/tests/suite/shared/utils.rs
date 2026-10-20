@@ -27,7 +27,9 @@ pub fn interpolate(template: &str, args: &[(&str, &dyn Display)]) -> String {
     while let Some(start) = rest.find("${") {
         result.push_str(&rest[..start]);
         let after = &rest[start + 2..];
-        let end = after.find('}').unwrap_or_else(|| panic!("unterminated ${{ in template:\n{template}"));
+        let end = after
+            .find('}')
+            .unwrap_or_else(|| panic!("unterminated ${{ in template:\n{template}"));
         let name = after[..end].trim();
         let Some(index) = args.iter().position(|(n, _)| *n == name) else {
             panic!("template has no value for ${{{name}}}:\n{template}");
@@ -91,7 +93,11 @@ pub fn strip_indent(string: &str) -> String {
         .iter()
         .filter_map(|line| {
             let indent = line.len() - line.trim_start_matches([' ', '\t']).len();
-            line[indent..].chars().next().filter(|c| !is_js_whitespace(*c)).map(|_| indent)
+            line[indent..]
+                .chars()
+                .next()
+                .filter(|c| !is_js_whitespace(*c))
+                .map(|_| indent)
         })
         .min();
     let min_indent = match min_indent {

@@ -11,9 +11,7 @@ use crate::jsutils::JsValue;
 use crate::specified::DEFAULT_DEPRECATION_REASON;
 
 use super::assert_name::assert_name;
-use super::definition::{
-    ArgumentParent, DefaultInput, GraphQLArgument, GraphQLArgumentConfig, GraphQLType,
-};
+use super::definition::{ArgumentParent, DefaultInput, GraphQLArgument, GraphQLArgumentConfig, GraphQLType};
 
 /// graphql-js `GraphQLDirectiveConfig`.
 #[derive(Clone, Debug, Default)]

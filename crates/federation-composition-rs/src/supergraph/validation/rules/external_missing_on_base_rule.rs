@@ -1,6 +1,5 @@
 //! Port of `src/supergraph/validation/rules/external-missing-on-base-rule.ts`.
 
-use graphql_rs::GraphQLError;
 use crate::specifications::federation::FederationVersion;
 use crate::supergraph::composition::object_type::{ObjectTypeFieldState, ObjectTypeState};
 use crate::supergraph::composition::visitor::SupergraphVisitor;
@@ -8,6 +7,7 @@ use crate::supergraph::state::SupergraphState;
 use crate::supergraph::validation::validation_context::{SupergraphRule, SupergraphValidationContext};
 use crate::utils::format::and_list;
 use crate::utils::js::{JsError, JsResult};
+use graphql_rs::GraphQLError;
 
 /// `ExternalMissingOnBaseRule(context, supergraph)`.
 /// Visitor callbacks: `ObjectType`, `ObjectTypeField`.

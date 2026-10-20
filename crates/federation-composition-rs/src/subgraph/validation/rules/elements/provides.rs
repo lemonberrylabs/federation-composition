@@ -2,7 +2,6 @@
 
 use std::rc::Rc;
 
-use graphql_rs::{Directive, GraphQLError, Kind, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 use crate::graphql::printer::print;
 use crate::subgraph::helpers::{
     get_fields_argument, named_type_from_type_node, parse_fields, validate_directive_against_original, visit_fields,
@@ -11,6 +10,7 @@ use crate::subgraph::helpers::{
 };
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use crate::utils::js::{JsError, JsResult};
+use graphql_rs::{Directive, GraphQLError, Kind, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 
 use super::{field_type, finish, is_interface_kind, is_object_kind, node_name};
 
@@ -34,7 +34,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for ProvidesRules {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "provides", cx),
             NodeRef::Directive(node) => directive(node, cx),
@@ -79,7 +84,9 @@ fn directive<'a>(directive_node: &'a Directive, context: &mut SubgraphValidation
     // NOTE(port): `getFieldDef()` is a `FieldDefinition` or an `InputValueDefinition`; both have
     // a `type`. Anything else would make the TS throw a TypeError on `annotatedField.type`.
     let Some(annotated_field_type) = field_type(annotated_field) else {
-        return Err(JsError::type_error("Cannot read properties of undefined (reading 'kind')"));
+        return Err(JsError::type_error(
+            "Cannot read properties of undefined (reading 'kind')",
+        ));
     };
 
     let output_type = named_type_from_type_node(annotated_field_type);
@@ -103,7 +110,10 @@ fn directive<'a>(directive_node: &'a Directive, context: &mut SubgraphValidation
 
         if let Some(named_types) = named_types {
             for named_type in &named_types {
-                let target_type = context.get_subgraph_object_or_interface_types().get(named_type).cloned();
+                let target_type = context
+                    .get_subgraph_object_or_interface_types()
+                    .get(named_type)
+                    .cloned();
                 process_target_type(context, &input, target_type)?;
             }
             return Ok(());
@@ -220,7 +230,11 @@ struct ProvidesFieldsInterceptor<'r> {
 }
 
 impl<'a> VisitFieldsInterceptor<'a> for ProvidesFieldsInterceptor<'_> {
-    fn intercept_field(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_field(
+        &mut self,
+        context: &mut SubgraphValidationContext<'a>,
+        info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         if is_object_kind(info.type_definition.kind) && info.field_name != "__typename" {
             context
                 .state_builder
@@ -251,7 +265,11 @@ impl<'a> VisitFieldsInterceptor<'a> for ProvidesFieldsInterceptor<'_> {
         Ok(())
     }
 
-    fn intercept_unknown_field(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_unknown_field(
+        &mut self,
+        context: &mut SubgraphValidationContext<'a>,
+        info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         self.is_valid = false;
         context.report_error(GraphQLError::with_code(
             format!(
@@ -263,7 +281,11 @@ impl<'a> VisitFieldsInterceptor<'a> for ProvidesFieldsInterceptor<'_> {
         Ok(())
     }
 
-    fn intercept_directive(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptDirectiveInfo) -> JsResult<()> {
+    fn intercept_directive(
+        &mut self,
+        context: &mut SubgraphValidationContext<'a>,
+        info: &InterceptDirectiveInfo,
+    ) -> JsResult<()> {
         self.is_valid = false;
         if info.is_known {
             context.report_error(GraphQLError::with_code(
@@ -285,7 +307,11 @@ impl<'a> VisitFieldsInterceptor<'a> for ProvidesFieldsInterceptor<'_> {
         Ok(())
     }
 
-    fn intercept_arguments(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_arguments(
+        &mut self,
+        context: &mut SubgraphValidationContext<'a>,
+        info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         self.is_valid = false;
         context.report_error(GraphQLError::with_code(
             format!(
@@ -315,7 +341,11 @@ impl<'a> VisitFieldsInterceptor<'a> for ProvidesFieldsInterceptor<'_> {
         Ok(())
     }
 
-    fn intercept_external_field(&mut self, context: &mut SubgraphValidationContext<'a>, info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_external_field(
+        &mut self,
+        context: &mut SubgraphValidationContext<'a>,
+        info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         // Oh, it hurts performance. We will fix it later. First, we need to make sure it works.
         let key_directives: Vec<&Directive> = info
             .type_definition
@@ -403,7 +433,11 @@ struct KeyFieldOfExtensionInterceptor<'r> {
 }
 
 impl<'a> VisitFieldsInterceptor<'a> for KeyFieldOfExtensionInterceptor<'_> {
-    fn intercept_field(&mut self, context: &mut SubgraphValidationContext<'a>, key_field_info: &InterceptFieldInfo) -> JsResult<()> {
+    fn intercept_field(
+        &mut self,
+        context: &mut SubgraphValidationContext<'a>,
+        key_field_info: &InterceptFieldInfo,
+    ) -> JsResult<()> {
         if key_field_info.type_definition.name.value == self.type_name && key_field_info.field_name == self.field_name {
             let is_interface_type = is_interface_kind(key_field_info.type_definition.kind);
 

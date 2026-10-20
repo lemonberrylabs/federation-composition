@@ -32,8 +32,7 @@ impl<'a> UniqueOperationTypesRule<'a> {
                     operation.as_str()
                 )));
             } else {
-                self.defined_operation_types
-                    .insert(operation, operation_type);
+                self.defined_operation_types.insert(operation, operation_type);
             }
         }
         VisitAction::Skip
@@ -52,12 +51,8 @@ impl<'a> Visitor<'a, SDLValidationContext<'a>> for UniqueOperationTypesRule<'a> 
         _info: &VisitInfo<'a, '_>,
     ) -> VisitAction {
         match node {
-            NodeRef::SchemaDefinition(node) => {
-                self.check_operation_types(context, &node.operation_types)
-            }
-            NodeRef::SchemaExtension(node) => {
-                self.check_operation_types(context, &node.operation_types)
-            }
+            NodeRef::SchemaDefinition(node) => self.check_operation_types(context, &node.operation_types),
+            NodeRef::SchemaExtension(node) => self.check_operation_types(context, &node.operation_types),
             _ => VisitAction::Continue,
         }
     }

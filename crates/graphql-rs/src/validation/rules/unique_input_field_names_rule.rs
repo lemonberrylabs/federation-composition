@@ -24,10 +24,7 @@ impl<'a> UniqueInputFieldNamesRule<'a> {
 
 impl<'a> Visitor<'a, SDLValidationContext<'a>> for UniqueInputFieldNamesRule<'a> {
     fn kinds(&self) -> VisitKinds {
-        VisitKinds::enter_leave(
-            &[Kind::ObjectValue, Kind::ObjectField],
-            &[Kind::ObjectValue],
-        )
+        VisitKinds::enter_leave(&[Kind::ObjectValue, Kind::ObjectField], &[Kind::ObjectValue])
     }
 
     fn enter(
@@ -64,10 +61,7 @@ impl<'a> Visitor<'a, SDLValidationContext<'a>> for UniqueInputFieldNamesRule<'a>
     ) -> VisitAction {
         if let NodeRef::ObjectValue(_) = node {
             // TS: invariant(prevKnownNames != null); enter pushed it.
-            self.known_names = self
-                .known_name_stack
-                .pop()
-                .expect("Unexpected invariant triggered.");
+            self.known_names = self.known_name_stack.pop().expect("Unexpected invariant triggered.");
         }
         VisitAction::Continue
     }

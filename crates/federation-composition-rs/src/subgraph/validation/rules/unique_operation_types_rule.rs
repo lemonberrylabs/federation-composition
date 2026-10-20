@@ -1,7 +1,7 @@
 //! Port of `src/subgraph/validation/rules/unique-operation-types-rule.ts`.
 
-use graphql_rs::{GraphQLError, NodeRef, OperationType, VisitAction, VisitInfo, Visitor};
 use crate::utils::collections::IndexSet;
+use graphql_rs::{GraphQLError, NodeRef, OperationType, VisitAction, VisitInfo, Visitor};
 
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
 use graphql_rs::OperationTypeDefinition;
@@ -26,7 +26,11 @@ impl<'a> SimpleRule<'a> for UniqueOperationTypesRule {
 
 impl UniqueOperationTypesRule {
     /// `checkOperationTypes(node)` for a schema definition or extension (its `operationTypes`).
-    fn check_operation_types(&mut self, context: &mut SimpleValidationContext<'_>, operation_types: &[OperationTypeDefinition]) {
+    fn check_operation_types(
+        &mut self,
+        context: &mut SimpleValidationContext<'_>,
+        operation_types: &[OperationTypeDefinition],
+    ) {
         for operation_type in operation_types {
             let operation = operation_type.operation;
             let already_defined_operation_type = self.defined_operation_types.contains(&operation);
@@ -50,7 +54,12 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for UniqueOperationTypesRule {
         VisitKinds::enter(&[Kind::SchemaDefinition, Kind::SchemaExtension])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         match node {
             NodeRef::SchemaDefinition(n) => self.check_operation_types(cx, &n.operation_types),
             NodeRef::SchemaExtension(n) => self.check_operation_types(cx, &n.operation_types),

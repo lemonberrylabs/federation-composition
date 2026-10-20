@@ -314,12 +314,7 @@ impl From<FieldIn> for core::FieldAst {
         core::FieldAst {
             name: f.name,
             r#type: f.ty,
-            arguments: f
-                .arguments
-                .unwrap_or_default()
-                .into_iter()
-                .map(Into::into)
-                .collect(),
+            arguments: f.arguments.unwrap_or_default().into_iter().map(Into::into).collect(),
             join: join(c.join),
             inaccessible: c.inaccessible.unwrap_or(false),
             authenticated: c.authenticated.unwrap_or(false),
@@ -660,11 +655,7 @@ pub(crate) struct LinkClassIn {
 
 impl From<LinkClassIn> for FederatedLink {
     fn from(l: LinkClassIn) -> Self {
-        FederatedLink::new(
-            l.url.into(),
-            l.as_,
-            l.imports.into_iter().map(Into::into).collect(),
-        )
+        FederatedLink::new(l.url.into(), l.as_, l.imports.into_iter().map(Into::into).collect())
     }
 }
 

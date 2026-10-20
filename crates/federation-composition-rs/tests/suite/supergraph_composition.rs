@@ -7,7 +7,10 @@ use crate::shared::*;
 #[track_caller]
 fn assert_not_string_containing(value: Option<&str>, substring: &str) {
     if let Some(value) = value {
-        assert!(!value.contains(substring), "expected not to contain {substring:?}:\n{value}");
+        assert!(
+            !value.contains(substring),
+            "expected not to contain {substring:?}:\n{value}"
+        );
     }
 }
 

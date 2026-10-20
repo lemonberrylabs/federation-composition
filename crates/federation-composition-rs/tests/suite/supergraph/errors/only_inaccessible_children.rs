@@ -5,7 +5,7 @@ use crate::shared::*;
 test_versions! {
     fn only_inaccessible_children(api, version) {
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema
               @link(
@@ -35,7 +35,7 @@ test_versions! {
         );
 
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema
               @link(
@@ -169,7 +169,7 @@ test_versions! {
         ]));
 
         assert_errors_contain(
-            &api.compose_services(&[
+            api.compose_services(&[
                 service("users", graphql!(r#"
             extend schema
               @link(

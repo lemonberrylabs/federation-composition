@@ -11,10 +11,10 @@ use std::cmp::Ordering;
 /// Generated with Node: printable ASCII sorted by `localeCompare`, grouped by
 /// `Intl.Collator(undefined, { sensitivity: "base" })`.
 const ASCII_COLLATION_GROUPS: [&str; 69] = [
-    " ", "_", "-", ",", ";", ":", "!", "?", ".", "'", "\"", "(", ")", "[", "]", "{", "}", "@", "*",
-    "/", "\\", "&", "#", "%", "`", "^", "+", "<", "=", ">", "|", "~", "$", "0", "1", "2", "3", "4",
-    "5", "6", "7", "8", "9", "aA", "bB", "cC", "dD", "eE", "fF", "gG", "hH", "iI", "jJ", "kK",
-    "lL", "mM", "nN", "oO", "pP", "qQ", "rR", "sS", "tT", "uU", "vV", "wW", "xX", "yY", "zZ",
+    " ", "_", "-", ",", ";", ":", "!", "?", ".", "'", "\"", "(", ")", "[", "]", "{", "}", "@", "*", "/", "\\", "&",
+    "#", "%", "`", "^", "+", "<", "=", ">", "|", "~", "$", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "aA",
+    "bB", "cC", "dD", "eE", "fF", "gG", "hH", "iI", "jJ", "kK", "lL", "mM", "nN", "oO", "pP", "qQ", "rR", "sS", "tT",
+    "uU", "vV", "wW", "xX", "yY", "zZ",
 ];
 
 const fn primary_weights() -> [u16; 128] {
@@ -190,7 +190,11 @@ impl std::error::Error for JsError {}
 /// decimal literal, or `NaN`.
 pub fn parse_float(s: &str) -> f64 {
     let t = s.trim_start_matches(|c: char| c.is_whitespace() || c == '\u{feff}');
-    for (prefix, value) in [("Infinity", f64::INFINITY), ("+Infinity", f64::INFINITY), ("-Infinity", f64::NEG_INFINITY)] {
+    for (prefix, value) in [
+        ("Infinity", f64::INFINITY),
+        ("+Infinity", f64::INFINITY),
+        ("-Infinity", f64::NEG_INFINITY),
+    ] {
         if t.starts_with(prefix) {
             return value;
         }

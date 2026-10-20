@@ -1,9 +1,9 @@
 //! Port of `src/subgraph/validation/rules/elements/interface-object.ts`.
 
-use graphql_rs::{Directive, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::subgraph::helpers::validate_directive_against_original;
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::{Directive, GraphQLError, NodeRef, VisitAction, VisitInfo, Visitor};
 
 use super::finish;
 
@@ -27,7 +27,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for InterfaceObjectRules {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "interfaceObject", cx),
             NodeRef::Directive(node) => directive(node, cx),

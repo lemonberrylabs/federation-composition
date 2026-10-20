@@ -7,7 +7,10 @@ use crate::shared::*;
 /// The body of `test.each([...])(\`label: "%s" should fail\`, (label) => { ... })`.
 fn label_should_fail(api: Api, version: &str, label: &str) {
     let result = api.compose_services(&[
-        service("foo", graphql!(r#"
+        service(
+            "foo",
+            graphql!(
+                r#"
           extend schema
             @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key", "@override"])
 
@@ -19,8 +22,15 @@ fn label_should_fail(api: Api, version: &str, label: &str) {
             id: ID
             name: String @override(from: "bar", label: "${label}")
           }
-        "#, version, label)),
-        service("bar", graphql!(r#"
+        "#,
+                version,
+                label
+            ),
+        ),
+        service(
+            "bar",
+            graphql!(
+                r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 
             type Query {
@@ -31,7 +41,10 @@ fn label_should_fail(api: Api, version: &str, label: &str) {
               id: ID
               name: String
             }
-          "#, version)),
+          "#,
+                version
+            ),
+        ),
     ]);
 
     assert_composition_failure(&result);
@@ -48,7 +61,10 @@ fn label_should_fail(api: Api, version: &str, label: &str) {
 /// The body of `test.each([...])(\`label: "%s" should pass\`, (label) => { ... })`.
 fn label_should_pass(api: Api, version: &str, label: &str) {
     let result = api.compose_services(&[
-        service("foo", graphql!(r#"
+        service(
+            "foo",
+            graphql!(
+                r#"
           extend schema
             @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key", "@override"])
 
@@ -60,8 +76,15 @@ fn label_should_pass(api: Api, version: &str, label: &str) {
             id: ID
             name: String @override(from: "bar", label: "${label}")
           }
-        "#, version, label)),
-        service("bar", graphql!(r#"
+        "#,
+                version,
+                label
+            ),
+        ),
+        service(
+            "bar",
+            graphql!(
+                r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])
 
             type Query {
@@ -72,7 +95,10 @@ fn label_should_pass(api: Api, version: &str, label: &str) {
               id: ID
               name: String
             }
-          "#, version)),
+          "#,
+                version
+            ),
+        ),
     ]);
 
     assert_composition_success(&result);

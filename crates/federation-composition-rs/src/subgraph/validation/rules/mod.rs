@@ -122,9 +122,8 @@ mod tests {
 
     #[test]
     fn unique_input_field_names_rule_scopes_nested_objects() {
-        let errors = run::<UniqueInputFieldNamesRule>(
-            r#"type Q { f(a: In = { x: 1, y: { x: 1, z: 1 }, x: 2, z: 3 }): Int }"#,
-        );
+        let errors =
+            run::<UniqueInputFieldNamesRule>(r#"type Q { f(a: In = { x: 1, y: { x: 1, z: 1 }, x: 2, z: 3 }): Int }"#);
         assert_eq!(errors, vec!["There can be only one input field named \"x\"."]);
     }
 
@@ -150,7 +149,10 @@ mod tests {
     #[test]
     fn schema_rules() {
         let sdl = "schema { query: Q } schema { query: Q mutation: M } extend schema { mutation: M }";
-        assert_eq!(run::<LoneSchemaDefinitionRule>(sdl), vec!["Must provide only one schema definition."]);
+        assert_eq!(
+            run::<LoneSchemaDefinitionRule>(sdl),
+            vec!["Must provide only one schema definition."]
+        );
         assert_eq!(
             run::<UniqueOperationTypesRule>(sdl),
             vec![
@@ -163,15 +165,25 @@ mod tests {
     #[test]
     fn unique_name_rules() {
         assert_eq!(
-            run::<UniqueTypeNamesRule>("type A { a: Int } scalar A extend type A { b: Int } enum B { X } input B { a: Int }"),
-            vec!["There can be only one type named \"A\".", "There can be only one type named \"B\"."]
+            run::<UniqueTypeNamesRule>(
+                "type A { a: Int } scalar A extend type A { b: Int } enum B { X } input B { a: Int }"
+            ),
+            vec![
+                "There can be only one type named \"A\".",
+                "There can be only one type named \"B\"."
+            ]
         );
         assert_eq!(
             run::<UniqueEnumValueNamesRule>("enum E { A B A } extend enum E { B }"),
-            vec!["Enum value \"E.A\" can only be defined once.", "Enum value \"E.B\" can only be defined once."]
+            vec![
+                "Enum value \"E.A\" can only be defined once.",
+                "Enum value \"E.B\" can only be defined once."
+            ]
         );
         assert_eq!(
-            run::<UniqueFieldDefinitionNamesRule>("type T { a: Int a: Int } extend type T { a: Int } input I { x: Int x: Int }"),
+            run::<UniqueFieldDefinitionNamesRule>(
+                "type T { a: Int a: Int } extend type T { a: Int } input I { x: Int x: Int }"
+            ),
             vec![
                 "Field \"T.a\" can only be defined once.",
                 "Field \"T.a\" can only be defined once.",
@@ -205,7 +217,12 @@ mod tests {
     struct CoordinateRecorder(Vec<String>);
 
     impl<'a> Visitor<'a, SimpleValidationContext<'a>> for CoordinateRecorder {
-        fn enter(&mut self, node: NodeRef<'a>, cx: &mut SimpleValidationContext<'a>, info: &VisitInfo<'a, '_>) -> VisitAction {
+        fn enter(
+            &mut self,
+            node: NodeRef<'a>,
+            cx: &mut SimpleValidationContext<'a>,
+            info: &VisitInfo<'a, '_>,
+        ) -> VisitAction {
             if let NodeRef::Directive(_) = node {
                 self.0.push(cx.get_schema_coordinate(info.ancestors));
             }

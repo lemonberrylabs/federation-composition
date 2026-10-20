@@ -10,11 +10,10 @@
 use std::sync::Arc;
 
 use crate::ast::{
-    Definition, Directive, DirectiveDefinition, DirectiveExtension, Document, EnumTypeDefinition,
-    EnumTypeExtension, EnumValueDefinition, FieldDefinition, InputObjectTypeDefinition,
-    InputObjectTypeExtension, InputValueDefinition, InterfaceTypeDefinition,
-    InterfaceTypeExtension, NamedType, ObjectTypeDefinition, ObjectTypeExtension, OperationType,
-    ScalarTypeDefinition, ScalarTypeExtension, SchemaDefinition, SchemaExtension, Type,
+    Definition, Directive, DirectiveDefinition, DirectiveExtension, Document, EnumTypeDefinition, EnumTypeExtension,
+    EnumValueDefinition, FieldDefinition, InputObjectTypeDefinition, InputObjectTypeExtension, InputValueDefinition,
+    InterfaceTypeDefinition, InterfaceTypeExtension, NamedType, ObjectTypeDefinition, ObjectTypeExtension,
+    OperationType, ScalarTypeDefinition, ScalarTypeExtension, SchemaDefinition, SchemaExtension, Type,
     UnionTypeDefinition, UnionTypeExtension,
 };
 use crate::collections::{IndexMap, IndexSet};
@@ -23,15 +22,14 @@ use crate::error::GraphQLError;
 use crate::execution::values::get_directive_values;
 use crate::jsutils::JsValue;
 use crate::r#type::definition::{
-    DefaultInput, GraphQLArgumentConfig, GraphQLEnumType, GraphQLEnumTypeConfig,
-    GraphQLEnumValueConfig, GraphQLFieldConfig, GraphQLInputFieldConfig, GraphQLInputObjectType,
-    GraphQLInputObjectTypeConfig, GraphQLInterfaceType, GraphQLInterfaceTypeConfig,
-    GraphQLNamedType, GraphQLObjectType, GraphQLObjectTypeConfig, GraphQLScalarType,
-    GraphQLScalarTypeConfig, GraphQLType, GraphQLUnionType, GraphQLUnionTypeConfig, Lazy,
+    DefaultInput, GraphQLArgumentConfig, GraphQLEnumType, GraphQLEnumTypeConfig, GraphQLEnumValueConfig,
+    GraphQLFieldConfig, GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLInputObjectTypeConfig,
+    GraphQLInterfaceType, GraphQLInterfaceTypeConfig, GraphQLNamedType, GraphQLObjectType, GraphQLObjectTypeConfig,
+    GraphQLScalarType, GraphQLScalarTypeConfig, GraphQLType, GraphQLUnionType, GraphQLUnionTypeConfig, Lazy,
 };
 use crate::r#type::directives::{
-    graphql_deprecated_directive, graphql_one_of_directive, graphql_specified_by_directive,
-    GraphQLDirective, GraphQLDirectiveConfig,
+    graphql_deprecated_directive, graphql_one_of_directive, graphql_specified_by_directive, GraphQLDirective,
+    GraphQLDirectiveConfig,
 };
 use crate::r#type::schema::{std_type_map, GraphQLSchemaConfig};
 
@@ -171,10 +169,7 @@ impl ExtendContext {
     }
 
     /// graphql-js `buildInterfaces(nodes)`, given each node's `interfaces`.
-    fn build_interfaces<'n>(
-        &self,
-        nodes: impl Iterator<Item = &'n [NamedType]>,
-    ) -> Result<Vec<String>, GraphQLError> {
+    fn build_interfaces<'n>(&self, nodes: impl Iterator<Item = &'n [NamedType]>) -> Result<Vec<String>, GraphQLError> {
         let mut interfaces = Vec::new();
         for node_interfaces in nodes {
             for interface in node_interfaces {
@@ -185,31 +180,20 @@ impl ExtendContext {
     }
 
     /// graphql-js `buildUnionTypes(nodes)`, given each node's `types`.
-    fn build_union_types<'n>(
-        &self,
-        nodes: impl Iterator<Item = &'n [NamedType]>,
-    ) -> Result<Vec<String>, GraphQLError> {
+    fn build_union_types<'n>(&self, nodes: impl Iterator<Item = &'n [NamedType]>) -> Result<Vec<String>, GraphQLError> {
         // Same as `buildInterfaces`: `flatMap(node => node.types?.map(namedTypeFromAST) ?? [])`.
         self.build_interfaces(nodes)
     }
 
     /// graphql-js `getDeprecationReason(node)`, given the node's `directives`.
-    fn get_deprecation_reason(
-        &self,
-        directives: &[Directive],
-    ) -> Result<Option<String>, GraphQLError> {
-        let deprecated =
-            get_directive_values(&self.deprecated_directive, directives, &self.std_types)?;
+    fn get_deprecation_reason(&self, directives: &[Directive]) -> Result<Option<String>, GraphQLError> {
+        let deprecated = get_directive_values(&self.deprecated_directive, directives, &self.std_types)?;
         Ok(deprecated.and_then(|values| string_value(values.get("reason"))))
     }
 
     /// graphql-js `getSpecifiedByURL(node)`, given the node's `directives`.
-    fn get_specified_by_url(
-        &self,
-        directives: &[Directive],
-    ) -> Result<Option<String>, GraphQLError> {
-        let specified_by =
-            get_directive_values(&self.specified_by_directive, directives, &self.std_types)?;
+    fn get_specified_by_url(&self, directives: &[Directive]) -> Result<Option<String>, GraphQLError> {
+        let specified_by = get_directive_values(&self.specified_by_directive, directives, &self.std_types)?;
         Ok(specified_by.and_then(|values| string_value(values.get("url"))))
     }
 
@@ -228,9 +212,7 @@ fn string_value(value: Option<&JsValue>) -> Option<String> {
 }
 
 /// graphql-js `extendSchemaImpl(emptySchemaConfig, documentAST)`.
-pub(crate) fn extend_schema_impl(
-    document_ast: &Document,
-) -> Result<GraphQLSchemaConfig, GraphQLError> {
+pub(crate) fn extend_schema_impl(document_ast: &Document) -> Result<GraphQLSchemaConfig, GraphQLError> {
     let mut type_defs: Vec<&Definition> = Vec::new();
     let mut scalar_extensions: AccumulatorMap<ScalarTypeExtension> = IndexMap::default();
     let mut object_extensions: AccumulatorMap<ObjectTypeExtension> = IndexMap::default();
@@ -249,33 +231,19 @@ pub(crate) fn extend_schema_impl(
             Definition::SchemaDefinition(def) => schema_def = Some(def),
             Definition::SchemaExtension(def) => schema_extensions.push(def),
             Definition::DirectiveDefinition(def) => directive_defs.push(def),
-            Definition::DirectiveExtension(def) => {
-                accumulate(&mut directive_extensions, &def.name.value, def)
-            }
+            Definition::DirectiveExtension(def) => accumulate(&mut directive_extensions, &def.name.value, def),
             Definition::ScalarTypeDefinition(_)
             | Definition::ObjectTypeDefinition(_)
             | Definition::InterfaceTypeDefinition(_)
             | Definition::UnionTypeDefinition(_)
             | Definition::EnumTypeDefinition(_)
             | Definition::InputObjectTypeDefinition(_) => type_defs.push(def),
-            Definition::ScalarTypeExtension(def) => {
-                accumulate(&mut scalar_extensions, &def.name.value, def)
-            }
-            Definition::ObjectTypeExtension(def) => {
-                accumulate(&mut object_extensions, &def.name.value, def)
-            }
-            Definition::InterfaceTypeExtension(def) => {
-                accumulate(&mut interface_extensions, &def.name.value, def)
-            }
-            Definition::UnionTypeExtension(def) => {
-                accumulate(&mut union_extensions, &def.name.value, def)
-            }
-            Definition::EnumTypeExtension(def) => {
-                accumulate(&mut enum_extensions, &def.name.value, def)
-            }
-            Definition::InputObjectTypeExtension(def) => {
-                accumulate(&mut input_object_extensions, &def.name.value, def)
-            }
+            Definition::ScalarTypeExtension(def) => accumulate(&mut scalar_extensions, &def.name.value, def),
+            Definition::ObjectTypeExtension(def) => accumulate(&mut object_extensions, &def.name.value, def),
+            Definition::InterfaceTypeExtension(def) => accumulate(&mut interface_extensions, &def.name.value, def),
+            Definition::UnionTypeExtension(def) => accumulate(&mut union_extensions, &def.name.value, def),
+            Definition::EnumTypeExtension(def) => accumulate(&mut enum_extensions, &def.name.value, def),
+            Definition::InputObjectTypeExtension(def) => accumulate(&mut input_object_extensions, &def.name.value, def),
             Definition::OperationDefinition(_) | Definition::FragmentDefinition(_) => continue,
         }
         is_schema_changed = true;
@@ -335,9 +303,7 @@ pub(crate) fn extend_schema_impl(
     get_operation_types(
         &context,
         &mut operation_types,
-        schema_extensions
-            .iter()
-            .map(|node| node.operation_types.as_slice()),
+        schema_extensions.iter().map(|node| node.operation_types.as_slice()),
     )?;
     let [query, mutation, subscription] = operation_types;
 
@@ -401,10 +367,7 @@ fn build_directive(
     directive_extensions: &AccumulatorMap<DirectiveExtension>,
     node: &DirectiveDefinition,
 ) -> Result<GraphQLDirective, GraphQLError> {
-    let extension_ast_nodes = directive_extensions
-        .get(&node.name.value)
-        .cloned()
-        .unwrap_or_default();
+    let extension_ast_nodes = directive_extensions.get(&node.name.value).cloned().unwrap_or_default();
     let deprecation_reason = match context.get_deprecation_reason(&node.directives)? {
         Some(reason) => Some(reason),
         None => {
@@ -424,10 +387,7 @@ fn build_directive(
         locations: node
             .locations
             .iter()
-            .map(|name| {
-                DirectiveLocation::from_str(&name.value)
-                    .expect("the parser accepts only directive locations")
-            })
+            .map(|name| DirectiveLocation::from_str(&name.value).expect("the parser accepts only directive locations"))
             .collect(),
         is_repeatable: node.repeatable,
         args,
@@ -507,8 +467,7 @@ fn build_named_type(
                     Lazy::thunk(Arc::new(move || {
                         let (def, exts) = &*all_nodes;
                         context.build_enum_value_map(
-                            std::iter::once(def.values.as_slice())
-                                .chain(exts.iter().map(|e| e.values.as_slice())),
+                            std::iter::once(def.values.as_slice()).chain(exts.iter().map(|e| e.values.as_slice())),
                         )
                     }))
                 },
@@ -529,8 +488,7 @@ fn build_named_type(
                     Lazy::thunk(Arc::new(move || {
                         let (def, exts) = &*all_nodes;
                         context.build_union_types(
-                            std::iter::once(def.types.as_slice())
-                                .chain(exts.iter().map(|e| e.types.as_slice())),
+                            std::iter::once(def.types.as_slice()).chain(exts.iter().map(|e| e.types.as_slice())),
                         )
                     }))
                 },
@@ -540,8 +498,7 @@ fn build_named_type(
         }
         Definition::ScalarTypeDefinition(ast_node) => {
             let name = ast_node.name.value.clone();
-            let extension_ast_nodes: Vec<ScalarTypeExtension> =
-                extensions_of(&extensions.scalar, &name);
+            let extension_ast_nodes: Vec<ScalarTypeExtension> = extensions_of(&extensions.scalar, &name);
             let mut specified_by_url = context.get_specified_by_url(&ast_node.directives)?;
             for extension_node in &extension_ast_nodes {
                 specified_by_url = context
@@ -566,22 +523,19 @@ fn build_named_type(
                 Lazy::thunk(Arc::new(move || {
                     let (def, exts) = &*all_nodes;
                     context.build_input_field_map(
-                        std::iter::once(def.fields.as_slice())
-                            .chain(exts.iter().map(|e| e.fields.as_slice())),
+                        std::iter::once(def.fields.as_slice()).chain(exts.iter().map(|e| e.fields.as_slice())),
                     )
                 }))
             };
             let is_one_of = context.is_one_of(&ast_node.directives)?;
-            GraphQLNamedType::InputObject(GraphQLInputObjectType::new(
-                GraphQLInputObjectTypeConfig {
-                    name,
-                    description: ast_node.description.as_ref().map(|d| d.value.clone()),
-                    fields,
-                    ast_node: Some(ast_node.clone()),
-                    extension_ast_nodes,
-                    is_one_of,
-                },
-            )?)
+            GraphQLNamedType::InputObject(GraphQLInputObjectType::new(GraphQLInputObjectTypeConfig {
+                name,
+                description: ast_node.description.as_ref().map(|d| d.value.clone()),
+                fields,
+                ast_node: Some(ast_node.clone()),
+                extension_ast_nodes,
+                is_one_of,
+            })?)
         }
         _ => unreachable!("only type definitions are built"),
     })
@@ -592,10 +546,8 @@ fn object_nodes(
     all_nodes: &(ObjectTypeDefinition, Vec<ObjectTypeExtension>),
 ) -> impl Iterator<Item = (&[NamedType], &[FieldDefinition])> {
     let (def, exts) = all_nodes;
-    std::iter::once((def.interfaces.as_slice(), def.fields.as_slice())).chain(
-        exts.iter()
-            .map(|e| (e.interfaces.as_slice(), e.fields.as_slice())),
-    )
+    std::iter::once((def.interfaces.as_slice(), def.fields.as_slice()))
+        .chain(exts.iter().map(|e| (e.interfaces.as_slice(), e.fields.as_slice())))
 }
 
 /// The `interfaces` and `fields` of an interface type definition and its extensions.
@@ -603,8 +555,6 @@ fn interface_nodes(
     all_nodes: &(InterfaceTypeDefinition, Vec<InterfaceTypeExtension>),
 ) -> impl Iterator<Item = (&[NamedType], &[FieldDefinition])> {
     let (def, exts) = all_nodes;
-    std::iter::once((def.interfaces.as_slice(), def.fields.as_slice())).chain(
-        exts.iter()
-            .map(|e| (e.interfaces.as_slice(), e.fields.as_slice())),
-    )
+    std::iter::once((def.interfaces.as_slice(), def.fields.as_slice()))
+        .chain(exts.iter().map(|e| (e.interfaces.as_slice(), e.fields.as_slice())))
 }

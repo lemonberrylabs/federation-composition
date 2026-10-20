@@ -17,7 +17,9 @@ fn corpus() -> &'static Json {
     CORPUS.get_or_init(|| {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/schema-corpus.json");
         let text = std::fs::read_to_string(path).unwrap_or_else(|_| {
-            panic!("{path} is missing; run `node crates/graphql-rs/tests/gen-schema-corpus.mjs` from the repository root")
+            panic!(
+                "{path} is missing; run `node crates/graphql-rs/tests/gen-schema-corpus.mjs` from the repository root"
+            )
         });
         serde_json::from_str(&text).expect("valid JSON")
     })
@@ -31,12 +33,7 @@ fn js_json(value: &JsValue) -> Json {
         JsValue::Number(n) => json!(n),
         JsValue::String(s) => Json::String(s.clone()),
         JsValue::List(items) => Json::Array(items.iter().map(js_json).collect()),
-        JsValue::Object(object) => Json::Object(
-            object
-                .iter()
-                .map(|(k, v)| (k.clone(), js_json(v)))
-                .collect(),
-        ),
+        JsValue::Object(object) => Json::Object(object.iter().map(|(k, v)| (k.clone(), js_json(v))).collect()),
     }
 }
 
@@ -51,9 +48,7 @@ fn default_str(default: &Option<DefaultInput>) -> Json {
     match default {
         None => Json::Null,
         Some(DefaultInput::Literal(literal)) => Json::String(print(literal)),
-        Some(DefaultInput::Value(value)) => {
-            Json::String(serde_json::to_string(&js_json(value)).unwrap())
-        }
+        Some(DefaultInput::Value(value)) => Json::String(serde_json::to_string(&js_json(value)).unwrap()),
     }
 }
 
@@ -61,11 +56,7 @@ fn arg_shape(arg: &GraphQLArgument, intro: bool) -> Json {
     json!([
         arg.name,
         arg.ty.to_string(),
-        if intro {
-            Json::Null
-        } else {
-            opt(&arg.description)
-        },
+        if intro { Json::Null } else { opt(&arg.description) },
         default_str(&arg.default),
         opt(&arg.deprecation_reason),
     ])
@@ -82,11 +73,7 @@ fn shape(schema: &GraphQLSchema) -> Json {
             o.insert("name".into(), json!(t.name()));
             o.insert(
                 "description".into(),
-                if intro {
-                    Json::Null
-                } else {
-                    json!(t.description())
-                },
+                if intro { Json::Null } else { json!(t.description()) },
             );
             match t {
                 GraphQLNamedType::Scalar(s) => {
@@ -107,16 +94,9 @@ fn shape(schema: &GraphQLSchema) -> Json {
                             json!([
                                 f.name,
                                 f.ty.to_string(),
-                                if intro {
-                                    Json::Null
-                                } else {
-                                    opt(&f.description)
-                                },
+                                if intro { Json::Null } else { opt(&f.description) },
                                 opt(&f.deprecation_reason),
-                                f.args
-                                    .iter()
-                                    .map(|a| arg_shape(a, intro))
-                                    .collect::<Vec<_>>(),
+                                f.args.iter().map(|a| arg_shape(a, intro)).collect::<Vec<_>>(),
                             ])
                         })
                         .collect();
@@ -135,11 +115,7 @@ fn shape(schema: &GraphQLSchema) -> Json {
                                 .map(|v| {
                                     json!([
                                         v.name,
-                                        if intro {
-                                            Json::Null
-                                        } else {
-                                            opt(&v.description)
-                                        },
+                                        if intro { Json::Null } else { opt(&v.description) },
                                         opt(&v.deprecation_reason),
                                     ])
                                 })
@@ -183,10 +159,7 @@ fn shape(schema: &GraphQLSchema) -> Json {
                 d.locations.iter().map(|l| l.as_str()).collect::<Vec<_>>(),
                 d.is_repeatable,
                 opt(&d.deprecation_reason),
-                d.args
-                    .iter()
-                    .map(|a| arg_shape(a, false))
-                    .collect::<Vec<_>>(),
+                d.args.iter().map(|a| arg_shape(a, false)).collect::<Vec<_>>(),
             ])
         })
         .collect();
@@ -317,11 +290,6 @@ fn build_and_validate_schemas_like_graphql_js() {
         "{} of {} cases differ from graphql-js:\n{}",
         failures.len(),
         cases.len(),
-        failures
-            .iter()
-            .take(30)
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("\n")
+        failures.iter().take(30).cloned().collect::<Vec<_>>().join("\n")
     );
 }

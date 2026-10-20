@@ -94,7 +94,10 @@ mod test_to_validate_custom_root_query_is_treated_as_query {
         // Check the composed supergraph schema to see if both RootQuery and CustomQueryName were treated as Query
         let supergraph_sdl = composition_result.supergraph_sdl().expect("supergraphSdl");
         for expected_field in expected_query_fields {
-            assert!(supergraph_sdl.contains(expected_field), "expected supergraphSdl to include {expected_field}");
+            assert!(
+                supergraph_sdl.contains(expected_field),
+                "expected supergraphSdl to include {expected_field}"
+            );
         }
     }
 }

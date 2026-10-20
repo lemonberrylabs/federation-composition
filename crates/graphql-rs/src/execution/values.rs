@@ -32,9 +32,7 @@ pub fn get_argument_values(
             &mut coerced_values,
             &arg_def.name,
             arg_def,
-            arg_node_map
-                .get(arg_def.name.as_str())
-                .map(|arg| &arg.value),
+            arg_node_map.get(arg_def.name.as_str()).map(|arg| &arg.value),
             types,
         )?;
     }

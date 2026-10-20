@@ -25,11 +25,7 @@ fn check_arg_uniqueness_per_field(
     let type_name = &name.value;
     for field_def in field_nodes {
         let field_name = &field_def.name.value;
-        check_arg_uniqueness(
-            context,
-            &format!("{type_name}.{field_name}"),
-            &field_def.arguments,
-        );
+        check_arg_uniqueness(context, &format!("{type_name}.{field_name}"), &field_def.arguments);
     }
     VisitAction::Skip
 }
@@ -73,18 +69,10 @@ impl<'a> Visitor<'a, SDLValidationContext<'a>> for UniqueArgumentDefinitionNames
                 &format!("@{}", directive_node.name.value),
                 &directive_node.arguments,
             ),
-            NodeRef::InterfaceTypeDefinition(node) => {
-                check_arg_uniqueness_per_field(context, &node.name, &node.fields)
-            }
-            NodeRef::InterfaceTypeExtension(node) => {
-                check_arg_uniqueness_per_field(context, &node.name, &node.fields)
-            }
-            NodeRef::ObjectTypeDefinition(node) => {
-                check_arg_uniqueness_per_field(context, &node.name, &node.fields)
-            }
-            NodeRef::ObjectTypeExtension(node) => {
-                check_arg_uniqueness_per_field(context, &node.name, &node.fields)
-            }
+            NodeRef::InterfaceTypeDefinition(node) => check_arg_uniqueness_per_field(context, &node.name, &node.fields),
+            NodeRef::InterfaceTypeExtension(node) => check_arg_uniqueness_per_field(context, &node.name, &node.fields),
+            NodeRef::ObjectTypeDefinition(node) => check_arg_uniqueness_per_field(context, &node.name, &node.fields),
+            NodeRef::ObjectTypeExtension(node) => check_arg_uniqueness_per_field(context, &node.name, &node.fields),
             _ => VisitAction::Continue,
         }
     }

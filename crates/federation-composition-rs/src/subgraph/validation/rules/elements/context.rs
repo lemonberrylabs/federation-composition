@@ -1,11 +1,11 @@
 //! Port of `src/subgraph/validation/rules/elements/context.ts`.
 
-use graphql_rs::{Directive, GraphQLError, Kind, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 use crate::subgraph::context::is_valid_context_name;
 use crate::subgraph::helpers::validate_directive_against_original;
 use crate::subgraph::state::SpecName;
 use crate::subgraph::validation::validation_context::{SubgraphRule, SubgraphValidationContext};
 use crate::utils::js::JsResult;
+use graphql_rs::{Directive, GraphQLError, Kind, NodeRef, Value, VisitAction, VisitInfo, Visitor};
 
 use super::{finish, node_name};
 
@@ -29,7 +29,12 @@ impl<'a> Visitor<'a, SubgraphValidationContext<'a>> for ContextDirectiveRules {
         VisitKinds::enter(&[Kind::DirectiveDefinition, Kind::Directive])
     }
 
-    fn enter(&mut self, node: NodeRef<'a>, cx: &mut SubgraphValidationContext<'a>, _info: &VisitInfo<'a, '_>) -> VisitAction {
+    fn enter(
+        &mut self,
+        node: NodeRef<'a>,
+        cx: &mut SubgraphValidationContext<'a>,
+        _info: &VisitInfo<'a, '_>,
+    ) -> VisitAction {
         let result = match node {
             NodeRef::DirectiveDefinition(node) => validate_directive_against_original(node, "context", cx),
             NodeRef::Directive(node) => directive(node, cx),
@@ -63,7 +68,11 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
         return Ok(());
     }
 
-    let name = node.arguments.iter().find(|arg| arg.name.value == "name").map(|arg| &arg.value);
+    let name = node
+        .arguments
+        .iter()
+        .find(|arg| arg.name.value == "name")
+        .map(|arg| &arg.value);
 
     let Some(Value::String(name)) = name else {
         return Ok(());
@@ -81,13 +90,22 @@ fn directive<'a>(node: &'a Directive, context: &mut SubgraphValidationContext<'a
 
     match type_def.kind() {
         Kind::ObjectTypeDefinition | Kind::ObjectTypeExtension => {
-            context.state_builder.object_type().add_context(node_name(type_def), &name.value)?;
+            context
+                .state_builder
+                .object_type()
+                .add_context(node_name(type_def), &name.value)?;
         }
         Kind::InterfaceTypeDefinition | Kind::InterfaceTypeExtension => {
-            context.state_builder.interface_type().add_context(node_name(type_def), &name.value)?;
+            context
+                .state_builder
+                .interface_type()
+                .add_context(node_name(type_def), &name.value)?;
         }
         Kind::UnionTypeDefinition | Kind::UnionTypeExtension => {
-            context.state_builder.union_type().add_context(node_name(type_def), &name.value)?;
+            context
+                .state_builder
+                .union_type()
+                .add_context(node_name(type_def), &name.value)?;
         }
         _ => {}
     }
