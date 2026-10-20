@@ -77,7 +77,9 @@ mod tests {
     /// Expected values generated with the TS function.
     #[test]
     fn merges() {
-        let cases: &[(&[&[&str]], &[&[&str]], &[&[&str]])] = &[
+        /// Scopes or policies: a list of AND-groups, OR-ed together.
+        type Groups<'a> = &'a [&'a [&'a str]];
+        let cases: &[(Groups, Groups, Groups)] = &[
             (&[], &[&["b"], &["a"]], &[&["b"], &["a"]]),
             (&[&["a"]], &[], &[&["a"]]),
             (

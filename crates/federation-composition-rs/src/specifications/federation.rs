@@ -16,16 +16,27 @@ use crate::utils::js::{JsError, JsResult};
 /// `FederationVersion = keyof typeof federationSpecFactory`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum FederationVersion {
+    /// `"v1.0"`.
     V1_0,
+    /// `"v2.0"`.
     V2_0,
+    /// `"v2.1"`.
     V2_1,
+    /// `"v2.2"`.
     V2_2,
+    /// `"v2.3"`.
     V2_3,
+    /// `"v2.4"`.
     V2_4,
+    /// `"v2.5"`.
     V2_5,
+    /// `"v2.6"`.
     V2_6,
+    /// `"v2.7"`.
     V2_7,
+    /// `"v2.8"`.
     V2_8,
+    /// `"v2.9"`.
     V2_9,
 }
 
@@ -45,6 +56,7 @@ impl FederationVersion {
         FederationVersion::V2_9,
     ];
 
+    /// The version string, e.g. `"v2.3"`.
     pub fn as_str(self) -> &'static str {
         match self {
             FederationVersion::V1_0 => "v1.0",
@@ -60,11 +72,17 @@ impl FederationVersion {
             FederationVersion::V2_9 => "v2.9",
         }
     }
+}
+
+impl std::str::FromStr for FederationVersion {
+    type Err = graphql_rs::UnknownName;
 
     /// `isFederationVersion(version) ? version : undefined`.
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_str(version: &str) -> Option<FederationVersion> {
-        FederationVersion::ALL.into_iter().find(|v| v.as_str() == version)
+    fn from_str(version: &str) -> Result<FederationVersion, Self::Err> {
+        FederationVersion::ALL
+            .into_iter()
+            .find(|v| v.as_str() == version)
+            .ok_or_else(|| graphql_rs::UnknownName::new("federation version", version))
     }
 }
 
@@ -75,6 +93,8 @@ impl std::fmt::Display for FederationVersion {
 }
 
 /// `FederationImports = readonly LinkImport[]`.
+// TS: exported type that nothing in `src/` uses.
+#[allow(dead_code)]
 pub type FederationImports = Vec<LinkImport>;
 
 /// `{ directives, types }` returned by `createSpecSchema` and `createTypeDefinitions`.
@@ -93,8 +113,10 @@ pub struct DetectedFederation {
 }
 
 /// `isFederationVersion(version)`.
+// TS: used by `validate.ts` and `specifications/federation.ts`; the ported callers do not need it.
+#[allow(dead_code)]
 pub fn is_federation_version(version: &str) -> bool {
-    FederationVersion::from_str(version).is_some()
+    version.parse::<FederationVersion>().is_ok()
 }
 
 /// `createSpecSchema(version, imports?)`. Takes a string because `validate-subgraph` calls it
@@ -104,7 +126,7 @@ pub fn is_federation_version(version: &str) -> bool {
 /// reference in TS; `getAvailableFederationTypeAndDirectiveDefinitions` renames spec nodes in
 /// place only for aliased imports, and v1.0 has no imports, so owned clones behave the same.
 pub fn create_spec_schema(version: &str, imports: Option<&[LinkImport]>) -> JsResult<SpecSchema> {
-    let Some(version) = FederationVersion::from_str(version) else {
+    let Ok(version) = version.parse::<FederationVersion>() else {
         return Err(GraphQLError::with_code(
             format!("Invalid version {version} for the federation feature in @link directive on schema"),
             "UNKNOWN_FEDERATION_LINK_VERSION",
@@ -135,7 +157,7 @@ pub fn create_spec_schema(version: &str, imports: Option<&[LinkImport]>) -> JsRe
 pub fn known_spec_schema(version: &str) -> JsResult<&'static SpecSchema> {
     static CACHE: [OnceLock<SpecSchema>; FederationVersion::ALL.len()] =
         [const { OnceLock::new() }; FederationVersion::ALL.len()];
-    let Some(known_version) = FederationVersion::from_str(version) else {
+    let Ok(known_version) = version.parse::<FederationVersion>() else {
         return create_spec_schema(version, None).map(|_| unreachable!("the version is unknown"));
     };
     Ok(CACHE[known_version as usize]
@@ -458,7 +480,10 @@ pub fn get_latest_federation_version() -> FederationVersion {
     // String sort of the keys; the last one is "v2.9".
     let mut keys: Vec<&str> = FederationVersion::ALL.iter().map(|v| v.as_str()).collect();
     keys.sort();
-    FederationVersion::from_str(keys.last().expect("non-empty")).expect("known version")
+    keys.last()
+        .expect("non-empty")
+        .parse::<FederationVersion>()
+        .expect("known version")
 }
 
 /// The spec SDL of `version` parsed, with `prefix` applied to every definition: the
@@ -645,7 +670,7 @@ pub fn detect_federation_version(type_defs: &Document) -> JsResult<DetectedFeder
 
         if let Some(fed_link) = fed_link {
             if let Some(version) = fed_link.version.as_deref().filter(|v| !v.is_empty()) {
-                let Some(federation_version) = FederationVersion::from_str(version) else {
+                let Ok(federation_version) = version.parse::<FederationVersion>() else {
                     return Err(JsError::error(format!("Unsupported federation version: {version}")));
                 };
 

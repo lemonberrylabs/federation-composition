@@ -25,7 +25,7 @@ when they were removed.
 
 ## When a release comes out
 
-The weekly [upstream watcher](../.github/workflows/upstream-watch.yaml) notices a release newer than
+The weekly [upstream watcher](../.github/workflows/upstream-watch.yml) notices a release newer than
 `UPSTREAM`, runs the conformance check against it and opens (or updates) an issue labelled
 `upstream-sync`, "Port upstream vX.Y.Z". The same task can be produced locally:
 

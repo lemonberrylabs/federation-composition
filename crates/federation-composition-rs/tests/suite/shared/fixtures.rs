@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use federation_composition_rs::types::ServiceDefinition;
+use federation_composition_rs::ServiceDefinition;
 
 use super::testkit::service;
 use super::utils::graphql;

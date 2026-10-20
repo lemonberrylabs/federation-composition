@@ -16,7 +16,7 @@ use super::definition::{
     GraphQLFieldConfig, GraphQLNamedType, GraphQLObjectType, GraphQLObjectTypeConfig, GraphQLType, Lazy,
 };
 
-pub use crate::specified::{is_introspection_type, INTROSPECTION_TYPE_NAMES};
+pub use crate::specified::is_introspection_type;
 
 fn type_from_str(source: &str) -> GraphQLType {
     fn convert(node: &Type) -> GraphQLType {

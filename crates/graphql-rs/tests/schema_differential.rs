@@ -6,9 +6,9 @@
 
 use std::sync::OnceLock;
 
-use graphql_rs::jsutils::JsValue;
-use graphql_rs::r#type::definition::{DefaultInput, GraphQLArgument, GraphQLNamedType};
-use graphql_rs::r#type::schema::GraphQLSchema;
+use graphql_rs::__internal::jsutils::JsValue;
+use graphql_rs::__internal::r#type::definition::{DefaultInput, GraphQLArgument, GraphQLNamedType};
+use graphql_rs::GraphQLSchema;
 use graphql_rs::{assert_valid_schema, build_schema, is_introspection_type, print, validate_schema};
 use serde_json::{json, Value as Json};
 
@@ -268,7 +268,7 @@ fn build_and_validate_schemas_like_graphql_js() {
         } else {
             counts[2] += 1;
         }
-        if json!(asserted.err()) != case["assertError"] {
+        if json!(asserted.err().map(|error| error.message)) != case["assertError"] {
             failures.push(format!(
                 "{}\n  assertValidSchema: expected {}, got {:?}",
                 label(),

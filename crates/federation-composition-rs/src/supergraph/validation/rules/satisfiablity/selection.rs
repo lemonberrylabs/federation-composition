@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use std::cmp::Ordering;
+use std::fmt;
 
 use crate::utils::collections::IndexMap;
 use graphql_rs::{Field as FieldNode, InlineFragment, Selection as SelectionAstNode, SelectionSet};
@@ -105,6 +106,8 @@ impl Selection {
         }
     }
 
+    // TS: defined here and never called in `src/` either.
+    #[allow(dead_code)]
     pub fn contains(&self, type_name: &str, field_name: &str) -> bool {
         self.contains_in(type_name, field_name, &self.selection_set)
     }
@@ -173,6 +176,8 @@ impl Selection {
     }
 
     /// `_contains(typeName, fieldName, selectionSet)`.
+    // TS: only `contains` calls it.
+    #[allow(dead_code)]
     fn contains_in(&self, type_name: &str, field_name: &str, selection_set: &[SelectionNode]) -> bool {
         selection_set.iter().any(|s| {
             (matches!(s, SelectionNode::Field(f) if f.type_name == type_name && f.field_name == field_name))
@@ -182,10 +187,12 @@ impl Selection {
                 }
         })
     }
+}
 
+impl fmt::Display for Selection {
     /// `toString()`: the source with whitespace runs collapsed (JS `\s+`).
-    pub fn to_string(&self) -> String {
-        collapse_whitespace(&self.source)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&collapse_whitespace(&self.source))
     }
 }
 

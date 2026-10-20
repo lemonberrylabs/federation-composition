@@ -98,20 +98,34 @@ listed composition that matches or is not in the corpus. Remove such entries.
 
 ## The watcher
 
-`pnpm conformance:watch` ([`watch.mjs`](watch.mjs)) compares upstream's latest `vX.Y.Z` tag with
-`UPSTREAM`. When it is newer, it runs the conformance check against it and writes the porting task
-to `conformance/out/issue.md` (the full diff of `src/` and `__tests__/` is
-`conformance/out/upstream.diff`): the conformance results, every changed upstream file with the
-Rust file it is ported to, the upstream tests that fail on the npm package, the compositions whose
-output the Rust no longer reproduces, and the diff. `--issue` opens or updates the GitHub issue
-labelled `upstream-sync` with it (needs `gh` and `GH_TOKEN`). `--from=<ref>` and `--to=<tag>`
-override the two ends, for example to preview a task: `pnpm conformance:watch --from=v0.26.3 --to=v0.27.0`.
+`pnpm conformance:watch` ([`watch.mjs`](watch.mjs)) compares upstream's latest GitHub release
+(the GitHub API's latest release of graphql-hive/federation-composition) with `UPSTREAM`. When it
+is newer, it runs the conformance check against it (its failures are expected: they are the work)
+and writes the porting task to `conformance/out/issue.md` (the full diff of `src/` and
+`__tests__/` is `conformance/out/upstream.diff`): the conformance results, every changed upstream
+file with the Rust file it is ported to, the `git diff --stat` summary, the commits, the upstream
+tests that fail on the npm package, the compositions whose output the Rust no longer reproduces,
+and the diff.
+
+| Option         | Effect                                                                                                                                                                      |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--issue`      | Opens or updates the issue "Port upstream vX.Y.Z" (one per release, found by that exact title among the issues labelled `upstream-sync`, open or closed) with the REST API. |
+| `--dry-run`    | Prints the issue's title and body instead of writing it; with `--issue`, also says which issue it would update.                                                             |
+| `--from=<ref>` | The release the port matches (default: `UPSTREAM`).                                                                                                                         |
+| `--to=<tag>`   | The release to port (default: upstream's latest release).                                                                                                                   |
+| `--repo=<o/r>` | The repository for the issue (default: `GITHUB_REPOSITORY`, else this checkout's `origin`).                                                                                 |
+| `--skip-build` | Uses the npm package as built.                                                                                                                                              |
+
+The token is `GITHUB_TOKEN`, else `GH_TOKEN`, else the gh CLI's (`gh auth token`). Writing the
+issue needs it (with `issues: write`); a dry run and the release lookup work without it. To
+preview a task: `pnpm conformance:watch --from=v0.26.3 --to=v0.27.0 --dry-run`.
 
 ## CI
 
-- [`.github/workflows/conformance.yaml`](../.github/workflows/conformance.yaml): on pull requests,
-  pushes to `main`, weekly and on demand: rustfmt, clippy, the wasm32 build, `pnpm conformance`,
-  the npm package's tests, the graphql-js differential corpora and `cargo test --workspace`.
-- [`.github/workflows/upstream-watch.yaml`](../.github/workflows/upstream-watch.yaml): weekly and
+- [`.github/workflows/conformance.yml`](../.github/workflows/conformance.yml): on pull requests,
+  pushes to `main`, weekly and on demand (with any upstream ref): `pnpm conformance`, with the
+  results uploaded as the `conformance` artifact. The Rust checks (rustfmt, clippy, the tests on
+  three platforms, the npm package) are in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+- [`.github/workflows/upstream-watch.yml`](../.github/workflows/upstream-watch.yml): weekly and
   on demand, `node conformance/watch.mjs --issue`; the task and the diff are also uploaded as the
   `upstream-sync` artifact.

@@ -7,6 +7,8 @@ use crate::utils::collections::IndexSet;
 use crate::utils::js::{JsError, JsResult};
 
 /// `isDefined(value)`. In Rust an `Option` is checked with `is_some()`; kept for call-site parity.
+// TS: used with `.filter(isDefined)`; the port filters `Option`s directly.
+#[allow(dead_code)]
 pub fn is_defined<T>(value: &Option<T>) -> bool {
     value.is_some()
 }

@@ -1,0 +1,52 @@
+name: Bug report
+description: Wrong output, an error that should not happen, a panic, or a difference from @theguild/federation-composition
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security issues (including inputs that take excessive time or memory) go through [SECURITY.md](https://github.com/Enrico2/federation-composition/blob/HEAD/SECURITY.md), not here.
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - federation-composition-rs (crate)
+        - graphql-rs (crate)
+        - federation-composition-wasm (npm)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The package version, or the commit if built from source.
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Input
+      description: The subgraph schemas (SDL) and the call, as small as you can make them.
+      render: graphql
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happens
+      description: The output, the errors or the panic message.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: If @theguild/federation-composition gives a different result for the same input, paste its output and version here; a difference from upstream is a bug in the port.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Rust version and target, or Node.js version and graphql version for the npm package.

@@ -5,8 +5,8 @@
 //! `printBasicPrototype: false`, indent 2), and passes when both are equal after `trim()`.
 //! Copy the TS snapshot text verbatim (cooked: `` \` `` is a backtick, `\\` is `\`).
 
-use federation_composition_rs::sort_sdl;
-use federation_composition_rs::utils::js::number_to_string;
+use federation_composition_rs::__internal::graphql::sort_sdl::sort_sdl;
+use federation_composition_rs::__internal::utils::js::number_to_string;
 use graphql_rs::GraphQLError;
 use serde_json::Value;
 

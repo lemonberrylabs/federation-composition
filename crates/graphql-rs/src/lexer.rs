@@ -167,6 +167,8 @@ impl<'s> Lexer<'s> {
         }
     }
 
+    // graphql-js: the lexer's `source` property; nothing in the port reads it.
+    #[allow(dead_code)]
     pub fn source(&self) -> &'s str {
         self.source
     }

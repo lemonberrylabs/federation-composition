@@ -1,10 +1,13 @@
 //! Port of `src/utils/link/link.ts`.
 
+use std::fmt;
+
 use graphql_rs::{ConstArgument, ConstValue, Definition, Directive, Document};
 
 use super::link_import::FederatedLinkImport;
 use super::link_url::{FederatedLinkUrl, SupportsVersion};
 use crate::utils::js::JsResult;
+use crate::Error;
 
 /// Supports federation 1 (`@core(feature:)`).
 fn link_from_core_args(args: &[ConstArgument]) -> JsResult<Option<FederatedLink>> {
@@ -65,7 +68,7 @@ fn namespaced(namespace: Option<&str>, name: &str) -> String {
     }
 }
 
-/// `FederatedLink`.
+/// A `@link` (or Federation 1 `@core`) directive of a schema: upstream's `FederatedLink`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FederatedLink {
     url: FederatedLinkUrl,
@@ -75,23 +78,26 @@ pub struct FederatedLink {
 }
 
 impl FederatedLink {
+    /// `new FederatedLink(url, as, imports)`.
     pub fn new(url: FederatedLinkUrl, as_: Option<String>, imports: Vec<FederatedLinkImport>) -> Self {
         FederatedLink { url, as_, imports }
     }
 
-    /// TS `_url`.
+    /// The parsed `url` argument (TS `_url`).
     pub fn url(&self) -> &FederatedLinkUrl {
         &self.url
     }
 
-    /// TS `_as`.
+    /// The `as` argument (TS `_as`): the namespace for the spec's names.
     pub fn as_(&self) -> Option<&str> {
         self.as_.as_deref()
     }
 
     /// `FederatedLink.fromTypedefs(typeDefs)`: all `@link`s (and Federation 1 `@core`s) on
     /// schema definitions and extensions.
-    pub fn from_typedefs(type_defs: &Document) -> JsResult<Vec<FederatedLink>> {
+    ///
+    /// `Err` where upstream throws: an invalid `url` or `import` argument.
+    pub fn from_typedefs(type_defs: &Document) -> Result<Vec<FederatedLink>, Error> {
         let mut links: Vec<FederatedLink> = Vec::new();
         for definition in &type_defs.definitions {
             let directives: &[Directive] = match definition {
@@ -122,22 +128,6 @@ impl FederatedLink {
         self.as_.as_deref().or(self.url.name.as_deref())
     }
 
-    /// `toString()`.
-    #[allow(clippy::inherent_to_string_shadow_display)]
-    pub fn to_string(&self) -> String {
-        let as_part = match &self.as_ {
-            Some(as_) if !as_.is_empty() => format!(", as: \"{as_}\""),
-            _ => String::new(),
-        };
-        let imports_part = if self.imports.is_empty() {
-            String::new()
-        } else {
-            let imports: Vec<String> = self.imports.iter().map(FederatedLinkImport::to_string).collect();
-            format!(", import: [{}]", imports.join(", "))
-        };
-        format!("@link(url: \"{}\"{}{})", self.url.to_string(), as_part, imports_part)
-    }
-
     /// The private `defaultImport` getter: `this.namespace && "@" + this.namespace`.
     /// NOTE(port): an empty namespace is falsy and is returned as is (`""`).
     fn default_import(&self) -> Option<String> {
@@ -145,17 +135,20 @@ impl FederatedLink {
             .map(|ns| if ns.is_empty() { String::new() } else { format!("@{ns}") })
     }
 
-    /// `identity`.
+    /// The spec's identity (`identity`): the URL without the version, e.g.
+    /// `https://specs.apollo.dev/federation`.
     pub fn identity(&self) -> &str {
         &self.url.identity
     }
 
-    /// `supports(...)`, forwarded to the url.
+    /// `supports(...)`: whether the linked version supports `version` (forwarded to
+    /// [`FederatedLinkUrl::supports`]).
     pub fn supports(&self, version: SupportsVersion<'_>) -> bool {
         self.url.supports(version)
     }
 
-    /// `resolveImportName(elementName)`.
+    /// `resolveImportName(elementName)`: the name `element_name` (`@key`, `FieldSet`) has in
+    /// the schema, after imports and namespacing, without the `@` of a directive.
     pub fn resolve_import_name(&self, element_name: &str) -> String {
         if let Some(name) = self.url.name.as_deref() {
             if !name.is_empty() && element_name == format!("@{name}") {
@@ -178,9 +171,26 @@ impl FederatedLink {
         }
     }
 
-    /// `imports`.
+    /// The `import` argument (`imports`).
     pub fn imports(&self) -> &[FederatedLinkImport] {
         &self.imports
+    }
+}
+
+impl fmt::Display for FederatedLink {
+    /// `toString()`: the `@link(...)` directive in SDL.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let as_part = match &self.as_ {
+            Some(as_) if !as_.is_empty() => format!(", as: \"{as_}\""),
+            _ => String::new(),
+        };
+        let imports_part = if self.imports.is_empty() {
+            String::new()
+        } else {
+            let imports: Vec<String> = self.imports.iter().map(FederatedLinkImport::to_string).collect();
+            format!(", import: [{}]", imports.join(", "))
+        };
+        write!(f, "@link(url: \"{}\"{}{})", self.url, as_part, imports_part)
     }
 }
 

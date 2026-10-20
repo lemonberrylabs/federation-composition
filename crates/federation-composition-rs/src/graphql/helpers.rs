@@ -3,6 +3,8 @@
 use graphql_rs::{Definition, Document};
 
 /// `isDirectiveDefinition(node)`.
+// TS: used by `specifications/{tag,inaccessible}.ts`; the ported callers do not need it.
+#[allow(dead_code)]
 pub fn is_directive_definition(node: &Definition) -> bool {
     matches!(node, Definition::DirectiveDefinition(_))
 }

@@ -8,6 +8,8 @@ test_versions! {
     fn cost_and_list_size_is_not_available_in_this_version(api, version) if "< v2.9" {}
 }
 
+// TS: the spec file's top-level `describe` block has the file's name.
+#[allow(clippy::module_inception)]
 mod cost {
     use super::*;
 

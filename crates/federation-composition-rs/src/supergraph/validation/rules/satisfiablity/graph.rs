@@ -107,12 +107,15 @@ impl<'s> TypesBySubgraph<'s> {
     }
 }
 
+/// PERF: `indirectEdgesOfHead` per node (`None` until computed).
+type IndirectEdgesCache = RefCell<Vec<Option<Rc<[EdgeId]>>>>;
+
 /// `Graph`.
 #[derive(Debug)]
 pub struct Graph<'s> {
     warned_about_incorrect_edge: Cell<bool>,
     /// PERF: `indirectEdgesOfHead` per node, once `enable_edge_caches` was called (see there).
-    indirect_edges_cache: Option<RefCell<Vec<Option<Rc<[EdgeId]>>>>>,
+    indirect_edges_cache: Option<IndirectEdgesCache>,
     /// `nodesByTypeIndex` (one node per index).
     nodes: Vec<Node<'s>>,
     edges: Vec<Edge<'s>>,
@@ -122,6 +125,8 @@ pub struct Graph<'s> {
     /// Type A -> points directly to types B, C, D.
     type_children: Vec<IndexSet<String>>,
     /// Can type A lead to type B?
+    // TS: `canReachTypeFromType` fills it and nothing reads it.
+    #[allow(dead_code)]
     type_children_cache: RefCell<IndexMap<String, bool>>,
     is_subgraph: bool,
     /// `idSymbol`.
@@ -153,6 +158,8 @@ pub struct Graph<'s> {
 }
 
 /// JS `encodeURIComponent`.
+// TS: used by `print(asLink)`, which is defined here and never called in `src/` either.
+#[allow(dead_code)]
 fn encode_uri_component(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
@@ -210,6 +217,8 @@ fn with_type_name(selection: &SelectionNode, type_name: &str) -> SelectionNode {
 }
 
 impl<'s> Graph<'s> {
+    // TS: the constructor's seven parameters, plus the port's shared `GraphNames` interner.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         _logger: &Logger,
         id: GraphId,
@@ -274,12 +283,7 @@ impl<'s> Graph<'s> {
     /// `edge.toString()`: `${head} -(${move})-> ${tail}`.
     pub fn edge_to_string(&self, edge: EdgeId) -> String {
         let e = self.edge(edge);
-        format!(
-            "{} -({})-> {}",
-            self.node(e.head).to_string(),
-            e.r#move.to_string(),
-            self.node(e.tail).to_string()
-        )
+        format!("{} -({})-> {}", self.node(e.head), e.r#move, self.node(e.tail))
     }
 
     /// The `FieldMove` of an edge known to be a field edge (the override lists and the
@@ -827,7 +831,7 @@ impl<'s> Graph<'s> {
                             let Some(NodeTypeState::Interface(interface_state)) = node.type_state else {
                                 return Err(JsError::error(format!(
                                     "Expected interfaceNode {} to be an interface",
-                                    node.to_string()
+                                    node
                                 )));
                             };
 
@@ -1116,7 +1120,7 @@ impl<'s> Graph<'s> {
         }
 
         if let Move::Field(field_move) = r#move {
-            self.nodes[new_node.0].debug_post_fix = format!(" (for {})", field_move.to_string());
+            self.nodes[new_node.0].debug_post_fix = format!(" (for {})", field_move);
         }
 
         new_node
@@ -1136,6 +1140,8 @@ impl<'s> Graph<'s> {
     }
 
     /// `print(asLink = false)`: Graphviz dot output (debugging).
+    // TS: the Graphviz printer for debugging; defined here and never called in `src/` either.
+    #[allow(dead_code)]
     pub fn print(&self, as_link: bool) -> String {
         let mut str = String::from("digraph G {");
 
@@ -1159,18 +1165,18 @@ impl<'s> Graph<'s> {
 
             let head = self.node(e.head);
             if head.type_name == "Query" {
-                str += &format!("\n  \"Query\" -> \"{}\";", head.to_string());
+                str += &format!("\n  \"Query\" -> \"{}\";", head);
             } else if head.type_name == "Mutation" {
-                str += &format!("\n  \"Mutation\" -> \"{}\";", head.to_string());
+                str += &format!("\n  \"Mutation\" -> \"{}\";", head);
             } else if head.type_name == "Subscription" {
-                str += &format!("\n  \"Subscription\" -> \"{}\";", head.to_string());
+                str += &format!("\n  \"Subscription\" -> \"{}\";", head);
             }
 
             str += &format!(
                 "\n  \"{}\" -> \"{}\" [label=\"{}\"];",
-                head.to_string(),
-                self.node(e.tail).to_string(),
-                e.r#move.to_string()
+                head,
+                self.node(e.tail),
+                e.r#move
             );
         }
 
@@ -1307,6 +1313,8 @@ impl<'s> Graph<'s> {
             .collect()
     }
 
+    // TS: defined here and never called in `src/` either.
+    #[allow(dead_code)]
     pub fn entity_edges_of_head(&self, head: NodeId) -> JsResult<Vec<EdgeId>> {
         let node = self.node(head);
         self.get_same_graph_edges_of_index(head, node.get_entity_edge_indexes(&node.type_name), "entity")
@@ -1386,6 +1394,8 @@ impl<'s> Graph<'s> {
         self.filter_edges(&edges)
     }
 
+    // TS: defined here and never called in `src/` either.
+    #[allow(dead_code)]
     pub fn possible_types_of(&self, type_name: &str) -> Vec<String> {
         if let Some(interface_state) = self.supergraph_state.interface_types.get(type_name) {
             return interface_state.implemented_by.iter().cloned().collect();
@@ -1399,6 +1409,8 @@ impl<'s> Graph<'s> {
     }
 
     /// Throws `Could not find an index of type: X` (cannot happen: every child type has a node).
+    // TS: defined here and never called in `src/` either.
+    #[allow(dead_code)]
     pub fn can_reach_type_from_type(&self, from_type_name: &str, to_type_name: &str) -> JsResult<bool> {
         if from_type_name == to_type_name {
             return Ok(true);

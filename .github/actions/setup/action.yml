@@ -1,30 +1,32 @@
 name: Setup
-description: Rust (with wasm32 and the matching wasm-bindgen CLI), Node, pnpm and the workspace's dependencies
+description: Rust (with wasm32 and the matching wasm-bindgen CLI), Node, pnpm and the workspace's dependencies (Linux runners)
 runs:
   using: composite
   steps:
     - name: setup rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (2026-10-16)
       with:
+        toolchain: stable
         targets: wasm32-unknown-unknown
-        components: rustfmt, clippy
     - name: cache cargo
-      uses: Swatinem/rust-cache@v2
-    - name: install wasm-bindgen-cli
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+    - name: wasm-bindgen version
+      id: wasm-bindgen
       shell: bash
       # Must match the wasm-bindgen crate in Cargo.lock exactly (npm/build.mjs checks).
       run: |
-        version=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/"/, "", $3); print $3 }' Cargo.lock)
-        if [ "$(wasm-bindgen --version 2>/dev/null | cut -d' ' -f2)" != "$version" ]; then
-          cargo install wasm-bindgen-cli --version "=$version" --locked
-        fi
+        echo "version=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/"/, "", $3); print $3 }' Cargo.lock)" >> "$GITHUB_OUTPUT"
+    - name: install wasm-bindgen-cli
+      uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+      with:
+        tool: wasm-bindgen@${{ steps.wasm-bindgen.outputs.version }}
     - name: install binaryen (wasm-opt)
       shell: bash
       run: sudo apt-get install -y binaryen
     - name: setup pnpm
-      uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+      uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
     - name: setup node
-      uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version-file: .node-version
         cache: pnpm

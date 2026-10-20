@@ -2,6 +2,8 @@
 
 use crate::shared::*;
 
+// TS: the spec file's top-level `describe` block has the file's name.
+#[allow(clippy::module_inception)]
 mod requires_scopes {
     use super::*;
 

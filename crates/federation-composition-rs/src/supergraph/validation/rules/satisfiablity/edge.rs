@@ -57,6 +57,8 @@ pub fn is_entity_edge(edge: &Edge<'_>) -> bool {
 }
 
 /// `assertEntityEdge(edge)`. Takes the graph to print the edge (`${edge}`) in the error.
+// TS: defined here and never called in `src/` either.
+#[allow(dead_code)]
 pub fn assert_entity_edge(graph: &Graph<'_>, edge: EdgeId) -> JsResult<()> {
     if !is_entity_edge(graph.edge(edge)) {
         return Err(JsError::error(format!(
@@ -133,7 +135,7 @@ impl<'s> Edge<'s> {
             }
             other => Err(JsError::error(format!(
                 "Expected move to be FieldMove, but got {}",
-                other.to_string()
+                other
             ))),
         }
     }

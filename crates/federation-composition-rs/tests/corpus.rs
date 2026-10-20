@@ -11,9 +11,11 @@
 //! Writes every mismatch to `target/corpus-mismatches.jsonl` and the counts to
 //! `target/corpus-summary.json`.
 
-use federation_composition_rs::compose::{compose_services, CompositionResult};
-use federation_composition_rs::subgraph::validation::validate_subgraph::InternalOptions;
-use federation_composition_rs::types::ServiceDefinition;
+use federation_composition_rs::__internal::compose::compose_services;
+use federation_composition_rs::__internal::subgraph::validation::validate_subgraph::InternalOptions;
+use federation_composition_rs::__internal::utils::js::JsError;
+use federation_composition_rs::CompositionResult;
+use federation_composition_rs::ServiceDefinition;
 use graphql_rs::Document;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -60,11 +62,11 @@ fn run(case: &Case) -> Value {
     match compose_services(&services, internal.as_ref()) {
         Err(thrown) => json!({ "thrown": thrown.to_js_string() }),
         Ok(CompositionResult::Failure(failure)) => json!({
-            "errors": failure.errors.iter().map(|e| json!({ "message": e.message, "code": e.code() })).collect::<Vec<_>>()
+            "errors": failure.errors().iter().map(|e| json!({ "message": e.message, "code": e.code() })).collect::<Vec<_>>()
         }),
         Ok(CompositionResult::Success(success)) => json!({
             "supergraphSdl": success.supergraph_sdl(),
-            "publicSdl": match success.public_sdl() { Ok(sdl) => json!(sdl), Err(e) => json!({ "thrown": e.to_js_string() }) },
+            "publicSdl": match success.public_sdl() { Ok(sdl) => json!(sdl), Err(e) => json!({ "thrown": JsError::from(e).to_js_string() }) },
         }),
     }
 }

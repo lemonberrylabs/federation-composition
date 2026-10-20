@@ -105,6 +105,8 @@ impl<'s> Supergraph<'s> {
     }
 
     /// The merged graph (resolves the edges of `WalkTracker::paths`).
+    // TS: only `validateOperation` reads it.
+    #[allow(dead_code)]
     pub fn merged_graph(&self) -> &Rc<Graph<'s>> {
         &self.merged_graph
     }
@@ -120,6 +122,8 @@ impl<'s> Supergraph<'s> {
         .walk(WalkMethod::Dfs)
     }
 
+    // TS: defined here and never called in `src/` either.
+    #[allow(dead_code)]
     pub fn validate_operation(&self, operation: OperationType, steps: &[Step]) -> JsResult<WalkTracker<'s>> {
         Walker::new(
             &self.logger,

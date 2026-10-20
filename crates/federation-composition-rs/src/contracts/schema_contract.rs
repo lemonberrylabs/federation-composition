@@ -20,7 +20,7 @@ pub fn compose_schema_contract(
     // `!compositionResult.errors && compositionResult.supergraphDocumentNode && removeUnreachableTypes`
     if let CompositionResult::Success(success) = &composition_result {
         if remove_unreachable_types {
-            let link_implementations = extract_link_implementations(&success.supergraph_document_node)?;
+            let link_implementations = extract_link_implementations(success.supergraph_document_node())?;
             let resolve_import_name =
                 |identity: &str, name: &str| link_implementations.resolve_import_name(identity, name);
             return Ok(CompositionResult::Success(add_inaccessible_to_unreachable_types(

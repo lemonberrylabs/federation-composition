@@ -1,0 +1,68 @@
+# Releases of the Rust crates with release-plz (release-plz.toml; CONTRIBUTING.md, "Releasing").
+# On each push to main, `release-pr` opens or updates the release pull request (version bumps,
+# changelogs, cargo-semver-checks against the last published versions). When that pull request
+# is merged, `release` tags each bumped crate, creates its GitHub release and publishes
+# graphql-rs and federation-composition-rs to crates.io; the tag of federation-composition-wasm
+# triggers npm-publish.yml.
+#
+# Off until the owner turns it on: both jobs run only when the repository variable
+# RELEASE_ENABLED is "true", and publishing needs the CARGO_REGISTRY_TOKEN secret.
+name: Release-plz
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  release:
+    name: Release
+    if: vars.RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # tags and GitHub releases
+      pull-requests: read # finds the merged release pull request
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (2026-10-16)
+        with:
+          toolchain: stable
+      - name: release-plz release
+        uses: release-plz/action@6caa8d34f74d82b0dc76a18edd1cc3d6801c9baf # v0.5.143
+        with:
+          command: release
+        env:
+          # A tag pushed with GITHUB_TOKEN does not trigger other workflows, so npm-publish.yml
+          # would not run on it; RELEASE_PLZ_TOKEN (a fine-grained token with contents: write)
+          # makes the tag push trigger it. Without it, run npm-publish.yml by hand.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  release-pr:
+    name: Release pull request
+    if: vars.RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # pushes the release branch
+      pull-requests: write # opens and updates the release pull request
+    concurrency:
+      group: release-plz-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (2026-10-16)
+        with:
+          toolchain: stable
+      - name: release-plz release-pr
+        uses: release-plz/action@6caa8d34f74d82b0dc76a18edd1cc3d6801c9baf # v0.5.143
+        with:
+          command: release-pr
+        env:
+          # With GITHUB_TOKEN, CI does not run on the release pull request; RELEASE_PLZ_TOKEN
+          # (see above) makes it run.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}

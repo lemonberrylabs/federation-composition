@@ -2,7 +2,8 @@
 
 use crate::shared::*;
 
-use federation_composition_rs::validate::{validate, ValidationResult};
+use federation_composition_rs::__internal::validate::validate;
+use federation_composition_rs::ValidationResult;
 use graphql_rs::Definition;
 
 fn service_a() -> ServiceDefinition {
@@ -69,7 +70,7 @@ mod test_to_validate_custom_root_query_is_treated_as_query {
             panic!("Validation failed");
         };
 
-        let supergraph = &validation_result.supergraph;
+        let supergraph = validation_result.supergraph();
 
         let has_custom_root_query_as_object_type = supergraph.iter().any(|def| {
             matches!(def, Definition::ObjectTypeDefinition(def)
@@ -85,7 +86,9 @@ mod test_to_validate_custom_root_query_is_treated_as_query {
 
         // Ensure composition was successful
         // (the library's `assertCompositionSuccess` from `src/compose.ts`, not the testkit's)
-        if let Err(error) = federation_composition_rs::compose::assert_composition_success(&composition_result, None) {
+        if let Err(error) =
+            federation_composition_rs::__internal::compose::assert_composition_success(&composition_result, None)
+        {
             panic!("{}", error.to_js_string());
         }
 

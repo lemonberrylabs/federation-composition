@@ -1,0 +1,52 @@
+# cargo-deny configuration (https://embarkstudios.github.io/cargo-deny/), run by CI as
+# `cargo deny check`: licenses, security advisories, banned or duplicate crates, and sources.
+
+[graph]
+# Check every feature (the optional mimalloc allocator of the benchmarks included) and every
+# target (the wasm32 build's allocator and wasm-bindgen included).
+all-features = true
+
+[advisories]
+# Every advisory in the RustSec database that affects a crate in Cargo.lock is an error,
+# unmaintained and unsound crates included. An exception goes in `ignore` with its reason:
+#   ignore = [{ id = "RUSTSEC-0000-0000", reason = "..." }]
+unmaintained = "all"
+yanked = "deny"
+ignore = []
+
+[licenses]
+# The licenses of the crates in the dependency tree today. A new dependency under another
+# license fails the check; add the license here only after confirming it is compatible with
+# distributing this MIT-licensed project.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Unicode-3.0", # unicode-ident (proc-macro dependency of serde_derive and wasm-bindgen)
+  "Zlib",        # foldhash (hashbrown's default hasher, through indexmap)
+]
+confidence-threshold = 0.93
+# Unused entries in `allow` are an error, so the list stays the set actually in use.
+unused-allowed-license = "deny"
+
+[licenses.private]
+# The workspace's own crates are checked like any other (they are MIT).
+ignore = false
+
+[bans]
+# Two versions of one crate in the tree is a warning, not an error: it only costs build time.
+multiple-versions = "warn"
+wildcards = "deny"
+# Path dependencies between the workspace's crates carry a version (needed to publish), so no
+# wildcard exception is needed for them.
+allow-wildcard-paths = false
+highlight = "all"
+deny = [
+  # The wasm32 build must not need a source of randomness (crates/PORTING.md).
+  { crate = "getrandom", reason = "the WebAssembly build has no source of randomness" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

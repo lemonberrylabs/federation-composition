@@ -42,12 +42,19 @@ pub struct LinkWithGraph {
 /// `SupergraphState["specs"]`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SupergraphSpecs {
+    /// `@tag` is used.
     pub tag: bool,
+    /// `@context` is used.
     pub context: bool,
+    /// `@cost`/`@listSize` usage and names.
     pub cost: CostSpec,
+    /// `@inaccessible` is used.
     pub inaccessible: bool,
+    /// `@authenticated` is used.
     pub authenticated: bool,
+    /// `@requiresScopes` is used.
     pub requires_scopes: bool,
+    /// `@policy` is used.
     pub policy: bool,
 }
 
@@ -139,6 +146,8 @@ impl SupergraphStateBuilder {
         Ok(())
     }
 
+    // TS: defined here and never called in `src/` either.
+    #[allow(dead_code)]
     pub fn get_graph(&self, id: &str) -> Option<&Rc<SubgraphState>> {
         self.state.subgraphs.get(id)
     }
@@ -277,6 +286,8 @@ impl SupergraphStateBuilder {
         &mut self.state
     }
 
+    // TS: defined here and never called in `src/` either.
+    #[allow(dead_code)]
     pub fn get_subgraph_state(&self, graph_id: &str) -> Option<&Rc<SubgraphState>> {
         self.subgraph_states.get(graph_id)
     }

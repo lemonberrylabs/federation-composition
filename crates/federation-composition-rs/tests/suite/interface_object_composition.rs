@@ -2,6 +2,8 @@
 
 use crate::shared::*;
 
+// TS: the spec file's top-level `describe` block has the file's name.
+#[allow(clippy::module_inception)]
 mod interface_object_composition {
     use super::*;
 
@@ -36,7 +38,7 @@ mod interface_object_composition {
           "#).unwrap()),
             ]);
 
-            federation_composition_rs::compose::assert_composition_failure(&result, None).unwrap();
+            federation_composition_rs::__internal::compose::assert_composition_failure(&result, None).unwrap();
 
             assert_errors_contain(result.errors(), &[ErrorMatcher::new()
                 .message(r#"[b] Unknown directive "@interfaceObject". If you meant the "@interfaceObject" federation 2 directive, note that this schema is a federation 1 schema. To be a federation 2 schema, it needs to @link to the federation specification v2."#)
@@ -83,7 +85,7 @@ mod interface_object_composition {
           "#).unwrap()),
             ]);
 
-            federation_composition_rs::compose::assert_composition_failure(&result, None).unwrap();
+            federation_composition_rs::__internal::compose::assert_composition_failure(&result, None).unwrap();
 
             to_match_inline_snapshot(result.errors(), r#"
         [
@@ -150,7 +152,7 @@ mod interface_object_composition {
           "#).unwrap()),
             ]);
 
-            federation_composition_rs::compose::assert_composition_success(&result, None).unwrap();
+            federation_composition_rs::__internal::compose::assert_composition_success(&result, None).unwrap();
 
             to_contain_graphql(result.supergraph_sdl(), r#"
         interface MyInterface
@@ -213,7 +215,7 @@ mod interface_object_composition {
           "#).unwrap()),
             ]);
 
-            federation_composition_rs::compose::assert_composition_success(&result, None).unwrap();
+            federation_composition_rs::__internal::compose::assert_composition_success(&result, None).unwrap();
         }
 
         fn target_interface_must_have_key_directive_on_subgraph_where_it_s_defined(api) {
@@ -256,7 +258,7 @@ mod interface_object_composition {
           "#).unwrap()),
             ]);
 
-            federation_composition_rs::compose::assert_composition_success(&result, None).unwrap();
+            federation_composition_rs::__internal::compose::assert_composition_success(&result, None).unwrap();
         }
 
         // Subgraph A must define every entity type in your entire supergraph that implements MyInterface.
@@ -304,7 +306,7 @@ mod interface_object_composition {
           "#).unwrap()),
             ]);
 
-            federation_composition_rs::compose::assert_composition_failure(&result, None).unwrap();
+            federation_composition_rs::__internal::compose::assert_composition_failure(&result, None).unwrap();
 
             assert_errors_contain(result.errors(), &[ErrorMatcher::new()
                 .message(r#"[b] Cannot implement non-interface type MyInterface (of type ObjectType)"#)
@@ -349,7 +351,7 @@ mod interface_object_composition {
               "#).unwrap()),
                     ]);
 
-                    federation_composition_rs::compose::assert_composition_failure(&result, None).unwrap();
+                    federation_composition_rs::__internal::compose::assert_composition_failure(&result, None).unwrap();
 
                     assert_errors_contain(result.errors(), &[ErrorMatcher::new()
                         .message(r#"Type "MyInterface" is declared with @interfaceObject in all the subgraphs in which is is defined"#)
@@ -396,7 +398,7 @@ mod interface_object_composition {
               "#).unwrap()),
                     ]);
 
-                    federation_composition_rs::compose::assert_composition_failure(&result, None).unwrap();
+                    federation_composition_rs::__internal::compose::assert_composition_failure(&result, None).unwrap();
 
                     assert_errors_contain(result.errors(), &[ErrorMatcher::new()
                         .message(r#"[b] The @interfaceObject directive can only be applied to entity types but type "MyInterface" has no @key in this subgraph."#)
@@ -444,7 +446,7 @@ mod interface_object_composition {
               "#).unwrap()),
                     ]);
 
-                    federation_composition_rs::compose::assert_composition_success(&result, None).unwrap();
+                    federation_composition_rs::__internal::compose::assert_composition_success(&result, None).unwrap();
 
                     to_contain_graphql(result.supergraph_sdl(), r#"
             type IimplementMyInterface implements MyInterface
@@ -508,7 +510,7 @@ mod interface_object_composition {
               "#).unwrap()),
                     ]);
 
-                    federation_composition_rs::compose::assert_composition_success(&result, None).unwrap();
+                    federation_composition_rs::__internal::compose::assert_composition_success(&result, None).unwrap();
                 }
             }
         }
@@ -573,7 +575,7 @@ mod interface_object_composition {
               "#).unwrap()),
                     ]);
 
-                    federation_composition_rs::compose::assert_composition_success(&result, None).unwrap();
+                    federation_composition_rs::__internal::compose::assert_composition_success(&result, None).unwrap();
 
                     to_contain_graphql(result.supergraph_sdl(), r#"
             type IimplementMyInterface implements MyInterface

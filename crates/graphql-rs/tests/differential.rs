@@ -4,7 +4,6 @@
 
 use std::sync::OnceLock;
 
-use graphql_rs::specified::{specified_scalar_types, CoercedLiteral, INTROSPECTION_TYPE_NAMES};
 use graphql_rs::*;
 use serde_json::Value as Json;
 
@@ -1049,7 +1048,7 @@ fn scalar_literal_coercion() {
     let mut failures = Vec::new();
     let cases = corpus()["coercion"].as_array().unwrap();
     for case in cases {
-        let scalar = graphql_rs::specified::specified_scalar_type(s(&case["scalar"])).unwrap();
+        let scalar = graphql_rs::specified_scalar_type(s(&case["scalar"])).unwrap();
         let value = parse_value(s(&case["text"])).unwrap();
         let ours = scalar.coerce_input_literal(&value);
         let ok = match (&ours, case.get("result"), case.get("error")) {

@@ -19,9 +19,13 @@ use crate::collections::IndexMap;
 /// value may be missing.
 #[derive(Clone, Debug, PartialEq)]
 pub enum JsValue {
+    /// `null`.
     Null,
+    /// A boolean.
     Boolean(bool),
+    /// A number.
     Number(f64),
+    /// A string.
     String(String),
     /// A JS array.
     List(Vec<JsValue>),

@@ -2,7 +2,7 @@
 
 use crate::shared::*;
 
-use federation_composition_rs::contracts::tag_extraction::{
+use federation_composition_rs::__internal::contracts::tag_extraction::{
     apply_tag_filter_on_subgraphs, apply_tag_filter_to_inaccessible_transform_on_subgraph_schema,
     build_schema_coordinate_tag_register, SchemaCoordinateToTagsRegistry, TagFilterTransformResult,
 };

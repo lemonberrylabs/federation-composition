@@ -40,17 +40,6 @@ pub fn print<'a>(node: impl Into<NodeRef<'a>>) -> String {
     printer.out
 }
 
-/// `print(node)` for an optional node.
-pub fn print_opt<'a, N: 'a>(node: Option<&'a N>) -> String
-where
-    &'a N: Into<NodeRef<'a>>,
-{
-    match node {
-        Some(n) => print(n),
-        None => String::new(),
-    }
-}
-
 /// The output buffer and the number of `indent` calls the text being written is inside.
 #[derive(Default)]
 struct Printer {

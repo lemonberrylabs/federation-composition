@@ -1,29 +1,41 @@
 //! graphql-js `DirectiveLocation`.
 
 use std::fmt;
+use std::str::FromStr;
+
+use crate::ast::UnknownName;
 
 macro_rules! directive_locations {
     ($( $variant:ident = $s:literal ),* $(,)?) => {
+        /// graphql-js `DirectiveLocation`: where a directive may appear.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         pub enum DirectiveLocation {
-            $( $variant, )*
+            $(
+                #[doc = concat!("`", $s, "`.")]
+                $variant,
+            )*
         }
 
         impl DirectiveLocation {
             /// All locations, in graphql-js declaration order.
             pub const ALL: &'static [DirectiveLocation] = &[ $( DirectiveLocation::$variant, )* ];
 
+            /// The location's name, e.g. `"FIELD_DEFINITION"`.
             pub fn as_str(self) -> &'static str {
                 match self {
                     $( DirectiveLocation::$variant => $s, )*
                 }
             }
+        }
 
-            #[allow(clippy::should_implement_trait)]
-            pub fn from_str(s: &str) -> Option<Self> {
+        impl FromStr for DirectiveLocation {
+            type Err = UnknownName;
+
+            /// The location named `s`, e.g. `"FIELD_DEFINITION"`.
+            fn from_str(s: &str) -> Result<Self, UnknownName> {
                 match s {
-                    $( $s => Some(DirectiveLocation::$variant), )*
-                    _ => None,
+                    $( $s => Ok(DirectiveLocation::$variant), )*
+                    _ => Err(UnknownName::new("directive location", s)),
                 }
             }
         }

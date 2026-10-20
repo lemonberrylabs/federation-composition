@@ -362,6 +362,8 @@ fn parse_default_value(default_value: &str) -> Value {
     graphql_rs::parse_value(default_value).expect("printed default values parse")
 }
 
+// TS: `isValidateDefaultValue` takes `reportError` and only passes it on.
+#[allow(clippy::only_used_in_recursion)]
 fn is_validate_default_value(
     state: &SubgraphState,
     report_error: ReportErrorFn<'_>,
@@ -402,8 +404,8 @@ fn is_validate_default_value(
     }
 
     if SPECIFIED_SCALARS.contains(&input_type_name) {
-        let specified_scalar = graphql_rs::specified::specified_scalar_type(&input_type_name)
-            .expect("specifiedScalarTypes contains the name");
+        let specified_scalar =
+            graphql_rs::specified_scalar_type(&input_type_name).expect("specifiedScalarTypes contains the name");
 
         // graphql-js 17 keeps legacy coercion in parseLiteral; its strict replacement
         // is unavailable in graphql-js 16, which we continue to support.
@@ -921,6 +923,8 @@ pub fn is_union_type(ty: &SubgraphType) -> bool {
     ty.kind() == TypeKind::Union
 }
 
+// TS: used by `validate-state.ts`; the ported callers do not need it.
+#[allow(dead_code)]
 pub fn is_directive(ty: &SubgraphType) -> bool {
     ty.kind() == TypeKind::Directive
 }

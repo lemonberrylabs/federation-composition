@@ -600,6 +600,8 @@ pub fn named_type_from_type_node(ty: &Type) -> &NamedType {
 }
 
 /// `isDirectiveDefinitionNode(node)`.
+// TS: used by `compose-directive.ts`; the ported callers do not need it.
+#[allow(dead_code)]
 pub fn is_directive_definition_node(node: graphql_rs::NodeRef<'_>) -> bool {
     node.kind() == Kind::DirectiveDefinition
 }

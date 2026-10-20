@@ -12,7 +12,7 @@
 //!   returned as bytes too, which the shim decodes only when it is read.
 //!   Small arguments and other results are strings.
 //! * A function that throws in TypeScript returns `Err` with a JSON string,
-//!   [`ThrownError`], which the shim rethrows as `Error` (or `TypeError`...) or
+//!   `ThrownError`, which the shim rethrows as `Error` (or `TypeError`...) or
 //!   `GraphQLError`. A JS exception thrown by a callback passed in (such as
 //!   `resolveName`) is rethrown unchanged.
 //! * A Rust panic traps the instance. The panic hook records the payload
@@ -107,9 +107,9 @@ impl ThrownError {
     }
 }
 
-impl From<federation_composition_rs::utils::js::JsError> for ThrownError {
-    fn from(e: federation_composition_rs::utils::js::JsError) -> Self {
-        use federation_composition_rs::utils::js::JsError;
+impl From<federation_composition_rs::__internal::utils::js::JsError> for ThrownError {
+    fn from(e: federation_composition_rs::__internal::utils::js::JsError) -> Self {
+        use federation_composition_rs::__internal::utils::js::JsError;
         match e {
             JsError::Error { name, message } => ThrownError::Error {
                 name: name.to_owned(),
@@ -120,9 +120,10 @@ impl From<federation_composition_rs::utils::js::JsError> for ThrownError {
     }
 }
 
-/// A crate `JsError` as the value the shim rethrows.
-pub(crate) fn thrown(e: federation_composition_rs::utils::js::JsError) -> JsValue {
-    ThrownError::from(e).into()
+/// A thrown error of the library (its `JsError`, or the public `Error` that wraps one) as the
+/// value the shim rethrows.
+pub(crate) fn thrown(e: impl Into<federation_composition_rs::__internal::utils::js::JsError>) -> JsValue {
+    ThrownError::from(e.into()).into()
 }
 
 impl From<ThrownError> for JsValue {

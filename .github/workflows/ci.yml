@@ -1,0 +1,226 @@
+# The Rust checks: formatting, lints, tests on Linux, macOS and Windows, the minimum supported
+# Rust version, docs, the WebAssembly build and the npm package, cargo-deny and the crates.io
+# packages. Upstream conformance is .github/workflows/conformance.yml.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (2026-10-16)
+        with:
+          toolchain: stable
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (2026-10-16)
+        with:
+          toolchain: stable
+          components: clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: clippy (native, all targets)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: clippy (wasm32 bindings)
+        run: cargo clippy -p federation-composition-wasm --target wasm32-unknown-unknown -- -D warnings
+
+  # graphql-rs's differential tests compare against corpora generated from graphql-js and from
+  # the compositions upstream's test suite performs (CONTRIBUTING.md). They are generated once
+  # here, from upstream at the release in UPSTREAM, and shared with the test jobs.
+  corpora:
+    name: graphql-js corpora
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - name: check out upstream and record its compositions
+        run: pnpm conformance --only=capture
+      - name: generate the corpora
+        run: |
+          node crates/graphql-rs/tests/gen-corpus.mjs
+          node crates/graphql-rs/tests/gen-schema-corpus.mjs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: graphql-rs-corpora
+          path: |
+            crates/graphql-rs/tests/corpus.json
+            crates/graphql-rs/tests/schema-corpus.json
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    name: test (${{ matrix.os }})
+    needs: corpora
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      # cargo build must have no warnings.
+      RUSTFLAGS: -D warnings
+    steps:
+      # The fixtures and the expected outputs are compared byte for byte: keep LF line endings.
+      - name: keep LF line endings
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (2026-10-16)
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: graphql-rs-corpora
+          path: crates/graphql-rs/tests
+      - run: cargo build --workspace --all-targets
+      - run: cargo test --workspace
+
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: read rust-version
+        id: msrv
+        run: echo "version=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (2026-10-16)
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: check (native, all targets)
+        run: cargo check --locked --workspace --all-targets
+      - name: check (wasm32 bindings)
+        run: cargo check --locked -p federation-composition-wasm --target wasm32-unknown-unknown
+
+  doc:
+    name: docs
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (2026-10-16)
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo doc --workspace --no-deps
+
+  wasm:
+    name: wasm32 build and npm package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: build for wasm32
+        run: cargo build --release --target wasm32-unknown-unknown --workspace
+      - name: build the npm package
+        run: pnpm wasm:build
+      - name: npm package tests
+        run: pnpm test:npm
+      - name: pack
+        working-directory: npm
+        run: pnpm pack --pack-destination "$RUNNER_TEMP/pack"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-package
+          path: ${{ runner.temp }}/pack/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  # The packed tarball, installed on its own as a user installs it, with each supported major
+  # of the graphql peer dependency.
+  npm-package:
+    name: npm package (Node ${{ matrix.node }}, graphql ${{ matrix.graphql }})
+    needs: wasm
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+        graphql: [16, 17]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-package
+          path: ${{ runner.temp }}/pack
+      - name: install the tarball and run the smoke test
+        run: .github/scripts/npm-smoke.sh "$RUNNER_TEMP"/pack/*.tgz "${{ matrix.graphql }}"
+
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
+
+  package:
+    name: crates.io packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (2026-10-16)
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # Packages every crate and builds each from its packaged files alone, against the other
+      # packaged crates (federation-composition-wasm is packaged only as a check: it is
+      # publish = false and ships in the npm package).
+      - name: cargo package
+        run: cargo package --workspace --locked
+      - name: package contents and sizes
+        run: |
+          for crate in target/package/*.crate; do
+            echo "$crate: $(du -h "$crate" | cut -f1), $(tar -tzf "$crate" | wc -l) files"
+          done

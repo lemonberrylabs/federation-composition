@@ -43,6 +43,8 @@ fn leading_whitespace(s: &str) -> usize {
 }
 
 /// graphql-js `isPrintableAsBlockString`.
+// graphql-js: exported by `language/blockString`; nothing in the port calls it.
+#[allow(dead_code)]
 pub fn is_printable_as_block_string(value: &str) -> bool {
     if value.is_empty() {
         return true;

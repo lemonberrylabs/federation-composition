@@ -3,6 +3,7 @@
 //! `Move` is an interface with three classes; here it is an enum. `instanceof FieldMove` is
 //! `matches!(m, Move::Field(_))`.
 
+use std::fmt;
 use std::rc::Rc;
 
 use super::contexts::ContextMask;
@@ -17,33 +18,21 @@ pub enum Move {
 }
 
 impl Move {
-    /// `toString()`.
-    pub fn to_string(&self) -> String {
-        match self {
-            Move::Field(m) => m.to_string(),
-            Move::Abstract(m) => m.to_string(),
-            Move::Entity(m) => m.to_string(),
-        }
-    }
-
     pub fn as_field(&self) -> Option<&FieldMove> {
         match self {
             Move::Field(m) => Some(m),
             _ => None,
         }
     }
+}
 
-    pub fn as_abstract(&self) -> Option<&AbstractMove> {
+impl fmt::Display for Move {
+    /// `toString()`.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Move::Abstract(m) => Some(m),
-            _ => None,
-        }
-    }
-
-    pub fn as_entity(&self) -> Option<&EntityMove> {
-        match self {
-            Move::Entity(m) => Some(m),
-            _ => None,
+            Move::Field(m) => m.fmt(f),
+            Move::Abstract(m) => m.fmt(f),
+            Move::Entity(m) => m.fmt(f),
         }
     }
 }
@@ -91,34 +80,36 @@ impl FieldMove {
             required_contexts,
         }
     }
+}
 
+impl fmt::Display for FieldMove {
     /// `toString()` (lazy in TS). Used for logging and for the `debugPostFix` of duplicated nodes.
-    pub fn to_string(&self) -> String {
-        let mut str = self.field_name.clone();
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.field_name)?;
 
         if let Some(requires) = &self.requires {
-            str += &format!(" @require({})", requires.to_string());
+            write!(f, " @require({requires})")?;
         }
 
         if let Some(provides) = &self.provides {
-            str += &format!(" @provides({})", provides.to_string());
+            write!(f, " @provides({provides})")?;
         }
 
         if self.provided {
-            str += " @provided";
+            f.write_str(" @provided")?;
         }
 
         if let Some(r#override) = &self.r#override {
             // `${null}` is "null".
-            str += &format!(" @override(label: {}", r#override.label.as_deref().unwrap_or("null"));
-            str += &format!(", on: {})", r#override.value);
+            write!(f, " @override(label: {}", r#override.label.as_deref().unwrap_or("null"))?;
+            write!(f, ", on: {})", r#override.value)?;
         }
 
         if !self.required_contexts.is_zero() {
-            str += &format!(" @fromContext(mask: {})", self.required_contexts);
+            write!(f, " @fromContext(mask: {})", self.required_contexts)?;
         }
 
-        str
+        Ok(())
     }
 }
 
@@ -132,11 +123,14 @@ impl AbstractMove {
     pub fn new(key_fields: Option<Rc<Selection>>) -> Self {
         AbstractMove { key_fields }
     }
+}
 
-    pub fn to_string(&self) -> String {
+impl fmt::Display for AbstractMove {
+    /// `toString()`.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.key_fields {
-            Some(k) => format!("🔮 🔑 {}", k.to_string()),
-            None => "🔮".to_string(),
+            Some(k) => write!(f, "🔮 🔑 {k}"),
+            None => f.write_str("🔮"),
         }
     }
 }
@@ -151,9 +145,12 @@ impl EntityMove {
     pub fn new(key_fields: Rc<Selection>) -> Self {
         EntityMove { key_fields }
     }
+}
 
-    pub fn to_string(&self) -> String {
-        format!("🔑 {}", self.key_fields.to_string())
+impl fmt::Display for EntityMove {
+    /// `toString()`.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "🔑 {}", self.key_fields)
     }
 }
 

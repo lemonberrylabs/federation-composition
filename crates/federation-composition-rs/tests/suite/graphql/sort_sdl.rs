@@ -47,6 +47,8 @@ fn first_directive_name(directives: &[Directive]) -> Option<&str> {
     directives.first().map(|d| d.name.value.as_str())
 }
 
+// TS: the spec file's top-level `describe` block has the file's name.
+#[allow(clippy::module_inception)]
 mod sort_sdl {
     use super::*;
 

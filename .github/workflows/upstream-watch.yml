@@ -1,0 +1,62 @@
+# Weekly: when upstream's latest GitHub release is newer than UPSTREAM, runs the conformance
+# check against it (its failures are expected: they are the work) and opens or updates the issue
+# "Port upstream vX.Y.Z" (one per release, labelled `upstream-sync`) with the porting task: the
+# diff summary and diff of upstream's src/ and __tests__/ between the two releases, the upstream
+# tests failing on the npm package, the compositions whose output changed, and a link to
+# docs/upstream-sync.md. The logic is conformance/watch.mjs; run it locally with
+# `pnpm conformance:watch --dry-run`.
+name: Upstream watch
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      to:
+        description: "Upstream release tag to check (default: upstream's latest release)"
+        required: false
+        default: ""
+      dry_run:
+        description: Print the issue in the log instead of writing it
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: upstream-watch
+  cancel-in-progress: false
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  watch:
+    name: Watch upstream
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: watch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TO: ${{ inputs.to }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=(--issue)
+          if [ -n "$TO" ]; then args+=("--to=$TO"); fi
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          node conformance/watch.mjs "${args[@]}"
+      - name: upload the porting task
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: upstream-sync
+          path: |
+            conformance/out/issue.md
+            conformance/out/upstream.diff
+            conformance/out/summary.json
+            target/corpus-mismatches.jsonl
+          if-no-files-found: ignore
+          retention-days: 30

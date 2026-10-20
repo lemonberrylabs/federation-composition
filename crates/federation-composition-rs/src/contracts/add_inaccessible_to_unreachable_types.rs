@@ -41,7 +41,7 @@ pub fn add_inaccessible_to_unreachable_types(
 
     // then we apply the filter to the supergraph SDL (which is the source for the public api sdl)
     let supergraph_node = add_directive_on_types(AddDirectiveOnTypesArgs {
-        document_node: &composition_result.supergraph_document_node,
+        document_node: composition_result.supergraph_document_node(),
         excluded_type_names: &reachable_type_names,
         directive_name: &inaccessible_directive_name,
     });

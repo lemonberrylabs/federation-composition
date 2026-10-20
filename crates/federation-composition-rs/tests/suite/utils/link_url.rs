@@ -2,7 +2,7 @@
 
 use crate::shared::*;
 
-use federation_composition_rs::utils::link::link_url::{FederatedLinkUrl, SupportsVersion};
+use federation_composition_rs::{FederatedLinkUrl, SupportsVersion};
 
 mod federated_link_url {
     use super::*;
@@ -10,9 +10,9 @@ mod federated_link_url {
     /// The body of "fromUrl correctly parses the identity, name, and version".
     fn from_url_parses(url: &str, identity: &str, name: Option<&str>, version: Option<&str>) {
         let spec = FederatedLinkUrl::from_url(url).unwrap();
-        assert_eq!(spec.identity, identity);
-        assert_eq!(spec.name.as_deref(), name);
-        assert_eq!(spec.version.as_deref(), version);
+        assert_eq!(spec.identity(), identity);
+        assert_eq!(spec.name(), name);
+        assert_eq!(spec.version(), version);
     }
 
     #[test]
@@ -72,7 +72,10 @@ mod federated_link_url {
 
     #[test]
     fn from_url_errors_on_invalid_url_parses_the_identity_name_and_version() {
-        assert_throws(FederatedLinkUrl::from_url("spec.example.com"), Some("Invalid URL"));
+        assert_throws(
+            FederatedLinkUrl::from_url("spec.example.com").map_err(JsError::from),
+            Some("Invalid URL"),
+        );
     }
 
     /// `FederatedLinkUrl.fromUrl(url0).supports(FederatedLinkUrl.fromUrl(url1))`.

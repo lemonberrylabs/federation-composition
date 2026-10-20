@@ -4,8 +4,8 @@
 //! a document), `sortSDL` (the library's) and graphql-js `print`; then the printed strings are
 //! compared for equality or containment.
 
-use federation_composition_rs::sort_sdl;
-use federation_composition_rs::utils::js::JsError;
+use federation_composition_rs::__internal::graphql::sort_sdl::sort_sdl;
+use federation_composition_rs::__internal::utils::js::JsError;
 use graphql_rs::{Definition, Document};
 
 /// A value `toEqualGraphQL`/`toContainGraphQL` accept: a string, a `DocumentNode`, or a

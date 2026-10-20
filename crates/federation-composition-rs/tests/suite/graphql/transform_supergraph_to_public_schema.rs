@@ -9,6 +9,8 @@ fn print_public_schema(sdl: &Document) -> String {
     print(&transform_supergraph_to_public_schema(sdl).unwrap())
 }
 
+// TS: the spec file's top-level `describe` block has the file's name.
+#[allow(clippy::module_inception)]
 mod transform_supergraph_to_public_schema {
     use super::*;
 

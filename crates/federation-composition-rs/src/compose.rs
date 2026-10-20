@@ -1,6 +1,7 @@
 //! Port of `src/compose.ts`.
 
 use std::cell::OnceCell;
+use std::fmt;
 
 use graphql_rs::{parse, Definition, Document, GraphQLError};
 
@@ -14,6 +15,7 @@ use crate::subgraph::validation::validate_subgraph::InternalOptions;
 use crate::types::ServiceDefinition;
 use crate::utils::js::{JsError, JsResult};
 use crate::validate::{validate, ValidationResult};
+use crate::Error;
 
 /// `composeServices(services, __internal?)`.
 /// `Err` is a throw escaping the TS (`validate` and the parse of the core schema).
@@ -225,39 +227,130 @@ fn create_link_import_value(name: &str, alias: Option<&str>) -> String {
     }
 }
 
+/// The result of [`compose_services`](crate::compose_services) and
+/// [`compose_schema_contract`](crate::compose_schema_contract): upstream's
 /// `CompositionResult = CompositionFailure | CompositionSuccess`.
 #[derive(Debug)]
 pub enum CompositionResult {
+    /// The subgraphs do not compose; the errors say why.
     Failure(CompositionFailure),
+    /// The supergraph.
     Success(CompositionSuccess),
 }
 
-/// `CompositionFailure`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct CompositionFailure {
-    pub errors: Vec<GraphQLError>,
+impl CompositionResult {
+    /// `true` for [`CompositionResult::Success`].
+    pub fn is_success(&self) -> bool {
+        matches!(self, CompositionResult::Success(_))
+    }
+
+    /// The composition errors (upstream's `result.errors`), `None` on success.
+    pub fn errors(&self) -> Option<&[GraphQLError]> {
+        match self {
+            CompositionResult::Failure(failure) => Some(failure.errors()),
+            CompositionResult::Success(_) => None,
+        }
+    }
+
+    /// The supergraph SDL (upstream's `result.supergraphSdl`), `None` on failure.
+    pub fn supergraph_sdl(&self) -> Option<&str> {
+        self.as_success().map(CompositionSuccess::supergraph_sdl)
+    }
+
+    /// The success, `None` on failure.
+    pub fn as_success(&self) -> Option<&CompositionSuccess> {
+        match self {
+            CompositionResult::Success(success) => Some(success),
+            CompositionResult::Failure(_) => None,
+        }
+    }
+
+    /// The result as a `Result`, for `?` and the combinators of `Result`.
+    pub fn into_result(self) -> Result<CompositionSuccess, CompositionFailure> {
+        match self {
+            CompositionResult::Success(success) => Ok(success),
+            CompositionResult::Failure(failure) => Err(failure),
+        }
+    }
 }
 
-/// `CompositionSuccess`, as built by `createCompositionSuccessReadCacheContainer`: the SDL and
-/// public schema are computed on first access and cached (`OnceCell`).
+impl From<CompositionResult> for Result<CompositionSuccess, CompositionFailure> {
+    fn from(result: CompositionResult) -> Self {
+        result.into_result()
+    }
+}
+
+/// A composition that failed: upstream's `CompositionFailure`.
+///
+/// Each error is a [`GraphQLError`] with upstream's message and an `extensions.code` such as
+/// `FIELD_TYPE_MISMATCH` ([`GraphQLError::code`]), in upstream's order.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CompositionFailure {
+    pub(crate) errors: Vec<GraphQLError>,
+}
+
+impl CompositionFailure {
+    /// The composition errors (`errors`).
+    pub fn errors(&self) -> &[GraphQLError] {
+        &self.errors
+    }
+
+    /// The composition errors, owned.
+    pub fn into_errors(self) -> Vec<GraphQLError> {
+        self.errors
+    }
+}
+
+impl fmt::Display for CompositionFailure {
+    /// The error messages, one per line.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, error) in self.errors.iter().enumerate() {
+            if i > 0 {
+                f.write_str("\n")?;
+            }
+            f.write_str(&error.message)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for CompositionFailure {}
+
+/// A composed supergraph: upstream's `CompositionSuccess`, as built by
+/// `createCompositionSuccessReadCacheContainer`. The SDL and the public schema are computed on
+/// first access and cached.
 #[derive(Debug)]
 pub struct CompositionSuccess {
-    pub supergraph_document_node: Document,
+    supergraph_document_node: Document,
     supergraph_sdl: OnceCell<String>,
     public_document_node: OnceCell<Document>,
     public_sdl: OnceCell<String>,
 }
 
 impl CompositionSuccess {
-    /// The `supergraphSdl` getter: `print(supergraphDocumentNode)` (library printer).
+    /// The supergraph document (`supergraphDocumentNode`).
+    pub fn supergraph_document_node(&self) -> &Document {
+        &self.supergraph_document_node
+    }
+
+    /// The supergraph document, owned.
+    pub fn into_supergraph_document_node(self) -> Document {
+        self.supergraph_document_node
+    }
+
+    /// The supergraph SDL (the `supergraphSdl` getter): the supergraph document printed with
+    /// the library's printer.
     pub fn supergraph_sdl(&self) -> &str {
         self.supergraph_sdl
             .get_or_init(|| print(&self.supergraph_document_node))
     }
 
-    /// The `publicDocumentNode` getter. `transformSupergraphToPublicSchema` can throw.
-    /// A throw leaves the cache empty, so the next read tries again (as in TS).
-    pub fn public_document_node(&self) -> JsResult<&Document> {
+    /// The public schema (the `publicDocumentNode` getter): the supergraph without the
+    /// federation machinery and the `@inaccessible` elements.
+    ///
+    /// `Err` where upstream's `transformSupergraphToPublicSchema` throws. An error leaves the
+    /// cache empty, so the next call tries again, as in upstream.
+    pub fn public_document_node(&self) -> Result<&Document, Error> {
         if let Some(public_document_node) = self.public_document_node.get() {
             return Ok(public_document_node);
         }
@@ -265,8 +358,8 @@ impl CompositionSuccess {
         Ok(self.public_document_node.get_or_init(|| public_document_node))
     }
 
-    /// The `publicSdl` getter.
-    pub fn public_sdl(&self) -> JsResult<&str> {
+    /// The public schema's SDL (the `publicSdl` getter).
+    pub fn public_sdl(&self) -> Result<&str, Error> {
         if let Some(public_sdl) = self.public_sdl.get() {
             return Ok(public_sdl);
         }
@@ -300,13 +393,14 @@ pub fn assert_composition_failure(composition_result: &CompositionResult, messag
     Ok(())
 }
 
-/// `compositionHasErrors(compositionResult)`.
+/// Upstream's `compositionHasErrors(compositionResult)`: `true` for a failure.
 pub fn composition_has_errors(composition_result: &CompositionResult) -> bool {
     matches!(composition_result, CompositionResult::Failure(_))
 }
 
-/// `createCompositionSuccessReadCacheContainer(supergraphDocumentNode)`: only prints the SDL
-/// and builds the public document when requested.
+/// `createCompositionSuccessReadCacheContainer(supergraphDocumentNode)`: a
+/// [`CompositionSuccess`] for a supergraph document. It prints the SDL and builds the public
+/// schema only when they are requested.
 pub fn create_composition_success_read_cache_container(supergraph_document_node: Document) -> CompositionSuccess {
     CompositionSuccess {
         supergraph_document_node,
@@ -363,5 +457,30 @@ mod tests {
                 .to_js_string(),
             "Error: x"
         );
+    }
+
+    #[test]
+    fn result_accessors() {
+        let errors = vec![
+            GraphQLError::with_code("first", "A"),
+            GraphQLError::with_code("second", "B"),
+        ];
+        let failure = CompositionResult::Failure(CompositionFailure { errors: errors.clone() });
+        assert!(!failure.is_success());
+        assert_eq!(failure.errors(), Some(errors.as_slice()));
+        assert_eq!(failure.supergraph_sdl(), None);
+        assert!(failure.as_success().is_none());
+        let failure = failure.into_result().unwrap_err();
+        assert_eq!(failure.to_string(), "first\nsecond");
+        assert_eq!(failure.into_errors(), errors);
+
+        let document = parse("type Query { a: Int }").unwrap();
+        let success = CompositionResult::Success(create_composition_success_read_cache_container(document.clone()));
+        assert!(success.is_success());
+        assert_eq!(success.errors(), None);
+        assert_eq!(success.supergraph_sdl(), Some(print(&document).as_str()));
+        let success = Result::<CompositionSuccess, CompositionFailure>::from(success).unwrap();
+        assert_eq!(success.supergraph_document_node(), &document);
+        assert_eq!(success.into_supergraph_document_node(), document);
     }
 }

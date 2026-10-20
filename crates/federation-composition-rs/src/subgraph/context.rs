@@ -5,7 +5,9 @@
 /// The result of `parseContextReference`: both `None` is `notAReference`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ContextReference {
+    /// The context name, without the `$`.
     pub context: Option<String>,
+    /// The selection after the context name.
     pub selection: Option<String>,
 }
 

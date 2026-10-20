@@ -20,6 +20,7 @@
 
 use std::fmt;
 use std::marker::PhantomData;
+use std::str::FromStr;
 
 use serde::de::{self, IgnoredAny, MapAccess};
 use serde::ser::SerializeMap;
@@ -27,16 +28,56 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::visitor::{edit_list, edit_one, edit_opt, edit_scalar, EditVal};
 
+/// The error of the [`FromStr`] implementations of [`Kind`], [`OperationType`] and
+/// [`DirectiveLocation`](crate::DirectiveLocation): the string is not one of the type's names.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnknownName {
+    expected: &'static str,
+    found: String,
+}
+
+impl UnknownName {
+    /// `found` is not a name of `expected` (e.g. `"directive location"`).
+    pub fn new(expected: &'static str, found: impl Into<String>) -> Self {
+        UnknownName {
+            expected,
+            found: found.into(),
+        }
+    }
+
+    /// What the string should have named, e.g. `"operation type"`.
+    pub fn expected(&self) -> &'static str {
+        self.expected
+    }
+
+    /// The string that was parsed.
+    pub fn found(&self) -> &str {
+        &self.found
+    }
+}
+
+impl fmt::Display for UnknownName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\"{}\" is not a known {}", self.found, self.expected)
+    }
+}
+
+impl std::error::Error for UnknownName {}
+
 /// graphql-js `OperationTypeNode`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub enum OperationType {
+    /// `query`.
     #[default]
     Query,
+    /// `mutation`.
     Mutation,
+    /// `subscription`.
     Subscription,
 }
 
 impl OperationType {
+    /// The keyword: `"query"`, `"mutation"` or `"subscription"`.
     pub fn as_str(self) -> &'static str {
         match self {
             OperationType::Query => "query",
@@ -44,14 +85,18 @@ impl OperationType {
             OperationType::Subscription => "subscription",
         }
     }
+}
 
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for OperationType {
+    type Err = UnknownName;
+
+    /// The operation type of a keyword: `"query"`, `"mutation"` or `"subscription"`.
+    fn from_str(s: &str) -> Result<Self, UnknownName> {
         match s {
-            "query" => Some(OperationType::Query),
-            "mutation" => Some(OperationType::Mutation),
-            "subscription" => Some(OperationType::Subscription),
-            _ => None,
+            "query" => Ok(OperationType::Query),
+            "mutation" => Ok(OperationType::Mutation),
+            "subscription" => Ok(OperationType::Subscription),
+            _ => Err(UnknownName::new("operation type", s)),
         }
     }
 }
@@ -71,7 +116,7 @@ impl Serialize for OperationType {
 impl<'de> Deserialize<'de> for OperationType {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let s = ShortStr::deserialize(d)?;
-        OperationType::from_str(s.as_str()).ok_or_else(|| {
+        OperationType::from_str(s.as_str()).map_err(|_| {
             de::Error::invalid_value(
                 de::Unexpected::Str(s.as_str()),
                 &"\"query\", \"mutation\" or \"subscription\"",
@@ -164,7 +209,7 @@ impl<'de, T: KindDispatch> de::Visitor<'de> for DispatchVisitor<T> {
         if first.as_str() == "kind" {
             let kind = map.next_value::<ShortStr>()?;
             let kind = Kind::from_str(kind.as_str())
-                .ok_or_else(|| de::Error::invalid_value(de::Unexpected::Str(kind.as_str()), &T::EXPECTING))?;
+                .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(kind.as_str()), &T::EXPECTING))?;
             return T::from_map_with_kind(kind, map);
         }
         // `kind` is not the first key: buffer the object to find it.
@@ -179,13 +224,14 @@ impl<'de, T: KindDispatch> de::Visitor<'de> for DispatchVisitor<T> {
             _ => return Err(de::Error::missing_field("kind")),
         };
         let kind =
-            Kind::from_str(&kind).ok_or_else(|| de::Error::invalid_value(de::Unexpected::Str(&kind), &T::EXPECTING))?;
+            Kind::from_str(&kind).map_err(|_| de::Error::invalid_value(de::Unexpected::Str(&kind), &T::EXPECTING))?;
         T::from_value_with_kind(kind, serde_json::Value::Object(object)).map_err(de::Error::custom)
     }
 }
 
 /// Borrowed access to a node as a [`NodeRef`].
 pub trait AsNodeRef {
+    /// The node, borrowed.
     fn as_node_ref(&self) -> NodeRef<'_>;
 }
 
@@ -210,6 +256,7 @@ impl<T: FromNode> FromNode for Box<T> {
 
 /// Element types of AST lists, viewable as a [`ListRef`].
 pub trait ListElem: Sized {
+    /// The slice as a [`ListRef`].
     fn list_ref(items: &[Self]) -> ListRef<'_>;
 }
 
@@ -218,7 +265,9 @@ pub trait ListElem: Sized {
 pub enum SlotRef<'a> {
     /// Not a node field, or an absent optional node.
     Absent,
+    /// A node field.
     One(NodeRef<'a>),
+    /// A list field.
     Many(ListRef<'a>),
 }
 
@@ -377,10 +426,15 @@ macro_rules! define_nodes {
             $(#[$meta])*
             #[derive(Clone, Debug, PartialEq, Default)]
             pub struct $name {
-                $( $(#[$fmeta])* pub $field: $fty, )*
+                $(
+                    #[doc = concat!("graphql-js `", $kind, "Node.", $key, "`.")]
+                    $(#[$fmeta])*
+                    pub $field: $fty,
+                )*
             }
 
             impl $name {
+                /// The node's kind.
                 pub const KIND: Kind = Kind::$name;
 
                 /// The node's fields with their graphql-js keys, in visiting order.
@@ -479,7 +533,10 @@ macro_rules! define_nodes {
         /// graphql-js `Kind`: the `kind` of every AST node.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         pub enum Kind {
-            $( $name, )*
+            $(
+                #[doc = concat!("`", $kind, "`.")]
+                $name,
+            )*
         }
 
         impl Kind {
@@ -490,37 +547,49 @@ macro_rules! define_nodes {
                 }
             }
 
-            #[allow(clippy::should_implement_trait)]
-            pub fn from_str(s: &str) -> Option<Kind> {
-                match s {
-                    $( $kind => Some(Kind::$name), )*
-                    _ => None,
-                }
-            }
-
             /// All kinds, in graphql-js `Kind` order.
             pub const ALL: &'static [Kind] = &[ $( Kind::$name, )* ];
+        }
+
+        impl FromStr for Kind {
+            type Err = UnknownName;
+
+            /// The kind of a graphql-js `Kind` string, e.g. `"FieldDefinition"`.
+            fn from_str(s: &str) -> Result<Kind, UnknownName> {
+                match s {
+                    $( $kind => Ok(Kind::$name), )*
+                    _ => Err(UnknownName::new("node kind", s)),
+                }
+            }
         }
 
         /// graphql-js `ASTNode`, owned.
         #[derive(Clone, Debug, PartialEq)]
         pub enum Node {
-            $( $name($name), )*
+            $(
+                #[doc = concat!("A [`", stringify!($name), "`].")]
+                $name($name),
+            )*
         }
 
         /// graphql-js `ASTNode`, borrowed.
         #[derive(Clone, Copy, Debug, PartialEq)]
         pub enum NodeRef<'a> {
-            $( $name(&'a $name), )*
+            $(
+                #[doc = concat!("A [`", stringify!($name), "`].")]
+                $name(&'a $name),
+            )*
         }
 
         impl Node {
+            /// The node's kind.
             pub fn kind(&self) -> Kind {
                 match self {
                     $( Node::$name(_) => Kind::$name, )*
                 }
             }
 
+            /// The node, borrowed.
             pub fn as_ref(&self) -> NodeRef<'_> {
                 match self {
                     $( Node::$name(x) => NodeRef::$name(x), )*
@@ -529,6 +598,7 @@ macro_rules! define_nodes {
         }
 
         impl<'a> NodeRef<'a> {
+            /// The node's kind.
             pub fn kind(self) -> Kind {
                 match self {
                     $( NodeRef::$name(_) => Kind::$name, )*
@@ -542,6 +612,7 @@ macro_rules! define_nodes {
                 }
             }
 
+            /// A clone of the node.
             pub fn to_owned_node(self) -> Node {
                 match self {
                     $( NodeRef::$name(x) => Node::$name(x.clone()), )*
@@ -1014,16 +1085,21 @@ macro_rules! node_enum {
         $(#[$meta])*
         #[derive(Clone, Debug, PartialEq)]
         pub enum $enum {
-            $( $variant($ty), )*
+            $(
+                #[doc = concat!("A [`", stringify!($ty), "`].")]
+                $variant($ty),
+            )*
         }
 
         impl $enum {
+            /// The node's kind.
             pub fn kind(&self) -> Kind {
                 match self {
                     $( $enum::$variant(_) => Kind::$ty, )*
                 }
             }
 
+            /// The node, borrowed.
             pub fn as_node_ref(&self) -> NodeRef<'_> {
                 match self {
                     $( $enum::$variant(x) => NodeRef::$ty(x), )*
@@ -1270,6 +1346,7 @@ impl TryFrom<Definition> for TypeExtension {
 }
 
 impl TypeDefinition {
+    /// The type's name.
     pub fn name(&self) -> &Name {
         match self {
             TypeDefinition::ScalarTypeDefinition(x) => &x.name,
@@ -1283,6 +1360,7 @@ impl TypeDefinition {
 }
 
 impl TypeExtension {
+    /// The extended type's name.
     pub fn name(&self) -> &Name {
         match self {
             TypeExtension::ScalarTypeExtension(x) => &x.name,
@@ -1308,26 +1386,33 @@ macro_rules! list_elems {
         /// A borrowed AST list (graphql-js `ReadonlyArray<ASTNode>`).
         #[derive(Clone, Copy, Debug, PartialEq)]
         pub enum ListRef<'a> {
-            $( $variant(&'a [$ty]), )*
+            $(
+                #[doc = concat!("A list of [`", stringify!($ty), "`]s.")]
+                $variant(&'a [$ty]),
+            )*
         }
 
         impl<'a> ListRef<'a> {
+            /// The number of elements.
             pub fn len(self) -> usize {
                 match self {
                     $( ListRef::$variant(s) => s.len(), )*
                 }
             }
 
+            /// `true` for an empty list.
             pub fn is_empty(self) -> bool {
                 self.len() == 0
             }
 
+            /// The element at `index`.
             pub fn get(self, index: usize) -> Option<NodeRef<'a>> {
                 match self {
                     $( ListRef::$variant(s) => s.get(index).map(|x| x.as_node_ref()), )*
                 }
             }
 
+            /// The elements, in order.
             pub fn iter(self) -> impl Iterator<Item = NodeRef<'a>> {
                 (0..self.len()).map(move |i| self.get(i).unwrap())
             }
@@ -1379,18 +1464,21 @@ list_elems! {
 // Concise constructors.
 
 impl Name {
+    /// A name.
     pub fn new(value: impl Into<String>) -> Self {
         Name { value: value.into() }
     }
 }
 
 impl NamedType {
+    /// A reference to the named type `name`.
     pub fn new(name: impl Into<String>) -> Self {
         NamedType { name: Name::new(name) }
     }
 }
 
 impl StringValue {
+    /// A string, a block string (`"""`) when `block` is set.
     pub fn new(value: impl Into<String>, block: bool) -> Self {
         StringValue {
             value: value.into(),
@@ -1400,12 +1488,14 @@ impl StringValue {
 }
 
 impl Variable {
+    /// The variable `$name` (`name` without the `$`).
     pub fn new(name: impl Into<String>) -> Self {
         Variable { name: Name::new(name) }
     }
 }
 
 impl Argument {
+    /// An argument.
     pub fn new(name: impl Into<String>, value: Value) -> Self {
         Argument {
             name: Name::new(name),
@@ -1415,6 +1505,7 @@ impl Argument {
 }
 
 impl ObjectField {
+    /// A field of an input object value.
     pub fn new(name: impl Into<String>, value: Value) -> Self {
         ObjectField {
             name: Name::new(name),
@@ -1424,6 +1515,7 @@ impl ObjectField {
 }
 
 impl Directive {
+    /// The directive `@name(arguments)` (`name` without the `@`).
     pub fn new(name: impl Into<String>, arguments: Vec<Argument>) -> Self {
         Directive {
             name: Name::new(name),
@@ -1433,63 +1525,107 @@ impl Directive {
 }
 
 impl Document {
+    /// A document.
     pub fn new(definitions: Vec<Definition>) -> Self {
         Document { definitions }
     }
 }
 
 impl Type {
+    /// The named type `name`.
     pub fn named(name: impl Into<String>) -> Self {
         Type::Named(NamedType::new(name))
     }
 
+    /// The list type `[of]`.
     pub fn list(of: Type) -> Self {
         Type::List(ListType { ty: Box::new(of) })
     }
 
+    /// The non-null type `of!`.
     pub fn non_null(of: Type) -> Self {
         Type::NonNull(NonNullType { ty: Box::new(of) })
     }
 }
 
 impl Value {
+    /// A string value.
     pub fn string(value: impl Into<String>) -> Self {
         Value::String(StringValue::new(value, false))
     }
 
+    /// A block string value (`"""`).
     pub fn block_string(value: impl Into<String>) -> Self {
         Value::String(StringValue::new(value, true))
     }
 
+    /// An int value, from its source text.
     pub fn int(value: impl Into<String>) -> Self {
         Value::Int(IntValue { value: value.into() })
     }
 
+    /// A float value, from its source text.
     pub fn float(value: impl Into<String>) -> Self {
         Value::Float(FloatValue { value: value.into() })
     }
 
+    /// A boolean value.
     pub fn boolean(value: bool) -> Self {
         Value::Boolean(BooleanValue { value })
     }
 
+    /// `null`.
     pub fn null() -> Self {
         Value::Null(NullValue {})
     }
 
+    /// An enum value.
     pub fn enum_value(value: impl Into<String>) -> Self {
         Value::Enum(EnumValue { value: value.into() })
     }
 
+    /// The variable `$name` (`name` without the `$`).
     pub fn variable(name: impl Into<String>) -> Self {
         Value::Variable(Variable::new(name))
     }
 
+    /// A list value.
     pub fn list(values: Vec<Value>) -> Self {
         Value::List(ListValue { values })
     }
 
+    /// An input object value.
     pub fn object(fields: Vec<ObjectField>) -> Self {
         Value::Object(ObjectValue { fields })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::DirectiveLocation;
+
+    #[test]
+    fn names_parse_back() {
+        for kind in Kind::ALL {
+            assert_eq!(kind.as_str().parse::<Kind>(), Ok(*kind));
+        }
+        for operation in [
+            OperationType::Query,
+            OperationType::Mutation,
+            OperationType::Subscription,
+        ] {
+            assert_eq!(operation.as_str().parse::<OperationType>(), Ok(operation));
+        }
+        for location in DirectiveLocation::ALL {
+            assert_eq!(location.as_str().parse::<DirectiveLocation>(), Ok(*location));
+        }
+
+        let error = "Fragment".parse::<Kind>().unwrap_err();
+        assert_eq!(error.expected(), "node kind");
+        assert_eq!(error.found(), "Fragment");
+        assert_eq!(error.to_string(), "\"Fragment\" is not a known node kind");
+        assert!("QUERY".parse::<OperationType>().is_err());
+        assert!("query".parse::<DirectiveLocation>().is_err());
     }
 }

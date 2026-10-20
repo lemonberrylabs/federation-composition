@@ -17,9 +17,13 @@ pub const VERSION: &str = "17.0.2";
 /// graphql-js `versionInfo`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VersionInfo {
+    /// The major version.
     pub major: u32,
+    /// The minor version.
     pub minor: u32,
+    /// The patch version.
     pub patch: u32,
+    /// The pre-release tag, `None` for a release.
     pub pre_release_tag: Option<&'static str>,
 }
 
@@ -43,14 +47,18 @@ pub const DEFAULT_DEPRECATION_REASON: &str = "No longer supported";
 pub enum CoercedLiteral {
     /// A JS number (`Int` and `Float`).
     Number(f64),
+    /// A JS string (`String` and `ID`).
     String(String),
+    /// A JS boolean (`Boolean`).
     Boolean(bool),
 }
 
 /// One of graphql-js `specifiedScalarTypes`.
 #[derive(Debug)]
 pub struct SpecifiedScalarType {
+    /// The scalar's name, e.g. `Int`.
     pub name: &'static str,
+    /// The scalar's description, as graphql-js has it.
     pub description: &'static str,
 }
 

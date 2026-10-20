@@ -114,7 +114,7 @@ impl<'s> PathFinder<'s> {
         };
 
         self.logger
-            .group(|| format!("Direct paths to {} from: {}", id(), graph.node(tail).to_string()));
+            .group(|| format!("Direct paths to {} from: {}", id(), graph.node(tail)));
 
         let edges = match field_name {
             Some(field_name) => graph.field_edges_of_head(tail, field_name)?,
@@ -499,7 +499,7 @@ impl<'s> PathFinder<'s> {
         };
 
         self.logger
-            .group(|| format!("Indirect paths to {} from: {}", id(), graph.node(tail).to_string()));
+            .group(|| format!("Indirect paths to {} from: {}", id(), graph.node(tail)));
 
         let mut queue: Vec<IndirectPathsQueueItem<'_>> = vec![(
             Cow::Borrowed(visited_graphs),

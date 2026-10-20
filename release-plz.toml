@@ -1,0 +1,34 @@
+# release-plz (https://release-plz.dev/docs/config), run by .github/workflows/release-plz.yml:
+# on each push to main it opens or updates a release pull request that bumps the versions and
+# updates the changelogs; merging it tags, makes the GitHub releases and publishes graphql-rs
+# and federation-composition-rs to crates.io. See CONTRIBUTING.md, "Releasing".
+
+[workspace]
+# cargo-semver-checks on every library against its last published version: an API break needs
+# a major (or, before 1.0, minor) version bump.
+semver_check = true
+changelog_update = true
+git_release_enable = true
+# Release only when the release pull request is merged, not on every push to main.
+release_always = false
+# Only the workspace's own crates are bumped; dependency updates come from Dependabot.
+dependencies_update = false
+pr_labels = ["release"]
+
+[[package]]
+name = "graphql-rs"
+changelog_path = "crates/graphql-rs/CHANGELOG.md"
+
+[[package]]
+name = "federation-composition-rs"
+changelog_path = "crates/federation-composition-rs/CHANGELOG.md"
+
+# The WebAssembly bindings are not on crates.io (publish = false): they ship in the npm package
+# federation-composition-wasm. release-plz versions and tags them from git alone; the tag
+# federation-composition-wasm-vX.Y.Z triggers .github/workflows/npm-publish.yml, which publishes
+# the npm package at that version.
+[[package]]
+name = "federation-composition-wasm"
+git_only = true
+semver_check = false
+changelog_path = "crates/federation-composition-wasm/CHANGELOG.md"

@@ -115,7 +115,12 @@ pub fn number_to_string(n: f64) -> String {
 #[derive(Clone, Debug, PartialEq)]
 pub enum JsError {
     /// `new Error(message)` (`name` is `"Error"`) or a runtime error such as `TypeError`.
-    Error { name: &'static str, message: String },
+    Error {
+        /// The constructor name, `"Error"` or `"TypeError"`.
+        name: &'static str,
+        /// `error.message`.
+        message: String,
+    },
     /// `new GraphQLError(..)`.
     GraphQL(graphql_rs::GraphQLError),
 }

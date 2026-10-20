@@ -6,14 +6,12 @@
 //! is falsy, an absent array is empty).
 //! Outputs: `serde_json::Value`s built in the key order of the TS objects.
 
-use federation_composition_rs::specifications::link::{Link, LinkImport, LinkUrl};
-use federation_composition_rs::subgraph::context::ContextReference;
-use federation_composition_rs::subgraph::state::{ArgumentKind, Deprecated, Description};
-use federation_composition_rs::supergraph::composition::ast as core;
-use federation_composition_rs::supergraph::state::SupergraphSpecs;
-use federation_composition_rs::utils::link::link::FederatedLink;
-use federation_composition_rs::utils::link::link_import::FederatedLinkImport;
-use federation_composition_rs::utils::link::link_url::FederatedLinkUrl;
+use federation_composition_rs::__internal::specifications::link::{Link, LinkImport, LinkUrl};
+use federation_composition_rs::__internal::subgraph::context::ContextReference;
+use federation_composition_rs::__internal::subgraph::state::{ArgumentKind, Deprecated, Description};
+use federation_composition_rs::__internal::supergraph::composition::ast as core;
+use federation_composition_rs::__internal::supergraph::state::SupergraphSpecs;
+use federation_composition_rs::{FederatedLink, FederatedLinkImport, FederatedLinkUrl};
 use graphql_rs::ConstDirective;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
@@ -662,7 +660,7 @@ impl From<LinkClassIn> for FederatedLink {
 // Outputs.
 
 pub(crate) fn link_url_json(u: &FederatedLinkUrl) -> Value {
-    json!({ "identity": u.identity, "name": u.name, "version": u.version })
+    json!({ "identity": u.identity(), "name": u.name(), "version": u.version() })
 }
 
 pub(crate) fn link_import_class_json(i: &FederatedLinkImport) -> Value {
