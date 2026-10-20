@@ -138,24 +138,37 @@ repository with `pnpm wasm:build` (see [npm/README.md](npm/README.md)).
 
 ## Performance
 
-Measured on the compositions upstream's test suite performs (3,564 of them) and on two larger
-fixtures, against `@theguild/federation-composition` on Node.js, on the same machine
-([research journal, milestone 4](research/journal/04-optimize.md)):
+Measured against `@theguild/federation-composition` on Node.js, on the same idle machine, with
+each implementation run on the same inputs: the 3,564 compositions upstream's test suite
+performs and three fixtures. The charts and the method are on the
+[research site](https://lemonberrylabs.github.io/federation-composition/#optimize)
+([source](research/journal/04-optimize.md)).
 
-| Speedup over TypeScript                 | Native Rust | WebAssembly |
-| --------------------------------------- | ----------: | ----------: |
-| Test-suite compositions, geometric mean |       9.75× |       5.12× |
-| Huge schema (191 subgraphs)             |       4.21× |       2.58× |
+| Fixture      | Subgraphs | TypeScript | WebAssembly | Native Rust | Native + mimalloc |
+| ------------ | --------: | ---------: | ----------: | ----------: | ----------------: |
+| stars-stuff  |         5 |    2.68 ms |     0.57 ms |     0.30 ms |           0.22 ms |
+| dgs (medium) |        11 |   60.09 ms |    22.07 ms |    12.18 ms |           9.10 ms |
+| huge-schema  |       191 |  307.51 ms |   118.97 ms |    73.02 ms |          57.57 ms |
 
-On the huge schema, TypeScript takes 307.5 ms, WebAssembly 119.0 ms and native Rust 73.0 ms.
-Native Rust is faster than TypeScript on every one of the 3,564 compositions; WebAssembly is
-slower on 2 single-subgraph failures that take 13 µs in TypeScript, where the cost of crossing
-into WebAssembly is larger than the composition.
+| Test-suite compositions (3,564) | TypeScript | WebAssembly | Native Rust | Native + mimalloc |
+| ------------------------------- | ---------: | ----------: | ----------: | ----------------: |
+| Median time                     |   0.633 ms |    0.116 ms |    0.065 ms |          0.048 ms |
+| p90 time                        |   1.055 ms |    0.196 ms |    0.113 ms |          0.082 ms |
+| Total of medians                |   2,509 ms |      487 ms |      268 ms |            197 ms |
+| Speedup, geometric mean         |          — |       5.12× |       9.75× |            13.25× |
+| Speedup, range                  |          — | 0.73×–6.88× | 4.68×–25.6× |       5.97×–29.1× |
+| Cases slower than TypeScript    |          — |           2 |           0 |                 0 |
 
-The research site in [`research/`](research) has the charts, the method and the full journal of
-the port. Build it with `pnpm --filter federation-composition-rust-research build` (output in
-`research/dist/`) or serve it with `pnpm --filter federation-composition-rust-research dev`. The
-benchmark harness is described in [bench/README.md](bench/README.md).
+Native Rust is faster than TypeScript on every composition. WebAssembly is slower on 2
+single-subgraph failures that take 13 µs in TypeScript, where the cost of crossing into
+WebAssembly is larger than the composition. The library does not set a global allocator;
+"Native + mimalloc" is an application that chooses mimalloc.
+
+The machine is an Apple M4 Pro with Node.js 24.19. The WebAssembly numbers are for a build
+without `wasm-opt`; the npm package is built with it. The benchmark harness is described in
+[bench/README.md](bench/README.md). Build the research site locally with
+`pnpm --filter federation-composition-rust-research build` (output in `research/dist/`) or serve
+it with `pnpm --filter federation-composition-rust-research dev`.
 
 ## Correctness
 
