@@ -1,4 +1,5 @@
-# The Rust checks: formatting, lints, tests on Linux, macOS and Windows, the minimum supported
+# The Rust checks: formatting, lints, tests (Linux on pull requests; Linux, macOS and Windows on
+# pushes to main and by hand, since macOS runners can take long to start), the minimum supported
 # Rust version, docs, the WebAssembly build and the npm package, cargo-deny and the crates.io
 # packages. Upstream conformance is .github/workflows/conformance.yml.
 name: CI
@@ -83,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["ubuntu-latest", "macos-latest", "windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     env:
       # cargo build must have no warnings.
