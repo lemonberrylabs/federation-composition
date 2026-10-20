@@ -1,21 +1,27 @@
 //! A port of the language layer of graphql-js 17.0.2: AST, lexer, parser,
 //! printer, visitor, `stripIgnoredCharacters`, `concatAST` and the specified
-//! scalars/directives. Behavior, including error messages and printed
-//! output, matches graphql-js byte for byte; `tests/` checks this against
-//! graphql-js itself.
+//! scalars/directives; and of schema building and validation: `buildSchema`
+//! / `buildASTSchema` (with the SDL validation rules) and `validateSchema` /
+//! `assertValidSchema`, with the type system they construct (`type`).
+//! Behavior, including error messages and printed output, matches
+//! graphql-js byte for byte; `tests/` checks this against graphql-js itself.
 
 pub mod ast;
 pub mod block_string;
 pub mod collections;
 pub mod directive_location;
 pub mod error;
+pub mod execution;
 mod js;
+pub mod jsutils;
 pub mod lexer;
 pub mod parser;
 pub mod predicates;
 pub mod printer;
 pub mod specified;
+pub mod r#type;
 pub mod utilities;
+pub mod validation;
 pub mod visitor;
 
 pub use ast::*;
@@ -27,11 +33,15 @@ pub use parser::{
 };
 pub use predicates::*;
 pub use printer::print;
+pub use r#type::schema::GraphQLSchema;
+pub use r#type::validate::{assert_valid_schema, validate_schema};
 pub use specified::{
     is_introspection_type, is_specified_directive, is_specified_scalar_type, specified_directives,
     specified_scalar_types, INTROSPECTION_TYPE_NAMES, VERSION_INFO,
 };
+pub use utilities::build_ast_schema::{build_ast_schema, build_schema};
 pub use utilities::{concat_ast, strip_ignored_characters};
+pub use validation::validate::{assert_valid_sdl, validate_sdl};
 pub use visitor::{
     visit, visit_edit, visit_in_parallel, visit_in_parallel_edit, Ancestor, EditAction, EditResult,
     EditVisitor, KindSet, PathKey, VisitAction, VisitInfo, VisitKinds, Visitor,
