@@ -152,6 +152,30 @@ const portTiles: Chart = (root) =>
     },
   ]);
 
+const testsTiles: Chart = (root) =>
+  renderTiles(root, [
+    {
+      label: "Rust tests passing",
+      value: count.format(3792),
+      note: "17 ignored, as in TypeScript",
+    },
+    {
+      label: "Spec files with matching counts",
+      value: "93 / 93",
+      note: "guild side of the TypeScript suite",
+    },
+    {
+      label: "Schema checks identical to graphql-js",
+      value: count.format(1966),
+      note: "buildSchema + assertValidSchema port",
+    },
+    {
+      label: "Wall-clock time",
+      value: "50 min",
+      note: "testkit to merged suite",
+    },
+  ]);
+
 type BarSeries = { name: string; series: number };
 type BarGroup = { title: string; note: string; values: number[] };
 
@@ -638,6 +662,7 @@ const charts: Record<string, Chart> = {
     [0.5, 0.71, 1, 1.41, 2, 2.83, 4, 5.66, 8],
   ),
   "optimized-tiles": optimizedTiles,
+  "tests-tiles": testsTiles,
   "optimized-fixtures": fixtureBars(OPTIMIZED),
   "optimized-histogram": speedupHistogram(
     OPTIMIZED,

@@ -2,6 +2,7 @@ import baseline from "../journal/01-baseline.md?raw";
 import port from "../journal/02-port.md?raw";
 import speed from "../journal/03-speed.md?raw";
 import optimize from "../journal/04-optimize.md?raw";
+import tests from "../journal/05-tests.md?raw";
 
 export type Phase = {
   title: string;
@@ -28,11 +29,20 @@ export const phases: Phase[] = [
     status: "done",
   },
   { title: "Optimize the port without changing its output", status: "done" },
-  { title: "Port the tests to Rust", status: "not started" },
+  { title: "Port the tests to Rust", status: "done" },
 ];
 
 // Newest first.
 export const entries: Entry[] = [
+  {
+    slug: "tests",
+    date: "2026-10-19",
+    milestone: 5,
+    title: "The tests in Rust",
+    summary:
+      "3,792 Rust tests, matching the TypeScript count in all 93 spec files, plus a port of graphql-js schema validation the tests rely on. Three deliberate bugs each failed 10 to 173 tests.",
+    body: tests,
+  },
   {
     slug: "optimize",
     date: "2026-10-19",
