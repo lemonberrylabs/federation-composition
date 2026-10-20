@@ -51,7 +51,7 @@ jobs:
       - name: clippy (wasm32 bindings)
         run: cargo clippy -p federation-composition-wasm --target wasm32-unknown-unknown -- -D warnings
 
-  # graphql-rs's differential tests compare against corpora generated from graphql-js and from
+  # graphql-core's differential tests compare against corpora generated from graphql-js and from
   # the compositions upstream's test suite performs (CONTRIBUTING.md). They are generated once
   # here, from upstream at the release in UPSTREAM, and shared with the test jobs.
   corpora:
@@ -69,14 +69,14 @@ jobs:
         run: pnpm conformance --only=capture
       - name: generate the corpora
         run: |
-          node crates/graphql-rs/tests/gen-corpus.mjs
-          node crates/graphql-rs/tests/gen-schema-corpus.mjs
+          node crates/graphql-core/tests/gen-corpus.mjs
+          node crates/graphql-core/tests/gen-schema-corpus.mjs
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: graphql-rs-corpora
+          name: graphql-core-corpora
           path: |
-            crates/graphql-rs/tests/corpus.json
-            crates/graphql-rs/tests/schema-corpus.json
+            crates/graphql-core/tests/corpus.json
+            crates/graphql-core/tests/schema-corpus.json
           if-no-files-found: error
           retention-days: 7
 
@@ -105,8 +105,8 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: graphql-rs-corpora
-          path: crates/graphql-rs/tests
+          name: graphql-core-corpora
+          path: crates/graphql-core/tests
       - run: cargo build --workspace --all-targets
       - run: cargo test --workspace
 

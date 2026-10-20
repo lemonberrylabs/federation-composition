@@ -1,0 +1,21 @@
+[package]
+name = "graphql-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "A Rust port of graphql-js: parser, printer, visitor and schema validation"
+readme = "README.md"
+keywords = ["graphql", "parser", "graphql-js", "schema", "sdl"]
+categories = ["parser-implementations", "web-programming"]
+# The library only: the differential tests need corpora generated from graphql-js
+# (CONTRIBUTING.md), so the tests and examples are not in the package.
+include = ["/src/**/*.rs", "/README.md", "/LICENSE"]
+
+[dependencies]
+indexmap = { workspace = true, features = ["serde"] }
+rustc-hash.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }

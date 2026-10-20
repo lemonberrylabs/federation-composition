@@ -6,13 +6,13 @@
 //! is falsy, an absent array is empty).
 //! Outputs: `serde_json::Value`s built in the key order of the TS objects.
 
-use federation_composition_rs::__internal::specifications::link::{Link, LinkImport, LinkUrl};
-use federation_composition_rs::__internal::subgraph::context::ContextReference;
-use federation_composition_rs::__internal::subgraph::state::{ArgumentKind, Deprecated, Description};
-use federation_composition_rs::__internal::supergraph::composition::ast as core;
-use federation_composition_rs::__internal::supergraph::state::SupergraphSpecs;
-use federation_composition_rs::{FederatedLink, FederatedLinkImport, FederatedLinkUrl};
-use graphql_rs::ConstDirective;
+use federation_composition::__internal::specifications::link::{Link, LinkImport, LinkUrl};
+use federation_composition::__internal::subgraph::context::ContextReference;
+use federation_composition::__internal::subgraph::state::{ArgumentKind, Deprecated, Description};
+use federation_composition::__internal::supergraph::composition::ast as core;
+use federation_composition::__internal::supergraph::state::SupergraphSpecs;
+use federation_composition::{FederatedLink, FederatedLinkImport, FederatedLinkUrl};
+use graphql_core::ConstDirective;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 

@@ -1,6 +1,6 @@
 # federation-composition-wasm
 
-WebAssembly bindings of [federation-composition-rs](../federation-composition-rs), used by the TypeScript wrapper in [`npm/`](../../npm), the npm package `@lemonberrylabs/federation-composition-wasm`, so JavaScript users of `@theguild/federation-composition` can switch to the Rust implementation.
+WebAssembly bindings of [federation-composition](../federation-composition), used by the TypeScript wrapper in [`npm/`](../../npm), the npm package `@lemonberrylabs/federation-composition-wasm`, so JavaScript users of `@theguild/federation-composition` can switch to the Rust implementation.
 
 ## Credits
 

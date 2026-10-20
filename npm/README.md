@@ -1,7 +1,7 @@
 # @lemonberrylabs/federation-composition-wasm
 
 Apollo Federation v1/v2 schema composition for JavaScript, compiled to WebAssembly from
-[federation-composition-rs](../crates/federation-composition-rs), a Rust port of
+[federation-composition](../crates/federation-composition), a Rust port of
 [`@theguild/federation-composition`](https://github.com/graphql-hive/federation-composition) by
 [The Guild](https://the-guild.dev).
 

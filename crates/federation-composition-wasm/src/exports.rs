@@ -24,9 +24,9 @@ use fc::__internal::supergraph::composition::ast as core_ast;
 use fc::__internal::utils::js::JsError;
 use fc::{CompositionResult, SchemaContractFilter, ServiceDefinition, ValidationResult};
 use fc::{FederatedLink, FederatedLinkImport, FederatedLinkUrl, LinkImplementations, LinkVersion, SupportsVersion};
-use federation_composition_rs as fc;
-use federation_composition_rs::__internal::utils::collections::{IndexMap, IndexSet};
-use graphql_rs::{Directive, Document, Value};
+use federation_composition as fc;
+use federation_composition::__internal::utils::collections::{IndexMap, IndexSet};
+use graphql_core::{Directive, Document, Value};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use wasm_bindgen::prelude::*;
@@ -220,13 +220,13 @@ pub fn validate(subgraphs_json: &[u8], internal_json: Option<String>) -> JsResul
     #[derive(Serialize)]
     struct Failure<'a> {
         success: bool,
-        errors: &'a [graphql_rs::GraphQLError],
+        errors: &'a [graphql_core::GraphQLError],
     }
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Success<'a> {
         success: bool,
-        supergraph: &'a [graphql_rs::Definition],
+        supergraph: &'a [graphql_core::Definition],
         links: Vec<serde_json::Value>,
         specs: serde_json::Value,
         federation_version: &'a str,
@@ -696,10 +696,10 @@ pub fn debug_roundtrip_document(document_json: &str) -> JsResult<String> {
     Ok(to_json(&document))
 }
 
-/// Parses SDL with graphql_rs; a syntax error is thrown as a `GraphQLError`.
+/// Parses SDL with graphql_core; a syntax error is thrown as a `GraphQLError`.
 #[wasm_bindgen]
 pub fn debug_parse(sdl: &str) -> JsResult<String> {
-    let document = graphql_rs::parse(sdl).map_err(|e| thrown(JsError::GraphQL(e)))?;
+    let document = graphql_core::parse(sdl).map_err(|e| thrown(JsError::GraphQL(e)))?;
     Ok(to_json(&document))
 }
 
@@ -712,7 +712,7 @@ pub fn debug_type_error(message: &str) -> JsResult<()> {
 /// Returns composition-style errors as a result.
 #[wasm_bindgen]
 pub fn debug_errors(message: &str, code: &str) -> String {
-    let error = graphql_rs::GraphQLError::with_code(message, code);
+    let error = graphql_core::GraphQLError::with_code(message, code);
     to_json(&json!({ "errors": [graphql_error_json(&error)] }))
 }
 

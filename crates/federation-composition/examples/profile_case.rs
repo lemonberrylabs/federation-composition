@@ -1,0 +1,55 @@
+//! Composes one corpus case in a loop so a sampling profiler can attach (see `bench/profile.sh`).
+//!
+//! `cargo run -p federation-composition --release --example profile_case -- <case-id> <seconds>`
+
+// Opt in with `--features mimalloc`. The library never sets a global allocator; final artifacts do.
+#[cfg(feature = "mimalloc")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
+use federation_composition::__internal::compose::compose_services;
+use federation_composition::__internal::subgraph::validation::validate_subgraph::InternalOptions;
+use federation_composition::ServiceDefinition;
+use graphql_core::Document;
+use serde_json::Value;
+use std::time::{Duration, Instant};
+
+fn main() {
+    let mut args = std::env::args().skip(1);
+    let id = args.next().unwrap_or_else(|| "fixture:huge-schema".to_string());
+    let seconds: u64 = args.next().map(|s| s.parse().expect("seconds")).unwrap_or(20);
+
+    // The conformance corpus (see tests/corpus.rs).
+    let corpus_path = std::env::var("CONFORMANCE_CORPUS")
+        .unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../conformance/out/corpus.jsonl").to_string());
+    let corpus = std::fs::read_to_string(&corpus_path)
+        .unwrap_or_else(|e| panic!("reading {corpus_path}: {e}; run `pnpm conformance --only=capture`"));
+    let case: Value = corpus
+        .lines()
+        .map(|l| serde_json::from_str::<Value>(l).expect("corpus line is JSON"))
+        .find(|c| c["id"] == id.as_str())
+        .unwrap_or_else(|| panic!("no corpus case {id}"));
+    let services: Vec<ServiceDefinition> = case["services"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| ServiceDefinition {
+            name: s["name"].as_str().unwrap().to_string(),
+            url: s["url"].as_str().map(str::to_string),
+            type_defs: serde_json::from_value::<Document>(s["typeDefs"].clone()).unwrap(),
+        })
+        .collect();
+    let internal = case["internal"]["disableValidationRules"]
+        .as_array()
+        .map(|rules| InternalOptions {
+            disable_validation_rules: Some(rules.iter().map(|r| r.as_str().unwrap().to_string()).collect()),
+        });
+
+    let deadline = Instant::now() + Duration::from_secs(seconds);
+    let mut runs = 0u64;
+    while Instant::now() < deadline {
+        std::hint::black_box(compose_services(&services, internal.as_ref()).expect("composition does not throw"));
+        runs += 1;
+    }
+    eprintln!("{runs} compositions in {seconds}s");
+}

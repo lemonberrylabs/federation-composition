@@ -1,8 +1,8 @@
-//! `graphql_rs::parse` and the other parsing entry points on arbitrary text, and the round-trip
+//! `graphql_core::parse` and the other parsing entry points on arbitrary text, and the round-trip
 //! property of the printer: printing a parsed document and parsing the result gives the same AST.
 #![no_main]
 
-use graphql_rs::{
+use graphql_core::{
     check_nesting_depth, parse, parse_const_value, parse_schema_coordinate, parse_type, parse_value, print,
     strip_ignored_characters, Document, MAX_NESTING_DEPTH,
 };

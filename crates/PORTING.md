@@ -17,8 +17,8 @@ This repository does not contain the TypeScript. `pnpm conformance` checks upstr
 
 | Crate | Purpose |
 |---|---|
-| `crates/graphql-rs` | Port of graphql-js 17.0.2's language layer: AST, lexer, parser, printer, visitor, `stripIgnoredCharacters`, `GraphQLError`, specified scalars/directives; and of `buildSchema`/`buildASTSchema` (with the SDL validation rules) and `validateSchema`/`assertValidSchema`, with the type system they build (`type/`, `utilities/`, `validation/`, `execution/values`, `jsutils/`, mirroring graphql-js's files). |
-| `crates/federation-composition-rs` (`federation_composition_rs`) | Port of `src/`. Depends on `crates/graphql-rs` under the name `graphql_rs`, because `crate::graphql` is the port of `src/graphql/`. |
+| `crates/graphql-core` | Port of graphql-js 17.0.2's language layer: AST, lexer, parser, printer, visitor, `stripIgnoredCharacters`, `GraphQLError`, specified scalars/directives; and of `buildSchema`/`buildASTSchema` (with the SDL validation rules) and `validateSchema`/`assertValidSchema`, with the type system they build (`type/`, `utilities/`, `validation/`, `execution/values`, `jsutils/`, mirroring graphql-js's files). |
+| `crates/federation-composition` (`federation_composition`) | Port of `src/`. Depends on `crates/graphql-core` under the name `graphql_core`, because `crate::graphql` is the port of `src/graphql/`. |
 | `crates/federation-composition-wasm` | wasm-bindgen bindings used by the JS shim. |
 | `npm/` | The npm package `@lemonberrylabs/federation-composition-wasm`: a TypeScript shim (`npm/src`) exposing the same modules and exports as upstream's `src/`, backed by the WebAssembly build. Upstream's tests are pointed at it by the conformance check's Vitest config. |
 | `conformance/` | The upstream conformance check and watcher ([conformance/README.md](../conformance/README.md)). |
@@ -30,11 +30,11 @@ If a test cannot run against the WebAssembly build at all, stop and ask the owne
 divergence from upstream is the owner's decision and goes in `conformance/known-exceptions.json`
 with its reason, never in an edit to a test or a recorded output.
 
-graphql-rs has one deliberate divergence from graphql-js 17.0.2. graphql-js prints an anonymous
+graphql-core has one deliberate divergence from graphql-js 17.0.2. graphql-js prints an anonymous
 query without variables or directives in shorthand, `{ … }`. After a type, interface, input or
 enum definition or extension without a body, or a schema extension without operation types,
 that `{` reads back as the previous definition's body, so the printed document means something
-else. graphql-rs prints `query { … }` in that position only. Composition never prints
+else. graphql-core prints `query { … }` in that position only. Composition never prints
 operations, so its output is unaffected. Reported upstream as
 [graphql/graphql-js#4901](https://github.com/graphql/graphql-js/issues/4901); when a graphql-js
 release fixes it, port that fix instead.
@@ -43,10 +43,10 @@ The long-term product is the pure Rust library. The WebAssembly build exists so 
 JS users can migrate and so upstream's TypeScript tests can verify the port unchanged.
 Keep everything JS-specific (JSON/JS object conversion, rebuilding JS `GraphQLError`s,
 lazy getters, class wrappers) in `crates/federation-composition-wasm` and `npm/src`; nothing in
-`crates/federation-composition-rs` should exist only to serve the bindings.
+`crates/federation-composition` should exist only to serve the bindings.
 
 Module structure mirrors `src/` one to one: `src/supergraph/composition/object-type.ts`
-becomes `crates/federation-composition-rs/src/supergraph/composition/object_type.rs`. Keep the same
+becomes `crates/federation-composition/src/supergraph/composition/object_type.rs`. Keep the same
 function names in snake_case, the same order of functions within a file, and the same
 control flow. A reviewer should be able to read a TS file and its Rust file side by side.
 Do not refactor, simplify, or "improve" logic while porting, even where the TS looks
@@ -61,8 +61,8 @@ Use rustup's toolchain (Homebrew's cargo is first on PATH and has no wasm32 std)
 export PATH="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$PATH"
 ```
 
-`cargo build -p federation-composition-rs`, and before calling a module done,
-`cargo build --release --target wasm32-unknown-unknown -p federation-composition-rs`.
+`cargo build -p federation-composition`, and before calling a module done,
+`cargo build --release --target wasm32-unknown-unknown -p federation-composition`.
 Linking a wasm32 `cdylib` (the bindings) runs rustup's `rust-lld`, which on macOS
 finds `libLLVM.dylib` only with
 `DYLD_FALLBACK_LIBRARY_PATH=$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/lib`
@@ -79,7 +79,7 @@ No `unsafe`. No dependencies that need `getrandom` (wasm32).
 
 | TypeScript | Rust |
 |---|---|
-| `Map<K, V>` | `IndexMap<K, V>` from `crate::utils::collections` (in `crates/graphql-rs`: `crate::collections`) |
+| `Map<K, V>` | `IndexMap<K, V>` from `crate::utils::collections` (in `crates/graphql-core`: `crate::collections`) |
 | `Set<T>` | `IndexSet<T>` from the same module |
 | `new Map()` / `new Set()` | `IndexMap::default()` (`new()`, `with_capacity(n)` and `from([..])` exist only for indexmap's default hasher: use `default()`, `with_capacity_and_hasher(n, Default::default())`, `from_iter([..])`) |
 | `map.delete(k)` / `set.delete(v)` | `shift_remove` (never `swap_remove`: it reorders) |
@@ -143,13 +143,13 @@ become `std::sync::LazyLock` statics or functions. They are pure.
 
 ## graphql-js usage
 
-Use `crates/graphql-rs` for everything the TS imports from `"graphql"`: AST types,
+Use `crates/graphql-core` for everything the TS imports from `"graphql"`: AST types,
 `parse`, `parseValue`, `print`, `visit`, `visitInParallel`, `stripIgnoredCharacters`,
 `GraphQLError`, `Kind`, predicates, specified scalars and directives. Note that
 `src/graphql/printer.ts` is the library's own printer (used for supergraph output);
-port it in `crates/federation-composition-rs`, do not substitute graphql-js `print` for it.
+port it in `crates/federation-composition`, do not substitute graphql-js `print` for it.
 
-### `graphql_rs` crate API in brief
+### `graphql_core` crate API in brief
 
 - AST structs are named like graphql-js node kinds without the `Node` suffix
   (`FieldDefinition`, `StringValue`, `ObjectTypeExtension`). Union enums: `Definition`,
@@ -173,7 +173,7 @@ port it in `crates/federation-composition-rs`, do not substitute graphql-js `pri
   `path`, `ancestors`. `visit_in_parallel(Vec<Box<dyn Visitor<'a, C>>>)`. A TS visitor
   object becomes a `match node { NodeRef::FieldDefinition(f) => ..., _ => {} }`.
   Visitors may keep `&'a` references into the document (see `TypeNodeInfo` in
-  `crates/graphql-rs/tests/visitor.rs`).
+  `crates/graphql-core/tests/visitor.rs`).
   `Visitor::kinds()` (default: all kinds) lists the node kinds `enter` and `leave` act on;
   `visit_in_parallel` calls a visitor only for those, the way graphql-js calls only the
   handlers a visitor object defines. **When you change the kinds a callback matches, update
@@ -198,7 +198,7 @@ port it in `crates/federation-composition-rs`, do not substitute graphql-js `pri
   `directives`, `scalars`, `introspection`, `schema`, `validate`). Its types are re-exported at the
   crate root for reading a built schema, with crate-private fields and constructors and accessor
   methods; the differential tests read the graphql-js `default` of arguments and input fields
-  through `graphql_rs::__internal`. Named types are
+  through `graphql_core::__internal`. Named types are
   referenced by name (`GraphQLType::Named(String)`), `schema.get_type(name)` resolves
   them, and the `fields`/`interfaces`/`types`/`values` thunks are `Lazy` values;
   `GraphQLSchema` construction resolves all but `values` in graphql-js order (an enum's values
@@ -211,7 +211,7 @@ port it in `crates/federation-composition-rs`, do not substitute graphql-js `pri
 `buildASTSchema`/`getNamedType`/`isObjectType` from graphql-js are used only in
 `src/contracts/reachable-type-filter.ts`; port the needed subset of schema building
 inside that module (including any error `buildASTSchema` would throw for the inputs
-the tests use). (That port predates `graphql_rs::build_ast_schema`, which the Rust
+the tests use). (That port predates `graphql_core::build_ast_schema`, which the Rust
 test suite uses for the validity checks the TS tests make.)
 
 ## Done means
@@ -242,7 +242,7 @@ whose TS can throw (directly, via `ensureValue`, `parseFields`, the `getOrCreate
 
 **Public API.** The modules are private. `lib.rs` re-exports `src/index.ts`'s export list at the
 crate root with Rust naming: functions that can throw are wrappers returning
-`Result<_, federation_composition_rs::Error>` (`error.rs`, a newtype over `JsError` that
+`Result<_, federation_composition::Error>` (`error.rs`, a newtype over `JsError` that
 converts both ways without loss, so the bindings rethrow the same JS error), and their
 `__internal` options are dropped. Methods of public types return `Error` too
 (`CompositionSuccess::public_sdl`, `FederatedLinkUrl::from_url`); inside the crate `?` converts
@@ -251,7 +251,7 @@ item by item, from `#[doc(hidden)] pub mod __internal`, whose submodules mirror 
 (`__internal::compose::compose_services` takes the `InternalOptions`). `#![warn(missing_docs)]`
 covers both, so an item added to `__internal` needs a doc comment (or, for a module of plain
 parameter objects such as `supergraph/composition/ast.rs`, a module-level allow with its
-reason). `graphql-rs` has the same shape: private modules, the graphql-js API at the root, and
+reason). `graphql-core` has the same shape: private modules, the graphql-js API at the root, and
 `__internal` for the differential tests. Making the modules private makes the dead-code lint
 see code nothing calls; a port of a TS function nothing in `src/` calls either keeps a
 `#[allow(dead_code)]` with a `// TS: ...` reason, a Rust-only helper nothing calls is removed.
@@ -271,9 +271,9 @@ validation, `validate.rs` moves each state out (`into_state`), cleans it, and sh
 `Rc<SubgraphState>` (`supergraph::state::SubgraphStates`): states are read-only from then on and
 are held by the supergraph validation context, the supergraph state and its builder.
 
-**Subgraph validation (graphql_rs visitors).** `SubgraphValidationContext<'a>` and
+**Subgraph validation (graphql_core visitors).** `SubgraphValidationContext<'a>` and
 `SimpleValidationContext<'a>` are structs (fields = the closure locals, methods = the
-closures) and are the `cx` of `graphql_rs::Visitor<'a, C>`; `'a` is the lifetime of the visited
+closures) and are the `cx` of `graphql_core::Visitor<'a, C>`; `'a` is the lifetime of the visited
 document, and the subgraph context holds `state_builder: &'a mut SubgraphStateBuilder` and owns
 `type_node_info: TypeNodeInfo<'a>` (references into the document). A rule
 `Rule(context): ASTVisitor` is a struct implementing `SubgraphRule<'a>` / `SimpleRule<'a>`
@@ -340,7 +340,7 @@ per type of a chain, per step of a walk) becomes a loop over an explicit stack o
 runs the same work in the same order (see `walker.rs` `dfs_inner`, `graph.rs`
 `create_nodes_and_edges_for_type`), with a `NOTE(port)`. Recursion over the nesting of a
 document (values, types, selection sets) stays recursive: the parser bounds it at
-`graphql_rs::MAX_NESTING_DEPTH` levels, and the public functions check documents that did not
+`graphql_core::MAX_NESTING_DEPTH` levels, and the public functions check documents that did not
 come from the parser. Keep such recursive functions' frames small (move work that does not
 recurse into a separate function): 128 levels must fit a 2 MiB stack in a debug build. A TS
 `throw` or runtime `TypeError` on bad input becomes an `Err` with the same message, never a
@@ -359,10 +359,10 @@ allocator, or mimalloc with `--features mimalloc` (`pnpm bench:native:mimalloc`,
 
 ## Status
 
-Everything is ported: `src/` in `crates/federation-composition-rs` (no `todo!()` left), the graphql-js
-language layer and `buildSchema`/`assertValidSchema` in `crates/graphql-rs`, and the WebAssembly
+Everything is ported: `src/` in `crates/federation-composition` (no `todo!()` left), the graphql-js
+language layer and `buildSchema`/`assertValidSchema` in `crates/graphql-core`, and the WebAssembly
 bindings in `crates/federation-composition-wasm` with the shim in `npm/src`. The TS test suite is ported to
-Rust (`crates/federation-composition-rs/tests/suite`, see "Rust test suite" below), guild side only.
+Rust (`crates/federation-composition/tests/suite`, see "Rust test suite" below), guild side only.
 The port matches the upstream release in `UPSTREAM` (v0.27.0).
 
 ## Verification
@@ -371,8 +371,8 @@ The port matches the upstream release in `UPSTREAM` (v0.27.0).
 |---|---|---|
 | Build, no warnings | `cargo build --workspace` and `cargo build --release --target wasm32-unknown-unknown --workspace` | 0 warnings |
 | Format and lints | `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` | clean |
-| Rust unit and differential tests | `cargo test --workspace` | all pass; includes the robustness tests (`tests/robustness.rs` in both crates: the nesting limits, long chains of types, and inputs that once panicked) and `crates/graphql-rs`'s differential tests against graphql-js. Their expected values are generated from the upstream checkout (graphql-js 17.0.2 and upstream's test documents), so run `pnpm conformance` first, then `node crates/graphql-rs/tests/gen-corpus.mjs` (`crates/graphql-rs/tests/corpus.json`) and `node crates/graphql-rs/tests/gen-schema-corpus.mjs [corpus.jsonl]` (`crates/graphql-rs/tests/schema-corpus.json`, from the conformance corpus by default); 1,966 schemas identical to graphql-js on 2026-10-19 |
-| The ported test suite | `cargo test -p federation-composition-rs --test suite` (plus the `src/specifications/link.rs` unit tests) | 3,792 passed, 17 ignored on 2026-10-19 (per-file counts under "Rust test suite") |
+| Rust unit and differential tests | `cargo test --workspace` | all pass; includes the robustness tests (`tests/robustness.rs` in both crates: the nesting limits, long chains of types, and inputs that once panicked) and `crates/graphql-core`'s differential tests against graphql-js. Their expected values are generated from the upstream checkout (graphql-js 17.0.2 and upstream's test documents), so run `pnpm conformance` first, then `node crates/graphql-core/tests/gen-corpus.mjs` (`crates/graphql-core/tests/corpus.json`) and `node crates/graphql-core/tests/gen-schema-corpus.mjs [corpus.jsonl]` (`crates/graphql-core/tests/schema-corpus.json`, from the conformance corpus by default); 1,966 schemas identical to graphql-js on 2026-10-19 |
+| The ported test suite | `cargo test -p federation-composition --test suite` (plus the `src/specifications/link.rs` unit tests) | 3,792 passed, 17 ignored on 2026-10-19 (per-file counts under "Rust test suite") |
 | Upstream's TS test suite against the WebAssembly build | `pnpm conformance` (its `wasm` step; `--only=wasm`) | 7,343 passed, 25 skipped, 8 todo, the same as upstream's suite on its own TypeScript (its `capture` step) |
 | Rust vs TS on every composition upstream's test suite runs | `pnpm conformance` (its `capture` and `native` steps: `tests/corpus.rs`) | every captured composition identical (3567/3567 on 2026-10-19). Without `DYLD_FALLBACK_LIBRARY_PATH` (see Toolchain), a release test build prints a `rust-objcopy` "Library not loaded: libLLVM.dylib" warning; it comes from the toolchain, not the code; `pnpm conformance` sets it |
 | The npm package | `pnpm wasm:build && pnpm test:npm` | 15 passed: the 10 checks of the JS <-> Rust bridge (`npm/test/runtime.test.mjs`: 7 formerly counted in `pnpm test:wasm`'s 7,350, and 3 of the input limits) and a smoke test of the package as users import it |
@@ -382,13 +382,13 @@ The port matches the upstream release in `UPSTREAM` (v0.27.0).
 Upstream's TypeScript tests (`__tests__/**/*.spec.ts`, `src/**/*.spec.ts`) are ported to Rust, so
 the library is tested without the WebAssembly bridge. When an upstream release adds or changes
 tests, port them here with the rules below (docs/upstream-sync.md). Run them with
-`cargo test -p federation-composition-rs --test suite`.
+`cargo test -p federation-composition --test suite`.
 
-**Layout.** One integration test binary, `crates/federation-composition-rs/tests/suite/main.rs`, whose module
+**Layout.** One integration test binary, `crates/federation-composition/tests/suite/main.rs`, whose module
 tree mirrors `__tests__/`: `__tests__/supergraph/errors/FIELD_TYPE_MISMATCH.spec.ts` is
 `suite/supergraph/errors/field_type_mismatch.rs` (lowercase, `-` becomes `_`; `override.spec.ts`
 is `mod r#override`). `src/specifications/link.spec.ts` is ported by the unit tests in
-`crates/federation-composition-rs/src/specifications/link.rs`. `suite/shared/` is the testkit;
+`crates/federation-composition/src/specifications/link.rs`. `suite/shared/` is the testkit;
 `suite/supergraph/errors/field_type_mismatch.rs` is the worked example.
 
 **Guild side only.** The TS harness runs most tests for "apollo" and "guild"; port the guild
@@ -446,7 +446,7 @@ the library, never the expectation, and say so in the commit message.
 | `expect(r).toEqual(expect.objectContaining({ errors: [..] }))` | `assert_errors_equal(&r, &[..])` |
 | `` expect(v).toMatchInlineSnapshot(`...`) `` | `to_match_inline_snapshot(v, r#"..."#)` for strings, `Option`s, `GraphQLError` lists and `serde_json::Value`; `to_match_inline_snapshot(SortSdlSerializer(s), ..)` in files with the `expect.addSnapshotSerializer` for `specs.apollo.dev` strings |
 | `versions`, `federationVersionToJoinSpecVersion`, `satisfiesVersionRange` | `VERSIONS`, `FEDERATION_VERSION_TO_JOIN_SPEC_VERSION` / `federation_version_to_join_spec_version(v)`, `satisfies_version_range(range, v)` |
-| `createStarsStuff()`, `getSubgraphs()` of `fixtures/dgs`, `fixtures/huge-schema` | `create_stars_stuff()`, `get_subgraphs_of_dgs()`, `get_subgraphs_of_huge_schema()` (the `.graphql` files are copied from upstream into `crates/federation-composition-rs/tests/fixtures/{dgs,huge-schema}`; copy them again if upstream changes them) |
+| `createStarsStuff()`, `getSubgraphs()` of `fixtures/dgs`, `fixtures/huge-schema` | `create_stars_stuff()`, `get_subgraphs_of_dgs()`, `get_subgraphs_of_huge_schema()` (the `.graphql` files are copied from upstream into `crates/federation-composition/tests/fixtures/{dgs,huge-schema}`; copy them again if upstream changes them) |
 | `expect(() => buildSchema(sdl)).not.toThrow()` | `assert_build_schema_does_not_throw(sdl)` |
 | `expect(s).not.toContain(x)`, `expect(s).not.toMatch(x)` (string or plain regex) | `assert_not_to_match_string(s, x)` (`None` fails, as vitest does) |
 | `expect(r).not.toEqual(expect.objectContaining({ errors: expect.arrayContaining([m]) }))`, `expect(r.errors).not.toEqual(expect.arrayContaining([m]))` | `assert_no_error_matches(&r, &m)`, `assert_no_error_matches(r.errors(), &m)` |

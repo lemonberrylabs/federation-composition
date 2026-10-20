@@ -1,6 +1,6 @@
 // Records every guild composeServices() call made by upstream's test suite
 // (conformance/upstream) together with the TypeScript output, which
-// crates/federation-composition-rs/tests/corpus.rs compares native Rust against; the same
+// crates/federation-composition/tests/corpus.rs compares native Rust against; the same
 // inputs are replayed by bench/run-corpus.ts against each implementation.
 import { appendFileSync } from "node:fs";
 import { vi } from "vitest";

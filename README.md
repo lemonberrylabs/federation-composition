@@ -15,35 +15,35 @@ show how to use them from this repository until then.
 
 ## Packages
 
-| Package                                                         | Language   | What it is                                                                                                                                                             |
-| --------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`federation-composition-rs`](crates/federation-composition-rs) | Rust       | The composition library: a module-for-module port of upstream's `src/`.                                                                                                |
-| [`graphql-rs`](crates/graphql-rs)                               | Rust       | The part of [graphql-js](https://github.com/graphql/graphql-js) 17.0.2 the library needs: AST, lexer, parser, printer, visitor, and `buildSchema`/`assertValidSchema`. |
-| [`@lemonberrylabs/federation-composition-wasm`](npm)            | JavaScript | The library compiled to WebAssembly, as a drop-in replacement for `@theguild/federation-composition`.                                                                  |
+| Package                                                   | Language   | What it is                                                                                                                                                             |
+| --------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`federation-composition`](crates/federation-composition) | Rust       | The composition library: a module-for-module port of upstream's `src/`.                                                                                                |
+| [`graphql-core`](crates/graphql-core)                     | Rust       | The part of [graphql-js](https://github.com/graphql/graphql-js) 17.0.2 the library needs: AST, lexer, parser, printer, visitor, and `buildSchema`/`assertValidSchema`. |
+| [`@lemonberrylabs/federation-composition-wasm`](npm)      | JavaScript | The library compiled to WebAssembly, as a drop-in replacement for `@theguild/federation-composition`.                                                                  |
 
-### federation-composition-rs
+### federation-composition
 
 ```toml
 [dependencies]
-federation-composition-rs = "0.1"
-graphql-rs = "0.1"
+federation-composition = "0.1"
+graphql-core = "0.1"
 # Until the crates are published:
-# federation-composition-rs = { git = "https://github.com/lemonberrylabs/federation-composition" }
-# graphql-rs = { git = "https://github.com/lemonberrylabs/federation-composition" }
+# federation-composition = { git = "https://github.com/lemonberrylabs/federation-composition" }
+# graphql-core = { git = "https://github.com/lemonberrylabs/federation-composition" }
 ```
 
-The subgraph schemas are parsed with `graphql-rs` (re-exported as
-`federation_composition_rs::graphql_rs`); `compose_services` returns the supergraph or the
+The subgraph schemas are parsed with `graphql-core` (re-exported as
+`federation_composition::graphql_core`); `compose_services` returns the supergraph or the
 composition errors.
 
 ```rust
 // README example: compose
-use federation_composition_rs::{compose_services, graphql_rs, CompositionResult, ServiceDefinition};
+use federation_composition::{compose_services, graphql_core, CompositionResult, ServiceDefinition};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let services = vec![ServiceDefinition::new(
         "users",
-        graphql_rs::parse(
+        graphql_core::parse(
             r#"
             extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key"])
             type User @key(fields: "id") { id: ID! name: String! }
@@ -61,28 +61,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 The other functions upstream's `src/index.ts` exports (`validate`, `compose_schema_contract`,
 `sort_sdl`, `transform_supergraph_to_public_schema`, ...) are at the crate root under their
-snake_case names; the [crate README](crates/federation-composition-rs/README.md#api) maps each
-one. The Rust examples in this README run as doctests of `federation-composition-rs`.
+snake_case names; the [crate README](crates/federation-composition/README.md#api) maps each
+one. The Rust examples in this README run as doctests of `federation-composition`.
 
-### graphql-rs
+### graphql-core
 
 ```toml
 [dependencies]
-graphql-rs = "0.1"
+graphql-core = "0.1"
 # Until the crate is published:
-# graphql-rs = { git = "https://github.com/lemonberrylabs/federation-composition" }
+# graphql-core = { git = "https://github.com/lemonberrylabs/federation-composition" }
 ```
 
 Parsing, printing and schema validation behave like graphql-js, including its error messages:
 
 ```rust
-// README example: graphql-rs
+// README example: graphql-core
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let document = graphql_rs::parse("type Query { hello: String }")?;
-    println!("{}", graphql_rs::print(&document));
+    let document = graphql_core::parse("type Query { hello: String }")?;
+    println!("{}", graphql_core::print(&document));
 
-    let schema = graphql_rs::build_schema("type Query { hello: String }")?;
-    graphql_rs::assert_valid_schema(&schema)?;
+    let schema = graphql_core::build_schema("type Query { hello: String }")?;
+    graphql_core::assert_valid_schema(&schema)?;
     Ok(())
 }
 ```
@@ -180,15 +180,15 @@ Four independent checks show that the port behaves like the TypeScript:
    8 todo, as on upstream's own TypeScript.
 2. **Corpus differential.** Every composition upstream's test suite performs is recorded with its
    TypeScript output, and native Rust must produce identical output for each one
-   ([`tests/corpus.rs`](crates/federation-composition-rs/tests/corpus.rs)). At v0.27.0: 3,567 of
+   ([`tests/corpus.rs`](crates/federation-composition/tests/corpus.rs)). At v0.27.0: 3,567 of
    3,567 identical.
 3. **The test suite in Rust.** Upstream's tests are ported to Rust
-   ([`tests/suite`](crates/federation-composition-rs/tests/suite)), so the library is tested
+   ([`tests/suite`](crates/federation-composition/tests/suite)), so the library is tested
    without the WebAssembly bridge: 3,774 tests, 17 ignored (upstream's skipped and todo tests).
-4. **graphql-js differentials.** `graphql-rs` is compared with graphql-js 17.0.2 on parsing,
-   printing and errors ([`tests/differential.rs`](crates/graphql-rs/tests/differential.rs)), and on
+4. **graphql-js differentials.** `graphql-core` is compared with graphql-js 17.0.2 on parsing,
+   printing and errors ([`tests/differential.rs`](crates/graphql-core/tests/differential.rs)), and on
    building and validating the 1,966 schemas in the conformance corpus
-   ([`tests/schema_differential.rs`](crates/graphql-rs/tests/schema_differential.rs)).
+   ([`tests/schema_differential.rs`](crates/graphql-core/tests/schema_differential.rs)).
 
 A deliberate divergence from upstream would be listed, with its reason, in
 [`conformance/known-exceptions.json`](conformance/known-exceptions.json) (empty today). Upstream's
@@ -213,8 +213,8 @@ The procedure for porting a release is [docs/upstream-sync.md](docs/upstream-syn
 
 | Path                                                                       | Contents                                                                                                                       |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| [`crates/federation-composition-rs`](crates/federation-composition-rs)     | The library; `src/` mirrors upstream's `src/` file for file. Tests: `tests/suite`, `tests/corpus.rs`, `tests/js_semantics.rs`. |
-| [`crates/graphql-rs`](crates/graphql-rs)                                   | The graphql-js port; `src/` mirrors graphql-js's files. Differential tests and their generators in `tests/`.                   |
+| [`crates/federation-composition`](crates/federation-composition)           | The library; `src/` mirrors upstream's `src/` file for file. Tests: `tests/suite`, `tests/corpus.rs`, `tests/js_semantics.rs`. |
+| [`crates/graphql-core`](crates/graphql-core)                               | The graphql-js port; `src/` mirrors graphql-js's files. Differential tests and their generators in `tests/`.                   |
 | [`crates/federation-composition-wasm`](crates/federation-composition-wasm) | wasm-bindgen bindings used by the npm package.                                                                                 |
 | [`npm/`](npm)                                                              | The npm package `@lemonberrylabs/federation-composition-wasm`: the TypeScript shim (`src/`) and its tests (`test/`).           |
 | [`conformance/`](conformance)                                              | The upstream conformance check, the watcher and the known-exceptions list.                                                     |
@@ -231,8 +231,8 @@ export PATH="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$PATH"   #
 pnpm install
 pnpm conformance     # check out upstream at UPSTREAM, run its tests on wasm, compare native output
 pnpm test:npm        # the npm package's own tests (after pnpm wasm:build, which pnpm conformance runs)
-node crates/graphql-rs/tests/gen-corpus.mjs          # graphql-js expected values, from the checkout
-node crates/graphql-rs/tests/gen-schema-corpus.mjs   # graphql-js schema expected values, from the corpus
+node crates/graphql-core/tests/gen-corpus.mjs          # graphql-js expected values, from the checkout
+node crates/graphql-core/tests/gen-schema-corpus.mjs   # graphql-js schema expected values, from the corpus
 cargo test --workspace
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings

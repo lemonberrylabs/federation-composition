@@ -1,8 +1,8 @@
 // Writes the seed corpora of the fuzz targets to fuzz/corpus/<target>/ (gitignored):
 //
-// - every subgraph schema in crates/federation-composition-rs/tests/fixtures, and
+// - every subgraph schema in crates/federation-composition/tests/fixtures, and
 // - every group of subgraph schemas that one `compose_services(&[...])` call of the ported test
-//   suite (crates/federation-composition-rs/tests/suite) composes, with `${version}` set to the
+//   suite (crates/federation-composition/tests/suite) composes, with `${version}` set to the
 //   latest federation version.
 //
 // `parse` and `build_schema` get each schema on its own, `compose` each group joined with NUL
@@ -21,7 +21,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const fuzzDir = dirname(fileURLToPath(import.meta.url));
-const crateDir = join(fuzzDir, "../crates/federation-composition-rs");
+const crateDir = join(fuzzDir, "../crates/federation-composition");
 const VERSION = "v2.9";
 // libFuzzer's default -max_len grows from 4096 bytes; larger seeds only slow every run down.
 const MAX_SEED_BYTES = 16 * 1024;

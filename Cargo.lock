@@ -37,10 +37,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
 
 [[package]]
-name = "federation-composition-rs"
+name = "federation-composition"
 version = "0.1.0"
 dependencies = [
- "graphql-rs",
+ "graphql-core",
  "mimalloc",
  "serde",
  "serde_json",
@@ -50,8 +50,8 @@ dependencies = [
 name = "federation-composition-wasm"
 version = "0.1.0"
 dependencies = [
- "federation-composition-rs",
- "graphql-rs",
+ "federation-composition",
+ "graphql-core",
  "js-sys",
  "serde",
  "serde_json",
@@ -96,7 +96,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "graphql-rs"
+name = "graphql-core"
 version = "0.1.0"
 dependencies = [
  "indexmap",

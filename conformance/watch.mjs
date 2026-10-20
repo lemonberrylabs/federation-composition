@@ -247,7 +247,7 @@ function issueBody() {
 
 /** Where an upstream file is ported (see crates/PORTING.md). */
 function rustCounterpart(file) {
-  const crate = "crates/federation-composition-rs";
+  const crate = "crates/federation-composition";
   const snake = (p) => p.replace(/-/g, "_").toLowerCase();
   if (file === "src/index.ts") return `\`${crate}/src/lib.rs\``;
   if (file.startsWith("src/") && file.endsWith(".spec.ts")) {
@@ -351,7 +351,7 @@ async function github(method, route, body, { allow404 = false } = {}) {
     headers: {
       accept: "application/vnd.github+json",
       "x-github-api-version": "2022-11-28",
-      "user-agent": "federation-composition-rs-upstream-watch",
+      "user-agent": "federation-composition-upstream-watch",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(body ? { "content-type": "application/json" } : {}),
     },

@@ -12,8 +12,8 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-graphql-rs = { path = "../crates/graphql-rs" }
-federation-composition-rs = { path = "../crates/federation-composition-rs" }
+graphql-core = { path = "../crates/graphql-core" }
+federation-composition = { path = "../crates/federation-composition" }
 
 [workspace]
 members = ["."]

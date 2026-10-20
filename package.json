@@ -15,8 +15,8 @@
     "wasm:build": "pnpm --filter @lemonberrylabs/federation-composition-wasm run build",
     "test:npm": "pnpm --filter @lemonberrylabs/federation-composition-wasm run test",
     "bench:corpus": "node conformance/upstream-bin.mjs tsx --expose-gc bench/run-corpus.ts",
-    "bench:native": "cargo run -p federation-composition-rs --release --example corpus_bench --",
-    "bench:native:mimalloc": "cargo run -p federation-composition-rs --release --features mimalloc --example corpus_bench --",
+    "bench:native": "cargo run -p federation-composition --release --example corpus_bench --",
+    "bench:native:mimalloc": "cargo run -p federation-composition --release --features mimalloc --example corpus_bench --",
     "bench:summarize": "node conformance/upstream-bin.mjs tsx bench/summarize.ts",
     "format": "prettier --write ."
   },

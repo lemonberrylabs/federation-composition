@@ -46,8 +46,8 @@ Conformance with upstream v0.27.0 (6272ad80299b):
    `{ id, source: "tests" | "fixture", services, internal?, success, expected }`, where `id` is a
    hash of the input and `expected` is the TypeScript output (`{ supergraphSdl, publicSdl }` or
    `{ errors: [{ message, code }] }`).
-4. **native.** Runs `cargo test -p federation-composition-rs --release --test corpus -- --ignored`
-   ([`tests/corpus.rs`](../crates/federation-composition-rs/tests/corpus.rs)), which composes every
+4. **native.** Runs `cargo test -p federation-composition --release --test corpus -- --ignored`
+   ([`tests/corpus.rs`](../crates/federation-composition/tests/corpus.rs)), which composes every
    corpus case with the native Rust and requires the output to equal `expected` exactly. Mismatches
    go to `target/corpus-mismatches.jsonl`, the counts to `target/corpus-summary.json`.
 
@@ -57,12 +57,12 @@ Options: `--only=wasm,capture,native` runs some steps (the checkout always runs;
 the corpus the last `capture` wrote), `--skip-build` uses the npm package as built,
 `--skip-install` uses upstream's `node_modules` as installed.
 
-| Environment variable     | Default                             | Used by                                                               |
-| ------------------------ | ----------------------------------- | --------------------------------------------------------------------- |
-| `CONFORMANCE_CORPUS`     | `conformance/out/corpus.jsonl`      | the capture step, `tests/corpus.rs`, the benchmarks                   |
-| `CONFORMANCE_EXCEPTIONS` | `conformance/known-exceptions.json` | both checks                                                           |
-| `UPSTREAM_REPO`          | the upstream GitHub URL             | the checkout and the watcher                                          |
-| `UPSTREAM_DIR`           | `conformance/upstream`              | `crates/graphql-rs/tests/gen-*.mjs` (graphql-js and upstream's tests) |
+| Environment variable     | Default                             | Used by                                                                 |
+| ------------------------ | ----------------------------------- | ----------------------------------------------------------------------- |
+| `CONFORMANCE_CORPUS`     | `conformance/out/corpus.jsonl`      | the capture step, `tests/corpus.rs`, the benchmarks                     |
+| `CONFORMANCE_EXCEPTIONS` | `conformance/known-exceptions.json` | both checks                                                             |
+| `UPSTREAM_REPO`          | the upstream GitHub URL             | the checkout and the watcher                                            |
+| `UPSTREAM_DIR`           | `conformance/upstream`              | `crates/graphql-core/tests/gen-*.mjs` (graphql-js and upstream's tests) |
 
 ## Known exceptions
 

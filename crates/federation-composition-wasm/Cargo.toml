@@ -10,14 +10,14 @@ authors.workspace = true
 # (npm/), released by .github/workflows/npm-publish.yml.
 publish = false
 readme = "README.md"
-description = "wasm-bindgen bindings of federation_composition_rs, used by the npm package federation-composition-wasm (npm/)"
+description = "wasm-bindgen bindings of federation_composition, used by the npm package federation-composition-wasm (npm/)"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-graphql-rs = { version = "0.1.0", path = "../graphql-rs" }
-federation-composition-rs = { version = "0.1.0", path = "../federation-composition-rs" }
+graphql-core = { version = "0.1.0", path = "../graphql-core" }
+federation-composition = { version = "0.1.0", path = "../federation-composition" }
 # wasm-bindgen must match the wasm-bindgen-cli version exactly (npm/build.mjs checks).
 wasm-bindgen = "=0.2.129"
 js-sys = "=0.3.106"

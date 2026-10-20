@@ -3,7 +3,7 @@
 //   wasm    upstream's unchanged test suite against the npm package @lemonberrylabs/federation-composition-wasm;
 //   capture upstream's test suite on its own TypeScript, recording every composition it performs
 //           and its output, plus the three benchmark fixtures, into conformance/out/corpus.jsonl;
-//   native  crates/federation-composition-rs/tests/corpus.rs, which requires native Rust output to
+//   native  crates/federation-composition/tests/corpus.rs, which requires native Rust output to
 //           be identical to the recorded TypeScript output.
 // Both checks honor known-exceptions.json. Exits non-zero if any step fails.
 //
@@ -216,7 +216,7 @@ function nativeStep() {
     [
       "test",
       "-p",
-      "federation-composition-rs",
+      "federation-composition",
       "--release",
       "--test",
       "corpus",

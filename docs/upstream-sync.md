@@ -55,11 +55,11 @@ everything below follows it.
    `git -C conformance/upstream diff <old> vX.Y.Z -- src __tests__`.
 
 2. **Port the changed `src/` files to their mirrored Rust modules.** `src/a/b-c.ts` is
-   `crates/federation-composition-rs/src/a/b_c.rs` (`index.ts` is `mod.rs`, `src/index.ts` is
+   `crates/federation-composition/src/a/b_c.rs` (`index.ts` is `mod.rs`, `src/index.ts` is
    `lib.rs`). Port the change with the same structure and control flow as the TypeScript, without
    refactoring or "fixing" upstream behavior (leave a `// NOTE(port):` where the TS looks wrong).
    A new file gets a new module in the same place; a deleted file's module is deleted. If upstream
-   now uses more of graphql-js, port that part into `crates/graphql-rs` (mirroring graphql-js's
+   now uses more of graphql-js, port that part into `crates/graphql-core` (mirroring graphql-js's
    files) and extend its differential tests.
 
 3. **Update the bindings if the public surface changed.** A new or changed export of a module that
@@ -69,7 +69,7 @@ everything below follows it.
    (`src/index.ts`) changed, update `npm/src/index.ts` and the export list in
    `npm/test/smoke.test.mjs`.
 
-4. **Port new and changed upstream tests into `crates/federation-composition-rs/tests/suite`.**
+4. **Port new and changed upstream tests into `crates/federation-composition/tests/suite`.**
    `__tests__/x/Y-Z.spec.ts` is `tests/suite/x/y_z.rs` (and a new file is added to the module tree
    in `tests/suite/main.rs`); tests in `src/**/*.spec.ts` become unit tests in the module. Follow
    "Rust test suite" in PORTING.md exactly: guild side only, one `#[test]` per TS test per
@@ -85,8 +85,8 @@ everything below follows it.
    ```sh
    pnpm conformance vX.Y.Z                       # upstream's tests on wasm; corpus differential
    pnpm test:npm                                 # the npm package's own tests
-   node crates/graphql-rs/tests/gen-corpus.mjs   # graphql-js differential corpora, from the checkout
-   node crates/graphql-rs/tests/gen-schema-corpus.mjs
+   node crates/graphql-core/tests/gen-corpus.mjs   # graphql-js differential corpora, from the checkout
+   node crates/graphql-core/tests/gen-schema-corpus.mjs
    cargo test --workspace
    cargo fmt --all --check
    cargo clippy --workspace --all-targets -- -D warnings

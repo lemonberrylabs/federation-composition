@@ -1,10 +1,10 @@
-//! `federation_composition_rs::compose_services` on up to four subgraphs: the input is split at NUL
+//! `federation_composition::compose_services` on up to four subgraphs: the input is split at NUL
 //! bytes and each part that parses is a subgraph (`a`, `b`, ...). A successful composition is
 //! also turned into its public schema, sorted, and composed again as a schema contract.
 #![no_main]
 
-use federation_composition_rs::graphql_rs::parse;
-use federation_composition_rs::{
+use federation_composition::graphql_core::parse;
+use federation_composition::{
     compose_schema_contract, compose_services, extract_link_implementations, sort_sdl,
     transform_supergraph_to_public_schema, validate_subgraph, SchemaContractFilter, ServiceDefinition,
 };

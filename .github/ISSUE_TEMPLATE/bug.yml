@@ -11,8 +11,8 @@ body:
     attributes:
       label: Package
       options:
-        - federation-composition-rs (crate)
-        - graphql-rs (crate)
+        - federation-composition (crate)
+        - graphql-core (crate)
         - "@lemonberrylabs/federation-composition-wasm (npm)"
     validations:
       required: true

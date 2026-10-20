@@ -1,4 +1,4 @@
-//! `federation_composition_rs::compose_services` on subgraph documents that the parser cannot
+//! `federation_composition::compose_services` on subgraph documents that the parser cannot
 //! produce, as a document built in code or deserialized (a JavaScript AST through the
 //! WebAssembly bindings) can be: names that are not GraphQL names.
 //!
@@ -7,10 +7,10 @@
 //! order, is renamed to the `k`-th name when that one is not empty.
 #![no_main]
 
-use federation_composition_rs::graphql_rs::{
+use federation_composition::graphql_core::{
     parse, visit_edit, EditAction, EditVisitor, Name, Node, NodeRef, VisitInfo,
 };
-use federation_composition_rs::{compose_services, ServiceDefinition};
+use federation_composition::{compose_services, ServiceDefinition};
 use libfuzzer_sys::fuzz_target;
 
 struct Rename<'n> {

@@ -1,7 +1,7 @@
 # release-plz (https://release-plz.dev/docs/config), run by .github/workflows/release-plz.yml:
 # on each push to main it opens or updates a release pull request that bumps the versions and
-# updates the changelogs; merging it tags, makes the GitHub releases and publishes graphql-rs
-# and federation-composition-rs to crates.io. See CONTRIBUTING.md, "Releasing".
+# updates the changelogs; merging it tags, makes the GitHub releases and publishes graphql-core
+# and federation-composition to crates.io. See CONTRIBUTING.md, "Releasing".
 
 [workspace]
 # cargo-semver-checks on every library against its last published version: an API break needs
@@ -16,12 +16,12 @@ dependencies_update = false
 pr_labels = ["release"]
 
 [[package]]
-name = "graphql-rs"
-changelog_path = "crates/graphql-rs/CHANGELOG.md"
+name = "graphql-core"
+changelog_path = "crates/graphql-core/CHANGELOG.md"
 
 [[package]]
-name = "federation-composition-rs"
-changelog_path = "crates/federation-composition-rs/CHANGELOG.md"
+name = "federation-composition"
+changelog_path = "crates/federation-composition/CHANGELOG.md"
 
 # The WebAssembly bindings are not on crates.io (publish = false): they ship in the npm package
 # federation-composition-wasm. release-plz versions and tags them from git alone; the tag

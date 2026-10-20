@@ -1,10 +1,10 @@
-//! WebAssembly bindings of `federation_composition_rs` for the TypeScript shim
+//! WebAssembly bindings of `federation_composition` for the TypeScript shim
 //! in `npm/src` (the npm package @lemonberrylabs/federation-composition-wasm). Everything JS-specific lives here and in the shim.
 //!
 //! Conventions shared with `npm/src/runtime.ts`:
 //!
 //! * Structured arguments and results are JSON. AST nodes use the graphql-js
-//!   JSON form (`graphql_rs` serde); the shim leaves out `loc` and the
+//!   JSON form (`graphql_core` serde); the shim leaves out `loc` and the
 //!   deserializer ignores any `loc` left in. Arguments that carry documents
 //!   are UTF-8 bytes (`&[u8]`, a `Uint8Array` from `encodeJSON` in the shim):
 //!   wasm-bindgen copies those, while it re-encodes a `&str` argument one
@@ -99,7 +99,7 @@ impl ThrownError {
         }
     }
 
-    pub(crate) fn graphql(error: graphql_rs::GraphQLError) -> Self {
+    pub(crate) fn graphql(error: graphql_core::GraphQLError) -> Self {
         ThrownError::GraphQL {
             message: error.message,
             extensions: error.extensions.into_iter().collect(),
@@ -107,9 +107,9 @@ impl ThrownError {
     }
 }
 
-impl From<federation_composition_rs::__internal::utils::js::JsError> for ThrownError {
-    fn from(e: federation_composition_rs::__internal::utils::js::JsError) -> Self {
-        use federation_composition_rs::__internal::utils::js::JsError;
+impl From<federation_composition::__internal::utils::js::JsError> for ThrownError {
+    fn from(e: federation_composition::__internal::utils::js::JsError) -> Self {
+        use federation_composition::__internal::utils::js::JsError;
         match e {
             JsError::Error { name, message } => ThrownError::Error {
                 name: name.to_owned(),
@@ -122,7 +122,7 @@ impl From<federation_composition_rs::__internal::utils::js::JsError> for ThrownE
 
 /// A thrown error of the library (its `JsError`, or the public `Error` that wraps one) as the
 /// value the shim rethrows.
-pub(crate) fn thrown(e: impl Into<federation_composition_rs::__internal::utils::js::JsError>) -> JsValue {
+pub(crate) fn thrown(e: impl Into<federation_composition::__internal::utils::js::JsError>) -> JsValue {
     ThrownError::from(e.into()).into()
 }
 
@@ -135,11 +135,11 @@ impl From<ThrownError> for JsValue {
 pub(crate) type JsResult<T> = Result<T, JsValue>;
 
 /// The deepest nesting of arrays and objects a JSON argument may have: enough for a document at
-/// the parser's nesting limit (`graphql_rs::MAX_NESTING_DEPTH`), whose deepest levels (object
+/// the parser's nesting limit (`graphql_core::MAX_NESTING_DEPTH`), whose deepest levels (object
 /// values and selection sets) take three JSON levels each, inside the arguments' own structure.
 /// serde_json's default limit, 128 JSON levels, would reject documents graphql-js and the Rust
 /// parser accept (a list value 60 levels deep).
-pub(crate) const MAX_JSON_DEPTH: usize = 3 * graphql_rs::MAX_NESTING_DEPTH + 64;
+pub(crate) const MAX_JSON_DEPTH: usize = 3 * graphql_core::MAX_NESTING_DEPTH + 64;
 
 /// Parses a JSON argument sent by the shim, either a string (`json.as_bytes()`) or the UTF-8
 /// bytes of one (`encodeJSON` in the shim, for documents).
@@ -206,10 +206,10 @@ fn json_depth_exceeds(json: &[u8], max_depth: usize) -> bool {
 }
 
 /// Rejects a document nested deeper than the parser allows, as the library's public functions
-/// do (`graphql_rs::check_nesting_depth`), before the binding recurses into it. Within
+/// do (`graphql_core::check_nesting_depth`), before the binding recurses into it. Within
 /// [`MAX_JSON_DEPTH`] a document can be up to that many levels deep.
-pub(crate) fn check_nesting_depth(document: &graphql_rs::Document) -> JsResult<()> {
-    graphql_rs::check_nesting_depth(document, graphql_rs::MAX_NESTING_DEPTH)
+pub(crate) fn check_nesting_depth(document: &graphql_core::Document) -> JsResult<()> {
+    graphql_core::check_nesting_depth(document, graphql_core::MAX_NESTING_DEPTH)
         .map_err(|error| ThrownError::graphql(error).into())
 }
 
@@ -225,6 +225,6 @@ pub(crate) fn to_json_bytes<T: Serialize + ?Sized>(value: &T) -> Vec<u8> {
 }
 
 /// A GraphQL error as the shim rebuilds it: `{ message, extensions? }`.
-pub(crate) fn graphql_error_json(error: &graphql_rs::GraphQLError) -> serde_json::Value {
+pub(crate) fn graphql_error_json(error: &graphql_core::GraphQLError) -> serde_json::Value {
     serde_json::to_value(error).unwrap()
 }

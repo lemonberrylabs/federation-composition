@@ -47,7 +47,7 @@ top = max(inclusive.values())
 print("\nInclusive time of crate functions (top 30):")
 shown = 0
 for name, n in inclusive.most_common():
-    if "federation_composition_rs" not in name and "graphql" not in name:
+    if "federation_composition" not in name and "graphql" not in name:
         continue
     parts = re.findall(r"\d+([a-z_][a-z0-9_]+)", name)
     print(f"  {100 * n / top:5.1f}%  {'::'.join(parts[-4:])}")

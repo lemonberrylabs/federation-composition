@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-Only the latest release of each package receives fixes: the crates `graphql-rs` and
-`federation-composition-rs`, and the npm package `@lemonberrylabs/federation-composition-wasm`. Until the crates'
+Only the latest release of each package receives fixes: the crates `graphql-core` and
+`federation-composition`, and the npm package `@lemonberrylabs/federation-composition-wasm`. Until the crates'
 first release, that is the `main` branch for them.
 
 ## Reporting a vulnerability
@@ -38,7 +38,7 @@ schemas that come from untrusted parties, know these properties:
   list values, object values, selection sets and list types together (`{ a: [1] }` is two
   levels), with the syntax error
   `Syntax Error: Document nesting depth exceeds 128. Parsing aborted.` The limit is
-  `graphql_rs::MAX_NESTING_DEPTH`; `ParseOptions::max_nesting_depth` changes it for one parse
+  `graphql_core::MAX_NESTING_DEPTH`; `ParseOptions::max_nesting_depth` changes it for one parse
   (raise it only with a larger stack). graphql-js has no limit of its
   own: it throws a `RangeError` when it runs out of JavaScript stack. The limit also applies to
   the text composition parses: a `@key`, `@requires` or `@provides` field set that nests more
@@ -46,15 +46,15 @@ schemas that come from untrusted parties, know these properties:
   No upstream test comes near these depths.
 - **Documents built in code or deserialized** can nest deeper than the parser allows. Every
   public function that takes a document and returns a `Result` checks it first and returns the
-  `GraphQLError` `AST nesting depth exceeds 128.`: in `graphql-rs`, `build_ast_schema` and
-  `assert_valid_sdl`; in `federation-composition-rs`, `compose_services`, `validate`,
+  `GraphQLError` `AST nesting depth exceeds 128.`: in `graphql-core`, `build_ast_schema` and
+  `assert_valid_sdl`; in `federation-composition`, `compose_services`, `validate`,
   `validate_subgraph`, `extract_link_implementations`, `transform_supergraph_to_public_schema`,
   `sort_sdl`, `compose_schema_contract`, `add_inaccessible_to_unreachable_types`,
   `apply_tag_filter_on_subgraphs` and `CompositionSuccess::public_document_node`/`public_sdl`.
   The functions that cannot fail (`print`, `visit`, `visit_edit`, `validate_sdl`, and
   `CompositionSuccess::supergraph_sdl` of a success made with
   `create_composition_success_read_cache_container`) recurse once per level: check such a
-  document with `graphql_rs::check_nesting_depth` before calling them. Dropping a deeply nested
+  document with `graphql_core::check_nesting_depth` before calling them. Dropping a deeply nested
   AST recurses too, as for any tree of `Box`es in Rust.
 - **Stack.** Within the limit, the deepest case (list types nested 128 levels in a subgraph)
   composes in about 260 KiB of stack in a release build and 850 KiB in a debug build, so it fits
@@ -69,7 +69,7 @@ schemas that come from untrusted parties, know these properties:
   parsed, and a document in it is then checked as above (a `GraphQLError`
   `AST nesting depth exceeds 128.`). Within the limit, the package behaves like upstream.
 - **Size.** The number of subgraphs, types, fields and tokens is not limited (except by
-  `graphql_rs::parse_with_options`'s `max_tokens`, graphql-js's option, which bounds the work of
+  `graphql_core::parse_with_options`'s `max_tokens`, graphql-js's option, which bounds the work of
   parsing one document); composition time and memory grow with the schemas. If you compose
   untrusted schemas, bound the size of the input and the time you allow a composition (for
   example, run it in a worker you can stop).

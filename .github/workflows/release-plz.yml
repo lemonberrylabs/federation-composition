@@ -2,7 +2,7 @@
 # On each push to main, `release-pr` opens or updates the release pull request (version bumps,
 # changelogs, cargo-semver-checks against the last published versions). When that pull request
 # is merged, `release` tags each bumped crate, creates its GitHub release and publishes
-# graphql-rs and federation-composition-rs to crates.io; the tag of federation-composition-wasm
+# graphql-core and federation-composition to crates.io; the tag of federation-composition-wasm
 # triggers npm-publish.yml.
 #
 # Publishes with crates.io trusted publishing (OIDC): no registry token. release-plz exchanges

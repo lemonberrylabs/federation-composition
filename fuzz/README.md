@@ -4,12 +4,12 @@
 entry points. A target fails on a panic, a stack overflow, an abort or a broken property; the
 crates promise none of those on any input (see [SECURITY.md](../SECURITY.md)).
 
-| Target         | Input                                                                                                                                                           | Checks                                                                                                                                                                                                                           |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `parse`        | any text                                                                                                                                                        | `graphql_rs::parse`, `parse_value`, `parse_const_value`, `parse_type`, `parse_schema_coordinate`, `strip_ignored_characters`; a parsed document is within the nesting limit and prints to text that parses back to the same AST. |
-| `build_schema` | SDL                                                                                                                                                             | `graphql_rs::build_schema`, `validate_schema`, `assert_valid_schema`.                                                                                                                                                            |
-| `compose`      | up to four subgraphs' SDL, separated by NUL bytes                                                                                                               | `extract_link_implementations`, `validate_subgraph` (one subgraph), `compose_services`; for a successful composition, `public_sdl`, `sort_sdl`, `transform_supergraph_to_public_schema` and `compose_schema_contract`.           |
-| `compose_ast`  | the `compose` input, then `\x01` and names separated by `\x02`: the `k`-th name node of the parsed documents is renamed to the `k`-th name when it is not empty | `compose_services` on documents the parser cannot produce (names that are not GraphQL names), as documents built in code or deserialized from JavaScript can be.                                                                 |
+| Target         | Input                                                                                                                                                           | Checks                                                                                                                                                                                                                             |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parse`        | any text                                                                                                                                                        | `graphql_core::parse`, `parse_value`, `parse_const_value`, `parse_type`, `parse_schema_coordinate`, `strip_ignored_characters`; a parsed document is within the nesting limit and prints to text that parses back to the same AST. |
+| `build_schema` | SDL                                                                                                                                                             | `graphql_core::build_schema`, `validate_schema`, `assert_valid_schema`.                                                                                                                                                            |
+| `compose`      | up to four subgraphs' SDL, separated by NUL bytes                                                                                                               | `extract_link_implementations`, `validate_subgraph` (one subgraph), `compose_services`; for a successful composition, `public_sdl`, `sort_sdl`, `transform_supergraph_to_public_schema` and `compose_schema_contract`.             |
+| `compose_ast`  | the `compose` input, then `\x01` and names separated by `\x02`: the `k`-th name node of the parsed documents is renamed to the `k`-th name when it is not empty | `compose_services` on documents the parser cannot produce (names that are not GraphQL names), as documents built in code or deserialized from JavaScript can be.                                                                   |
 
 ## Running
 
@@ -23,7 +23,7 @@ cargo +nightly fuzz run compose -- -dict=fuzz/graphql.dict -max_total_time=600
 ```
 
 `seed-corpus.mjs` seeds every target's corpus with the subgraph schemas of
-`crates/federation-composition-rs/tests/fixtures` and with each group of subgraphs that a
+`crates/federation-composition/tests/fixtures` and with each group of subgraphs that a
 `compose_services` call of the ported test suite composes. `graphql.dict` lists GraphQL tokens and
 federation names for libFuzzer's mutations. `fuzz/corpus` and `fuzz/artifacts` are gitignored.
 
@@ -46,4 +46,4 @@ libFuzzer writes the input to `fuzz/artifacts/<target>/crash-*`. Reproduce it wi
 2. Fix the crate, never the target (unless the target checks a property graphql-js itself does not
    have).
 3. Add the input as a regression test in the crate's normal test suite:
-   `crates/graphql-rs/tests/robustness.rs` or `crates/federation-composition-rs/tests/robustness.rs`.
+   `crates/graphql-core/tests/robustness.rs` or `crates/federation-composition/tests/robustness.rs`.

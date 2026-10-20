@@ -1,7 +1,7 @@
-//! `graphql_rs::build_schema` and schema validation on arbitrary SDL.
+//! `graphql_core::build_schema` and schema validation on arbitrary SDL.
 #![no_main]
 
-use graphql_rs::{assert_valid_schema, build_schema, validate_schema};
+use graphql_core::{assert_valid_schema, build_schema, validate_schema};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

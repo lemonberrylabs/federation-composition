@@ -1,0 +1,26 @@
+[package]
+name = "federation-composition"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "Apollo Federation schema composition: a Rust port of @theguild/federation-composition"
+readme = "README.md"
+keywords = ["graphql", "federation", "supergraph", "composition", "apollo-federation"]
+categories = ["web-programming", "development-tools"]
+# The library only: the tests and examples need the upstream checkout and the corpus that
+# `pnpm conformance` generates (CONTRIBUTING.md), so they are not in the package.
+include = ["/src/**/*.rs", "/README.md", "/LICENSE"]
+
+[dependencies]
+graphql-core = { version = "0.1.0", path = "../graphql-core" }
+serde.workspace = true
+serde_json.workspace = true
+# Only for the benchmark and profiling examples (`--features mimalloc`): a library must not
+# choose its users' global allocator, so nothing in src/ uses it.
+mimalloc = { version = "0.1.52", optional = true }
+
+[features]
+mimalloc = ["dep:mimalloc"]

@@ -8,7 +8,7 @@ set -e
 CASE=${1:-fixture:huge-schema}
 SECONDS_TO_SAMPLE=${2:-15}
 OUT=target/profile-$(echo "$CASE" | tr ':/' '__').txt
-CARGO_PROFILE_RELEASE_DEBUG=1 cargo build -q -p federation-composition-rs --release ${FEATURES:+--features "$FEATURES"} --example profile_case
+CARGO_PROFILE_RELEASE_DEBUG=1 cargo build -q -p federation-composition --release ${FEATURES:+--features "$FEATURES"} --example profile_case
 ./target/release/examples/profile_case "$CASE" $((SECONDS_TO_SAMPLE + 5)) &
 PID=$!
 sleep 2

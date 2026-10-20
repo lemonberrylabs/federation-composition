@@ -7,7 +7,7 @@
 // "guild-wasm" (the npm package @lemonberrylabs/federation-composition-wasm as built in npm/dist, so AST
 // conversion across the boundary is included). Run `pnpm conformance` first; it checks out
 // upstream, builds the package and records the corpus.
-// Native Rust uses the same protocol: crates/federation-composition-rs/examples/corpus_bench.rs.
+// Native Rust uses the same protocol: crates/federation-composition/examples/corpus_bench.rs.
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import type { DocumentNode } from "graphql";

@@ -13,13 +13,13 @@ release recorded in [`UPSTREAM`](../UPSTREAM).
 ## The crates and how they depend on each other
 
 ```
-graphql-rs  <--  federation-composition-rs  <--  federation-composition-wasm  <--  npm/ (TypeScript shim)
+graphql-core  <--  federation-composition  <--  federation-composition-wasm  <--  npm/ (TypeScript shim)
 ```
 
 | Crate or package                                                              | Ports                                              | Notes                                                                                                   |
 | ----------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| [`crates/graphql-rs`](../crates/graphql-rs)                                   | graphql-js 17.0.2, the parts upstream uses         | No dependency on the other crates.                                                                      |
-| [`crates/federation-composition-rs`](../crates/federation-composition-rs)     | upstream's `src/`                                  | The product. Nothing in it exists only to serve the bindings.                                           |
+| [`crates/graphql-core`](../crates/graphql-core)                               | graphql-js 17.0.2, the parts upstream uses         | No dependency on the other crates.                                                                      |
+| [`crates/federation-composition`](../crates/federation-composition)           | upstream's `src/`                                  | The product. Nothing in it exists only to serve the bindings.                                           |
 | [`crates/federation-composition-wasm`](../crates/federation-composition-wasm) | nothing; it is glue                                | wasm-bindgen exports, JSON conversion in the shapes of the TypeScript objects, the talc allocator.      |
 | [`npm/`](../npm)                                                              | the public modules of upstream's `src/`, as a shim | `npm/src/<path>.ts` has the same exports as upstream's `src/<path>.ts` and calls the WebAssembly build. |
 
@@ -28,9 +28,9 @@ lazy getters, class wrappers) lives in `crates/federation-composition-wasm` and 
 
 ## The module tree mirrors upstream
 
-`crates/federation-composition-rs/src` mirrors upstream's `src/` one file to one file:
+`crates/federation-composition/src` mirrors upstream's `src/` one file to one file:
 `src/supergraph/composition/object-type.ts` is
-`crates/federation-composition-rs/src/supergraph/composition/object_type.rs`, a directory's
+`crates/federation-composition/src/supergraph/composition/object_type.rs`, a directory's
 `index.ts` is its `mod.rs`, and `src/index.ts` is `lib.rs`, whose re-exports are `index.ts`'s
 export list. Each Rust file keeps the TypeScript file's function names (in snake_case), the order
 of its functions and its control flow, so a reviewer can read the two side by side. Upstream's
@@ -51,7 +51,7 @@ Two comment markers explain where the Rust differs in form from the TypeScript:
   in [research/journal/04-optimize.md](../research/journal/04-optimize.md).
 
 The top-level modules are private. The crate root re-exports upstream's `src/index.ts` export
-list with Rust naming (the [crate README](../crates/federation-composition-rs/README.md#api) maps
+list with Rust naming (the [crate README](../crates/federation-composition/README.md#api) maps
 each export), and wraps the internal `JsError` in the public `Error`. What this repository's tests
 and the WebAssembly bindings need beyond that is re-exported, under the module paths below, from
 the hidden `__internal` module, which is not a stable API.
@@ -70,9 +70,9 @@ The top-level modules:
 | `utils`          | `src/utils/`          | Helpers, plus `utils::js` and `utils::collections` (below), which have no upstream file.                     |
 | `types`          | `src/types.ts`        | `ServiceDefinition` and the other public input types.                                                        |
 
-## graphql-rs mirrors graphql-js
+## graphql-core mirrors graphql-js
 
-`crates/graphql-rs/src` follows graphql-js's file layout in the same way: `language/` files are at
+`crates/graphql-core/src` follows graphql-js's file layout in the same way: `language/` files are at
 the crate root (`lexer.rs`, `parser.rs`, `printer.rs`, `visitor.rs`, `ast.rs`), and `type/`,
 `utilities/`, `validation/`, `execution/` and `jsutils/` are subdirectories with graphql-js's file
 names. Only what upstream calls is ported: the language layer, `buildSchema`/`buildASTSchema` with
@@ -87,16 +87,16 @@ suffix (`FieldDefinition`, `ObjectTypeExtension`), with union enums (`Definition
 Optional lists are plain `Vec`s, where an empty list stands for `undefined`. The serde form of a
 document is graphql-js's JSON, which is how documents cross into WebAssembly. Parse errors, printed
 output and schema validation messages match graphql-js byte for byte, and
-[`tests/differential.rs`](../crates/graphql-rs/tests/differential.rs) and
-[`tests/schema_differential.rs`](../crates/graphql-rs/tests/schema_differential.rs) check this
+[`tests/differential.rs`](../crates/graphql-core/tests/differential.rs) and
+[`tests/schema_differential.rs`](../crates/graphql-core/tests/schema_differential.rs) check this
 against values generated from graphql-js itself.
 
-`crates/federation-composition-rs` imports this crate as `graphql_rs`, because `crate::graphql` is
+`crates/federation-composition` imports this crate as `graphql_core`, because `crate::graphql` is
 already the port of upstream's `src/graphql/`.
 
 ## The visitor
 
-[`visitor.rs`](../crates/graphql-rs/src/visitor.rs) ports graphql-js `visit` and
+[`visitor.rs`](../crates/graphql-core/src/visitor.rs) ports graphql-js `visit` and
 `visitInParallel`, with graphql-js's traversal order and its `key`, `parent`, `path` and
 `ancestors` bookkeeping (`VisitInfo`). There are two traversals:
 
@@ -123,7 +123,7 @@ callback becomes `return cx.throw(err)`, which records the error and stops the t
 visitor.
 
 Supergraph validation uses a different visitor,
-[`supergraph::composition::visitor`](../crates/federation-composition-rs/src/supergraph/composition/visitor.rs)
+[`supergraph::composition::visitor`](../crates/federation-composition/src/supergraph/composition/visitor.rs)
 (`SupergraphVisitor<'s>`, upstream's `SupergraphVisitorMap`), which walks the composed supergraph
 state once for all rules: object types, fields, arguments, interfaces, enums and so on. Its
 callbacks return `JsResult`, so a rule that throws aborts the visit as in TypeScript.
@@ -152,8 +152,8 @@ callbacks return `JsResult`, so a rule that throws aborts the visit as in TypeSc
 ## The satisfiability graph arena
 
 The satisfiability rule
-([`satisfiablity_rule.rs`](../crates/federation-composition-rs/src/supergraph/validation/rules/satisfiablity_rule.rs)
-and [`satisfiablity/`](../crates/federation-composition-rs/src/supergraph/validation/rules/satisfiablity))
+([`satisfiablity_rule.rs`](../crates/federation-composition/src/supergraph/validation/rules/satisfiablity_rule.rs)
+and [`satisfiablity/`](../crates/federation-composition/src/supergraph/validation/rules/satisfiablity))
 checks that every field of the supergraph can be reached by some query plan. It is the most
 expensive part of composing large schemas.
 
@@ -186,7 +186,7 @@ In TypeScript these graphs are object graphs with identity. In Rust they are are
   builds the node of each field's type before the field's edge, and `dfsInner` recurses once per
   step of the walk. Both run on explicit stacks in Rust (`CreateFrame` in `graph.rs`, `DfsFrame` in
   `walker.rs`) that do the same work in the same order, so long chains of types cannot overflow
-  the stack. The same goes for the input object and default value cycle checks and graphql-rs's
+  the stack. The same goes for the input object and default value cycle checks and graphql-core's
   `collectReferencedTypes` (SECURITY.md, "Untrusted input").
 - Upstream's `bigint` context masks are `ContextMask`, a bit set that can grow past 128 bits, and
   `lazy(() => ...)` values are `helpers::Lazy`. Subgraph names are interned (`GraphNames`, shared
@@ -204,7 +204,7 @@ The complete table is in [crates/PORTING.md](../crates/PORTING.md#javascript-sem
 these are the rules contributors most often need:
 
 - **Iteration order is observable.** It decides the order of errors and of the printed SDL. Use
-  `IndexMap`/`IndexSet` from `crate::utils::collections` (in graphql-rs, `crate::collections`):
+  `IndexMap`/`IndexSet` from `crate::utils::collections` (in graphql-core, `crate::collections`):
   insertion-ordered maps with the FxHash hasher. Never use `indexmap::IndexMap` directly or std
   `HashMap`/`HashSet`. Remove entries with `shift_remove`, never `swap_remove`, which reorders.
 - **Plain objects order integer-like keys first.** A JavaScript object used as a dictionary
@@ -214,14 +214,14 @@ these are the rules contributors most often need:
   exactly. `localeCompare` is `utils::js::locale_compare` (ICU root collation emulation), never
   `cmp`. Number formatting (`String(n)`, `${n}`) is `utils::js::number_to_string`. Both are checked
   against values recorded from Node in
-  [`tests/js_semantics.rs`](../crates/federation-composition-rs/tests/js_semantics.rs).
+  [`tests/js_semantics.rs`](../crates/federation-composition/tests/js_semantics.rs).
 - **Truthiness.** `if (x)` is false for `""`, `0` and `NaN` and true for every array; `??` and
   `||` differ on `""`, `0` and `false`. Port each according to the type it actually operates on.
 - **Exceptions.** A JavaScript `throw` is `Err(JsError)` (`crate::utils::js::JsError`), and every
   function whose TypeScript can throw returns `JsResult<T>`. A `catch` becomes a match on the
   `Err`, and it must catch what JavaScript would, including runtime `TypeError`s from reading a
   property of `undefined`. A throw that nothing in upstream's `src/` catches reaches the caller:
-  the crate root's functions return it as `federation_composition_rs::Error`, which keeps the
+  the crate root's functions return it as `federation_composition::Error`, which keeps the
   `JsError` unchanged. Never `unwrap()` a value derived from user input unless the TypeScript also
   crashes there.
 - **Error messages are compared verbatim** by upstream's tests. Copy them exactly.
@@ -243,14 +243,14 @@ matches upstream's `src/index.ts`; the `internal/*` entry points are not a stabl
 
 ## Tests
 
-| Where                                                                                                                 | What                                                                                                           |
-| --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| [`crates/federation-composition-rs/tests/suite`](../crates/federation-composition-rs/tests/suite)                     | Upstream's tests ported to Rust. Its module tree mirrors upstream's `__tests__/`; porting rules in PORTING.md. |
-| [`crates/federation-composition-rs/tests/corpus.rs`](../crates/federation-composition-rs/tests/corpus.rs)             | Native output against upstream's recorded TypeScript output, on every composition upstream's tests perform.    |
-| [`crates/federation-composition-rs/tests/js_semantics.rs`](../crates/federation-composition-rs/tests/js_semantics.rs) | `locale_compare` and `number_to_string` against Node.                                                          |
-| [`crates/graphql-rs/tests`](../crates/graphql-rs/tests)                                                               | Differential tests against graphql-js, the visitor tests, and the generators of the expected values.           |
-| [`npm/test`](../npm/test)                                                                                             | The JavaScript-to-Rust bridge checks and a smoke test of the package.                                          |
-| [`conformance/`](../conformance)                                                                                      | Upstream's unchanged test suite against the npm package, and the capture of the corpus.                        |
+| Where                                                                                                           | What                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [`crates/federation-composition/tests/suite`](../crates/federation-composition/tests/suite)                     | Upstream's tests ported to Rust. Its module tree mirrors upstream's `__tests__/`; porting rules in PORTING.md. |
+| [`crates/federation-composition/tests/corpus.rs`](../crates/federation-composition/tests/corpus.rs)             | Native output against upstream's recorded TypeScript output, on every composition upstream's tests perform.    |
+| [`crates/federation-composition/tests/js_semantics.rs`](../crates/federation-composition/tests/js_semantics.rs) | `locale_compare` and `number_to_string` against Node.                                                          |
+| [`crates/graphql-core/tests`](../crates/graphql-core/tests)                                                     | Differential tests against graphql-js, the visitor tests, and the generators of the expected values.           |
+| [`npm/test`](../npm/test)                                                                                       | The JavaScript-to-Rust bridge checks and a smoke test of the package.                                          |
+| [`conformance/`](../conformance)                                                                                | Upstream's unchanged test suite against the npm package, and the capture of the corpus.                        |
 
 Never edit a test or a recorded output to make it pass. A deliberate divergence from upstream is
 the owner's decision and goes in
