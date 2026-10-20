@@ -34,7 +34,12 @@ pub use parser::{
 };
 pub use predicates::*;
 pub use printer::print;
-pub use r#type::schema::GraphQLSchema;
+pub use r#type::definition::{
+    GraphQLArgument, GraphQLEnumType, GraphQLEnumValue, GraphQLField, GraphQLInputField, GraphQLInputObjectType,
+    GraphQLInterfaceType, GraphQLNamedType, GraphQLObjectType, GraphQLScalarType, GraphQLType, GraphQLUnionType,
+};
+pub use r#type::directives::GraphQLDirective;
+pub use r#type::schema::{GraphQLSchema, Implementations};
 pub use r#type::validate::{assert_valid_schema, validate_schema};
 pub use specified::{
     is_introspection_type, is_specified_directive, is_specified_scalar_type, specified_directives,
@@ -58,11 +63,22 @@ pub mod __internal {
         pub use crate::jsutils::JsValue;
     }
 
-    /// graphql-js `type`: the type system of a [`GraphQLSchema`](crate::GraphQLSchema).
+    /// graphql-js `type`.
     pub mod r#type {
-        /// graphql-js `type/definition`.
+        /// graphql-js `type/definition`: what the differential tests compare beyond the public
+        /// API, the defaults as graphql-js keeps them (a literal, or a value given in code).
         pub mod definition {
-            pub use crate::r#type::definition::*;
+            pub use crate::r#type::definition::DefaultInput;
+
+            /// The argument's graphql-js `default`.
+            pub fn argument_default(arg: &crate::GraphQLArgument) -> Option<&DefaultInput> {
+                arg.default.as_ref()
+            }
+
+            /// The input field's graphql-js `default`.
+            pub fn input_field_default(field: &crate::GraphQLInputField) -> Option<&DefaultInput> {
+                field.default.as_ref()
+            }
         }
     }
 }

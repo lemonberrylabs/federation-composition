@@ -54,6 +54,57 @@ assert_eq!(error.message, "Interface field Node.id expected but User does not pr
 # Ok::<(), graphql_rs::GraphQLError>(())
 ```
 
+Look up the types of a built schema and read their fields and arguments:
+
+```rust
+use graphql_rs::{build_schema, print, GraphQLNamedType};
+
+let schema = build_schema(
+    r#"
+    type Query {
+      user(id: ID!): User
+      users(first: Int = 10, role: Role): [User!]!
+    }
+    type User { id: ID! name: String @deprecated(reason: "Use `fullName`.") fullName: String }
+    enum Role { ADMIN MEMBER }
+    "#,
+)?;
+
+let Some(GraphQLNamedType::Object(query)) = schema.get_query_type() else {
+    unreachable!("the query root type is an object type");
+};
+let users = &query.fields()["users"];
+assert_eq!(users.ty().to_string(), "[User!]!");
+assert_eq!(users.ty().named_type(), "User");
+
+let args: Vec<(&str, String, Option<String>)> = users
+    .args()
+    .iter()
+    .map(|arg| (arg.name(), arg.ty().to_string(), arg.default_value().map(|value| print(&*value))))
+    .collect();
+assert_eq!(
+    args,
+    [("first", "Int".to_string(), Some("10".to_string())), ("role", "Role".to_string(), None)]
+);
+
+// Named types are referenced by name; `get_type` looks them up.
+let Some(GraphQLNamedType::Object(user)) = schema.get_type(users.ty().named_type()) else {
+    unreachable!("User is an object type");
+};
+let deprecated: Vec<(&str, Option<&str>)> = user
+    .fields()
+    .values()
+    .map(|field| (field.name(), field.deprecation_reason()))
+    .collect();
+assert_eq!(
+    deprecated,
+    [("id", None), ("name", Some("Use `fullName`.")), ("fullName", None)]
+);
+# Ok::<(), graphql_rs::GraphQLError>(())
+```
+
+The type system is read-only: `GraphQLSchema` (`get_type`, `get_type_map`, the root types, `get_directives`, `get_possible_types`, `get_implementations`, `is_sub_type`), `GraphQLNamedType` and the type of each kind (`GraphQLObjectType`, `GraphQLInterfaceType`, `GraphQLUnionType`, `GraphQLEnumType`, `GraphQLInputObjectType`, `GraphQLScalarType`), `GraphQLField`, `GraphQLArgument`, `GraphQLInputField`, `GraphQLEnumValue`, `GraphQLDirective` and `GraphQLType`. Each accessor is named after its graphql-js property, and the AST node a type, field or value was built from (`ast_node`) gives its applied directives. An enum's values are the one fallible accessor: graphql-js computes them on first access and throws for an invalid `@deprecated(reason:)`, which `validate_schema` reports too.
+
 Walk a document with a `Visitor`:
 
 ```rust
@@ -86,7 +137,7 @@ AST structs are named like graphql-js node kinds without the `Node` suffix (`Fie
 
 ## Scope
 
-The parser, printer and visitor are complete ports. Of the type system, only what `buildSchema`/`buildASTSchema` and `validateSchema` need is ported: there is no `extendSchema` of an existing schema, no execution and no validation of executable documents. A `GraphQLSchema` is built, validated and dropped; its type system (types, fields, directives) is not part of the public API yet. The crate has a hidden `__internal` module for this repository's differential tests; it is not part of the public API and can change in any release.
+The parser, printer and visitor are complete ports. Of the type system, only what `buildSchema`/`buildASTSchema` and `validateSchema` need is ported: there is no `extendSchema` of an existing schema, no execution and no validation of executable documents. A built `GraphQLSchema` can be validated and inspected, but not executed, printed back to SDL or introspected with a query, and its introspection types have no descriptions. The crate has a hidden `__internal` module for this repository's differential tests; it is not part of the public API and can change in any release.
 
 One addition to graphql-js: the parser rejects documents that nest more than `MAX_NESTING_DEPTH` (128) levels of list values, object values, selection sets and list types (`ParseOptions::max_nesting_depth` changes it), so that the recursive printer, visitor and schema building cannot overflow the stack; `check_nesting_depth` checks a document built in code. See [SECURITY.md](https://github.com/Enrico2/federation-composition/blob/main/SECURITY.md#untrusted-input).
 

@@ -77,7 +77,9 @@ the crate root (`lexer.rs`, `parser.rs`, `printer.rs`, `visitor.rs`, `ast.rs`), 
 `utilities/`, `validation/`, `execution/` and `jsutils/` are subdirectories with graphql-js's file
 names. Only what upstream calls is ported: the language layer, `buildSchema`/`buildASTSchema` with
 the SDL validation rules, and `validateSchema`/`assertValidSchema`. There is no executable-document
-validation and no `extendSchema` of an existing schema.
+validation and no `extendSchema` of an existing schema. The type system a schema is built from
+(`GraphQLSchema`, `GraphQLNamedType`, fields, arguments, directives) is public and read-only: its
+constructors are crate-private, so every type a caller holds belongs to a schema that was built.
 
 The AST is a set of plain owned structs named after the graphql-js node kinds without the `Node`
 suffix (`FieldDefinition`, `ObjectTypeExtension`), with union enums (`Definition`, `Selection`,

@@ -2,6 +2,11 @@
 //! fields, arguments, enum values and input fields of a schema, and the type
 //! predicates.
 //!
+//! The types are public, for reading a [`GraphQLSchema`](crate::GraphQLSchema):
+//! their fields are crate-private and read through accessor methods, and the
+//! constructors, configs and thunks are crate-private, so every type a caller
+//! sees belongs to a schema that was constructed successfully.
+//!
 //! graphql-js types are objects compared by identity. Within one schema every
 //! named type is a single object per name (`GraphQLSchema` rejects two types
 //! with the same name), so here a named type is referenced by its name
@@ -15,15 +20,12 @@
 //! [`crate::build_ast_schema`] resolves them in graphql-js order, so a thunk
 //! that throws makes the same call fail.
 
-// The type system is not part of the public API yet: outside the crate it is reachable only
-// through the unstable `__internal` module, for the differential tests.
-#![allow(missing_docs)]
-
+use std::borrow::Cow;
 use std::fmt;
 use std::sync::{Arc, OnceLock};
 
 use crate::ast::{
-    EnumTypeDefinition, EnumTypeExtension, EnumValueDefinition, FieldDefinition, InputObjectTypeDefinition,
+    ConstValue, EnumTypeDefinition, EnumTypeExtension, EnumValueDefinition, FieldDefinition, InputObjectTypeDefinition,
     InputObjectTypeExtension, InputValueDefinition, InterfaceTypeDefinition, InterfaceTypeExtension,
     ObjectTypeDefinition, ObjectTypeExtension, ScalarTypeDefinition, ScalarTypeExtension, UnionTypeDefinition,
     UnionTypeExtension, Value,
@@ -36,25 +38,26 @@ use crate::jsutils::suggestion_list::suggestion_list;
 use crate::jsutils::JsValue;
 use crate::printer::print;
 use crate::utilities::value_from_ast_untyped::value_from_ast_untyped;
+use crate::utilities::value_to_literal::default_scalar_value_to_literal;
 
 use super::assert_name::{assert_enum_value_name, assert_name};
 use super::scalars;
 
 /// A graphql-js thunk (`() => T`) that may throw.
-pub type Thunk<T> = Arc<dyn Fn() -> Result<T, GraphQLError> + Send + Sync>;
+pub(crate) type Thunk<T> = Arc<dyn Fn() -> Result<T, GraphQLError> + Send + Sync>;
 
 /// A value graphql-js computes from a thunk on first access and then keeps
 /// (`getFields()`, `getInterfaces()`, `getTypes()`, `getValues()`). A thunk
 /// that throws is not kept, so the next access runs it again, as in
 /// graphql-js.
-pub struct Lazy<T> {
+pub(crate) struct Lazy<T> {
     value: OnceLock<T>,
     thunk: Option<Thunk<T>>,
 }
 
 impl<T> Lazy<T> {
     /// An already resolved value (a graphql-js config passing a value, not a thunk).
-    pub fn new(value: T) -> Self {
+    pub(crate) fn new(value: T) -> Self {
         let cell = OnceLock::new();
         let _ = cell.set(value);
         Lazy {
@@ -63,7 +66,7 @@ impl<T> Lazy<T> {
         }
     }
 
-    pub fn thunk(thunk: Thunk<T>) -> Self {
+    pub(crate) fn thunk(thunk: Thunk<T>) -> Self {
         Lazy {
             value: OnceLock::new(),
             thunk: Some(thunk),
@@ -71,7 +74,7 @@ impl<T> Lazy<T> {
     }
 
     /// The value, running the thunk if it was not resolved yet.
-    pub fn get(&self) -> Result<&T, GraphQLError> {
+    pub(crate) fn get(&self) -> Result<&T, GraphQLError> {
         if let Some(value) = self.value.get() {
             return Ok(value);
         }
@@ -82,7 +85,7 @@ impl<T> Lazy<T> {
 
     /// The value of a thunk known to be resolved: `GraphQLSchema::new`
     /// resolves every `fields`, `interfaces` and `types` thunk of its types.
-    pub fn resolved(&self) -> &T {
+    pub(crate) fn resolved(&self) -> &T {
         self.value.get().expect("resolved when the schema was constructed")
     }
 }
@@ -105,9 +108,13 @@ impl<T: fmt::Debug> fmt::Debug for Lazy<T> {
     }
 }
 
-/// graphql-js `GraphQLType`: a named type (by name) or a wrapping type.
+/// graphql-js `GraphQLType`: the type of a field, argument or input field. A named type is
+/// referenced by its name; [`GraphQLSchema::get_type`](crate::GraphQLSchema::get_type) looks it up.
+///
+/// It prints (`Display`) like graphql-js `String(type)`: `[User!]!`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GraphQLType {
+    /// A named type, by name.
     Named(String),
     /// graphql-js `GraphQLList`.
     List(Box<GraphQLType>),
@@ -116,14 +123,17 @@ pub enum GraphQLType {
 }
 
 impl GraphQLType {
+    /// The named type `name`.
     pub fn named(name: impl Into<String>) -> Self {
         GraphQLType::Named(name.into())
     }
 
+    /// graphql-js `new GraphQLList(ofType)`.
     pub fn list(of_type: GraphQLType) -> Self {
         GraphQLType::List(Box::new(of_type))
     }
 
+    /// graphql-js `new GraphQLNonNull(ofType)`.
     pub fn non_null(of_type: GraphQLType) -> Self {
         GraphQLType::NonNull(Box::new(of_type))
     }
@@ -180,7 +190,7 @@ impl fmt::Display for GraphQLType {
 }
 
 /// Resolves the named types a [`GraphQLType`] refers to.
-pub trait TypeLookup {
+pub(crate) trait TypeLookup {
     fn lookup_type(&self, name: &str) -> Option<&GraphQLNamedType>;
 }
 
@@ -198,7 +208,7 @@ fn named<'t>(types: &'t dyn TypeLookup, ty: &GraphQLType) -> Option<&'t GraphQLN
 }
 
 /// graphql-js `isInputType`.
-pub fn is_input_type(types: &dyn TypeLookup, ty: &GraphQLType) -> bool {
+pub(crate) fn is_input_type(types: &dyn TypeLookup, ty: &GraphQLType) -> bool {
     match ty {
         GraphQLType::Named(_) => matches!(
             named(types, ty),
@@ -209,7 +219,7 @@ pub fn is_input_type(types: &dyn TypeLookup, ty: &GraphQLType) -> bool {
 }
 
 /// graphql-js `isOutputType`.
-pub fn is_output_type(types: &dyn TypeLookup, ty: &GraphQLType) -> bool {
+pub(crate) fn is_output_type(types: &dyn TypeLookup, ty: &GraphQLType) -> bool {
     match ty {
         GraphQLType::Named(_) => matches!(
             named(types, ty),
@@ -225,18 +235,28 @@ pub fn is_output_type(types: &dyn TypeLookup, ty: &GraphQLType) -> bool {
     }
 }
 
-/// graphql-js `GraphQLNamedType`.
+/// graphql-js `GraphQLNamedType`: a type of a schema, one variant per kind of type.
+///
+/// It prints (`Display`) as its name.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub enum GraphQLNamedType {
+    /// graphql-js `GraphQLScalarType`.
     Scalar(GraphQLScalarType),
+    /// graphql-js `GraphQLObjectType`.
     Object(GraphQLObjectType),
+    /// graphql-js `GraphQLInterfaceType`.
     Interface(GraphQLInterfaceType),
+    /// graphql-js `GraphQLUnionType`.
     Union(GraphQLUnionType),
+    /// graphql-js `GraphQLEnumType`.
     Enum(GraphQLEnumType),
+    /// graphql-js `GraphQLInputObjectType`.
     InputObject(GraphQLInputObjectType),
 }
 
 impl GraphQLNamedType {
+    /// The type's `name`.
     pub fn name(&self) -> &str {
         match self {
             GraphQLNamedType::Scalar(t) => &t.name,
@@ -248,6 +268,7 @@ impl GraphQLNamedType {
         }
     }
 
+    /// The type's `description`.
     pub fn description(&self) -> Option<&str> {
         match self {
             GraphQLNamedType::Scalar(t) => t.description.as_deref(),
@@ -309,15 +330,33 @@ impl fmt::Display for GraphQLNamedType {
 /// introspection types' and specified directives').
 #[derive(Clone, Debug, PartialEq)]
 pub enum DefaultInput {
+    /// `{ literal }`.
     Literal(Value),
+    /// `{ value }`.
     Value(JsValue),
+}
+
+impl DefaultInput {
+    /// The literal graphql-js `getDefaultValueAST` returns:
+    /// `defaultInput.literal ?? valueToLiteral(defaultInput.value, type)`.
+    ///
+    /// NOTE(port): `valueToLiteral` is typed, but the only defaults given as values are a
+    /// `String!` argument's string (`@deprecated(reason:)`) and `Boolean!` arguments' booleans
+    /// (the introspection fields' `includeDeprecated`), and the `String` and `Boolean` scalars'
+    /// `valueToLiteral` is `defaultScalarValueToLiteral` for those.
+    fn to_literal(&self) -> Cow<'_, ConstValue> {
+        match self {
+            DefaultInput::Literal(literal) => Cow::Borrowed(literal),
+            DefaultInput::Value(value) => Cow::Owned(default_scalar_value_to_literal(value)),
+        }
+    }
 }
 
 /// Which coercion functions a scalar has: the specified scalars' (see
 /// `type/scalars`), or none, as for a scalar built from SDL (identity
 /// coercion and the default `parseLiteral`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ScalarKind {
+pub(crate) enum ScalarKind {
     Custom,
     String,
     Int,
@@ -328,7 +367,7 @@ pub enum ScalarKind {
 
 /// graphql-js `GraphQLScalarTypeConfig`, reduced to what SDL can express.
 #[derive(Clone, Debug, Default)]
-pub struct GraphQLScalarTypeConfig {
+pub(crate) struct GraphQLScalarTypeConfig {
     pub name: String,
     pub description: Option<String>,
     pub specified_by_url: Option<String>,
@@ -336,19 +375,45 @@ pub struct GraphQLScalarTypeConfig {
     pub extension_ast_nodes: Vec<ScalarTypeExtension>,
 }
 
-/// graphql-js `GraphQLScalarType`.
+/// graphql-js `GraphQLScalarType`: a specified scalar (`String`, `Int`, `Float`, `Boolean`,
+/// `ID`) or a scalar defined in SDL.
 #[derive(Clone, Debug)]
 pub struct GraphQLScalarType {
-    pub name: String,
-    pub description: Option<String>,
-    pub specified_by_url: Option<String>,
-    pub ast_node: Option<ScalarTypeDefinition>,
-    pub extension_ast_nodes: Vec<ScalarTypeExtension>,
-    pub kind: ScalarKind,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) specified_by_url: Option<String>,
+    pub(crate) ast_node: Option<ScalarTypeDefinition>,
+    pub(crate) extension_ast_nodes: Vec<ScalarTypeExtension>,
+    pub(crate) kind: ScalarKind,
 }
 
 impl GraphQLScalarType {
-    pub fn new(config: GraphQLScalarTypeConfig) -> Result<Self, GraphQLError> {
+    /// graphql-js `name`.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// graphql-js `description`.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// graphql-js `specifiedByURL`: the `url` of its `@specifiedBy` directive.
+    pub fn specified_by_url(&self) -> Option<&str> {
+        self.specified_by_url.as_deref()
+    }
+
+    /// graphql-js `astNode`: the definition it was built from (`None` for a specified scalar).
+    pub fn ast_node(&self) -> Option<&ScalarTypeDefinition> {
+        self.ast_node.as_ref()
+    }
+
+    /// graphql-js `extensionASTNodes`: the extensions it was built from.
+    pub fn extension_ast_nodes(&self) -> &[ScalarTypeExtension] {
+        &self.extension_ast_nodes
+    }
+
+    pub(crate) fn new(config: GraphQLScalarTypeConfig) -> Result<Self, GraphQLError> {
         Self::with_kind(config, ScalarKind::Custom)
     }
 
@@ -365,7 +430,7 @@ impl GraphQLScalarType {
     }
 
     /// `scalar.coerceInputValue(inputValue)`.
-    pub fn coerce_input_value(&self, input_value: &JsValue) -> Result<JsValue, GraphQLError> {
+    pub(crate) fn coerce_input_value(&self, input_value: &JsValue) -> Result<JsValue, GraphQLError> {
         match self.kind {
             // `config.coerceInputValue ?? identityFunc`.
             ScalarKind::Custom => Ok(input_value.clone()),
@@ -375,19 +440,19 @@ impl GraphQLScalarType {
 
     /// Whether the scalar has `coerceInputLiteral` (the specified scalars do;
     /// a scalar built from SDL has only the default `parseLiteral`).
-    pub fn has_coerce_input_literal(&self) -> bool {
+    pub(crate) fn has_coerce_input_literal(&self) -> bool {
         self.kind != ScalarKind::Custom
     }
 
     /// `scalar.coerceInputLiteral(valueNode)` of a specified scalar.
-    pub fn coerce_input_literal(&self, value_node: &Value) -> Result<JsValue, GraphQLError> {
+    pub(crate) fn coerce_input_literal(&self, value_node: &Value) -> Result<JsValue, GraphQLError> {
         scalars::coerce_input_literal(self.kind, value_node)
     }
 
     /// The default `parseLiteral` of a scalar without one:
     /// `this.coerceInputValue(valueFromASTUntyped(node, variables))`; `None` is
     /// `undefined`.
-    pub fn parse_literal(&self, value_node: &Value) -> Result<Option<JsValue>, GraphQLError> {
+    pub(crate) fn parse_literal(&self, value_node: &Value) -> Result<Option<JsValue>, GraphQLError> {
         match value_from_ast_untyped(value_node) {
             None => Ok(None),
             Some(value) => self.coerce_input_value(&value).map(Some),
@@ -397,7 +462,7 @@ impl GraphQLScalarType {
 
 /// graphql-js `GraphQLFieldConfig`.
 #[derive(Clone, Debug)]
-pub struct GraphQLFieldConfig {
+pub(crate) struct GraphQLFieldConfig {
     pub description: Option<String>,
     pub ty: GraphQLType,
     pub args: IndexMap<String, GraphQLArgumentConfig>,
@@ -407,7 +472,7 @@ pub struct GraphQLFieldConfig {
 
 /// graphql-js `GraphQLArgumentConfig`.
 #[derive(Clone, Debug)]
-pub struct GraphQLArgumentConfig {
+pub(crate) struct GraphQLArgumentConfig {
     pub description: Option<String>,
     pub ty: GraphQLType,
     pub default: Option<DefaultInput>,
@@ -416,7 +481,7 @@ pub struct GraphQLArgumentConfig {
 }
 
 /// graphql-js `GraphQLObjectTypeConfig`.
-pub struct GraphQLObjectTypeConfig {
+pub(crate) struct GraphQLObjectTypeConfig {
     pub name: String,
     pub description: Option<String>,
     pub interfaces: Lazy<Vec<String>>,
@@ -428,16 +493,36 @@ pub struct GraphQLObjectTypeConfig {
 /// graphql-js `GraphQLObjectType`.
 #[derive(Clone, Debug)]
 pub struct GraphQLObjectType {
-    pub name: String,
-    pub description: Option<String>,
-    pub ast_node: Option<ObjectTypeDefinition>,
-    pub extension_ast_nodes: Vec<ObjectTypeExtension>,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) ast_node: Option<ObjectTypeDefinition>,
+    pub(crate) extension_ast_nodes: Vec<ObjectTypeExtension>,
     fields: Lazy<IndexMap<String, GraphQLField>>,
     interfaces: Lazy<Vec<String>>,
 }
 
 impl GraphQLObjectType {
-    pub fn new(config: GraphQLObjectTypeConfig) -> Result<Self, GraphQLError> {
+    /// graphql-js `name`.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// graphql-js `description`.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// graphql-js `astNode`: the definition it was built from (`None` for an introspection type).
+    pub fn ast_node(&self) -> Option<&ObjectTypeDefinition> {
+        self.ast_node.as_ref()
+    }
+
+    /// graphql-js `extensionASTNodes`: the extensions it was built from.
+    pub fn extension_ast_nodes(&self) -> &[ObjectTypeExtension] {
+        &self.extension_ast_nodes
+    }
+
+    pub(crate) fn new(config: GraphQLObjectTypeConfig) -> Result<Self, GraphQLError> {
         assert_name(&config.name)?;
         Ok(GraphQLObjectType {
             fields: define_field_map(&config.name, config.fields),
@@ -449,22 +534,24 @@ impl GraphQLObjectType {
         })
     }
 
-    /// graphql-js `getFields()`.
-    pub fn get_fields(&self) -> Result<&IndexMap<String, GraphQLField>, GraphQLError> {
+    /// graphql-js `getFields()`, running the thunk.
+    pub(crate) fn get_fields(&self) -> Result<&IndexMap<String, GraphQLField>, GraphQLError> {
         self.fields.get()
     }
 
-    /// graphql-js `getInterfaces()` (names).
-    pub fn get_interfaces(&self) -> Result<&Vec<String>, GraphQLError> {
+    /// graphql-js `getInterfaces()` (names), running the thunk.
+    pub(crate) fn get_interfaces(&self) -> Result<&Vec<String>, GraphQLError> {
         self.interfaces.get()
     }
 
-    /// `getFields()` of a type in a constructed schema.
+    /// graphql-js `getFields()`: the fields by name, in definition order (the type definition's,
+    /// then each extension's).
     pub fn fields(&self) -> &IndexMap<String, GraphQLField> {
         self.fields.resolved()
     }
 
-    /// `getInterfaces()` of a type in a constructed schema.
+    /// graphql-js `getInterfaces()`: the names of the interfaces it implements, in definition
+    /// order. [`GraphQLSchema::get_type`](crate::GraphQLSchema::get_type) looks them up.
     pub fn interfaces(&self) -> &[String] {
         self.interfaces.resolved()
     }
@@ -489,21 +576,54 @@ fn define_field_map(
     }))
 }
 
-/// graphql-js `GraphQLField`.
+/// graphql-js `GraphQLField`: a field of an object or interface type.
+///
+/// It prints (`Display`) as its schema coordinate, `Type.field`.
 #[derive(Clone, Debug)]
 pub struct GraphQLField {
     /// The name of the parent type.
-    pub parent_type: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub ty: GraphQLType,
-    pub args: Vec<GraphQLArgument>,
-    pub deprecation_reason: Option<String>,
-    pub ast_node: Option<FieldDefinition>,
+    pub(crate) parent_type: String,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) ty: GraphQLType,
+    pub(crate) args: Vec<GraphQLArgument>,
+    pub(crate) deprecation_reason: Option<String>,
+    pub(crate) ast_node: Option<FieldDefinition>,
 }
 
 impl GraphQLField {
-    pub fn new(parent_type: &str, name: &str, config: GraphQLFieldConfig) -> Result<Self, GraphQLError> {
+    /// graphql-js `name`.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// graphql-js `description`.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// graphql-js `type`.
+    pub fn ty(&self) -> &GraphQLType {
+        &self.ty
+    }
+
+    /// graphql-js `args`, in definition order.
+    pub fn args(&self) -> &[GraphQLArgument] {
+        &self.args
+    }
+
+    /// graphql-js `deprecationReason`: the `reason` of its `@deprecated` directive.
+    pub fn deprecation_reason(&self) -> Option<&str> {
+        self.deprecation_reason.as_deref()
+    }
+
+    /// graphql-js `astNode`: the definition it was built from (`None` for a field of an
+    /// introspection type).
+    pub fn ast_node(&self) -> Option<&FieldDefinition> {
+        self.ast_node.as_ref()
+    }
+
+    pub(crate) fn new(parent_type: &str, name: &str, config: GraphQLFieldConfig) -> Result<Self, GraphQLError> {
         assert_name(name)?;
         let mut args = Vec::with_capacity(config.args.len());
         for (arg_name, arg_config) in config.args {
@@ -536,7 +656,7 @@ impl fmt::Display for GraphQLField {
 
 /// The `parent` of a graphql-js `GraphQLArgument`.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ArgumentParent {
+pub(crate) enum ArgumentParent {
     Field {
         type_name: String,
         field_name: String,
@@ -554,21 +674,60 @@ impl fmt::Display for ArgumentParent {
     }
 }
 
-/// graphql-js `GraphQLArgument`.
+/// graphql-js `GraphQLArgument`: an argument of a field or a directive.
+///
+/// It prints (`Display`) as its schema coordinate, `Type.field(arg:)` or `@directive(arg:)`.
 #[derive(Clone, Debug)]
 pub struct GraphQLArgument {
-    pub parent: ArgumentParent,
-    pub name: String,
-    pub description: Option<String>,
-    pub ty: GraphQLType,
+    pub(crate) parent: ArgumentParent,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) ty: GraphQLType,
     /// graphql-js `default`. (The legacy `defaultValue` is never set by SDL.)
-    pub default: Option<DefaultInput>,
-    pub deprecation_reason: Option<String>,
-    pub ast_node: Option<InputValueDefinition>,
+    pub(crate) default: Option<DefaultInput>,
+    pub(crate) deprecation_reason: Option<String>,
+    pub(crate) ast_node: Option<InputValueDefinition>,
 }
 
 impl GraphQLArgument {
-    pub fn new(parent: ArgumentParent, name: &str, config: GraphQLArgumentConfig) -> Result<Self, GraphQLError> {
+    /// graphql-js `name`.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// graphql-js `description`.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// graphql-js `type`.
+    pub fn ty(&self) -> &GraphQLType {
+        &self.ty
+    }
+
+    /// graphql-js `getDefaultValueAST(arg)`: the default value as a literal, `None` when the
+    /// argument has none.
+    pub fn default_value(&self) -> Option<Cow<'_, ConstValue>> {
+        self.default.as_ref().map(DefaultInput::to_literal)
+    }
+
+    /// graphql-js `isRequiredArgument(arg)`: non-null and without a default value.
+    pub fn is_required(&self) -> bool {
+        is_required_argument(self)
+    }
+
+    /// graphql-js `deprecationReason`: the `reason` of its `@deprecated` directive.
+    pub fn deprecation_reason(&self) -> Option<&str> {
+        self.deprecation_reason.as_deref()
+    }
+
+    /// graphql-js `astNode`: the definition it was built from (`None` for an argument of a
+    /// specified directive or an introspection field).
+    pub fn ast_node(&self) -> Option<&InputValueDefinition> {
+        self.ast_node.as_ref()
+    }
+
+    pub(crate) fn new(parent: ArgumentParent, name: &str, config: GraphQLArgumentConfig) -> Result<Self, GraphQLError> {
         assert_name(name)?;
         Ok(GraphQLArgument {
             parent,
@@ -589,12 +748,12 @@ impl fmt::Display for GraphQLArgument {
 }
 
 /// graphql-js `isRequiredArgument`.
-pub fn is_required_argument(arg: &GraphQLArgument) -> bool {
+pub(crate) fn is_required_argument(arg: &GraphQLArgument) -> bool {
     arg.ty.is_non_null() && arg.default.is_none()
 }
 
 /// graphql-js `GraphQLInterfaceTypeConfig`.
-pub struct GraphQLInterfaceTypeConfig {
+pub(crate) struct GraphQLInterfaceTypeConfig {
     pub name: String,
     pub description: Option<String>,
     pub interfaces: Lazy<Vec<String>>,
@@ -606,16 +765,36 @@ pub struct GraphQLInterfaceTypeConfig {
 /// graphql-js `GraphQLInterfaceType`.
 #[derive(Clone, Debug)]
 pub struct GraphQLInterfaceType {
-    pub name: String,
-    pub description: Option<String>,
-    pub ast_node: Option<InterfaceTypeDefinition>,
-    pub extension_ast_nodes: Vec<InterfaceTypeExtension>,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) ast_node: Option<InterfaceTypeDefinition>,
+    pub(crate) extension_ast_nodes: Vec<InterfaceTypeExtension>,
     fields: Lazy<IndexMap<String, GraphQLField>>,
     interfaces: Lazy<Vec<String>>,
 }
 
 impl GraphQLInterfaceType {
-    pub fn new(config: GraphQLInterfaceTypeConfig) -> Result<Self, GraphQLError> {
+    /// graphql-js `name`.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// graphql-js `description`.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// graphql-js `astNode`: the definition it was built from.
+    pub fn ast_node(&self) -> Option<&InterfaceTypeDefinition> {
+        self.ast_node.as_ref()
+    }
+
+    /// graphql-js `extensionASTNodes`: the extensions it was built from.
+    pub fn extension_ast_nodes(&self) -> &[InterfaceTypeExtension] {
+        &self.extension_ast_nodes
+    }
+
+    pub(crate) fn new(config: GraphQLInterfaceTypeConfig) -> Result<Self, GraphQLError> {
         assert_name(&config.name)?;
         Ok(GraphQLInterfaceType {
             fields: define_field_map(&config.name, config.fields),
@@ -627,29 +806,31 @@ impl GraphQLInterfaceType {
         })
     }
 
-    /// graphql-js `getFields()`.
-    pub fn get_fields(&self) -> Result<&IndexMap<String, GraphQLField>, GraphQLError> {
+    /// graphql-js `getFields()`, running the thunk.
+    pub(crate) fn get_fields(&self) -> Result<&IndexMap<String, GraphQLField>, GraphQLError> {
         self.fields.get()
     }
 
-    /// graphql-js `getInterfaces()` (names).
-    pub fn get_interfaces(&self) -> Result<&Vec<String>, GraphQLError> {
+    /// graphql-js `getInterfaces()` (names), running the thunk.
+    pub(crate) fn get_interfaces(&self) -> Result<&Vec<String>, GraphQLError> {
         self.interfaces.get()
     }
 
-    /// `getFields()` of a type in a constructed schema.
+    /// graphql-js `getFields()`: the fields by name, in definition order (the type definition's,
+    /// then each extension's).
     pub fn fields(&self) -> &IndexMap<String, GraphQLField> {
         self.fields.resolved()
     }
 
-    /// `getInterfaces()` of a type in a constructed schema.
+    /// graphql-js `getInterfaces()`: the names of the interfaces it implements, in definition
+    /// order. [`GraphQLSchema::get_type`](crate::GraphQLSchema::get_type) looks them up.
     pub fn interfaces(&self) -> &[String] {
         self.interfaces.resolved()
     }
 }
 
 /// graphql-js `GraphQLUnionTypeConfig`.
-pub struct GraphQLUnionTypeConfig {
+pub(crate) struct GraphQLUnionTypeConfig {
     pub name: String,
     pub description: Option<String>,
     pub types: Lazy<Vec<String>>,
@@ -660,15 +841,35 @@ pub struct GraphQLUnionTypeConfig {
 /// graphql-js `GraphQLUnionType`.
 #[derive(Clone, Debug)]
 pub struct GraphQLUnionType {
-    pub name: String,
-    pub description: Option<String>,
-    pub ast_node: Option<UnionTypeDefinition>,
-    pub extension_ast_nodes: Vec<UnionTypeExtension>,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) ast_node: Option<UnionTypeDefinition>,
+    pub(crate) extension_ast_nodes: Vec<UnionTypeExtension>,
     types: Lazy<Vec<String>>,
 }
 
 impl GraphQLUnionType {
-    pub fn new(config: GraphQLUnionTypeConfig) -> Result<Self, GraphQLError> {
+    /// graphql-js `name`.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// graphql-js `description`.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// graphql-js `astNode`: the definition it was built from.
+    pub fn ast_node(&self) -> Option<&UnionTypeDefinition> {
+        self.ast_node.as_ref()
+    }
+
+    /// graphql-js `extensionASTNodes`: the extensions it was built from.
+    pub fn extension_ast_nodes(&self) -> &[UnionTypeExtension] {
+        &self.extension_ast_nodes
+    }
+
+    pub(crate) fn new(config: GraphQLUnionTypeConfig) -> Result<Self, GraphQLError> {
         assert_name(&config.name)?;
         Ok(GraphQLUnionType {
             name: config.name,
@@ -679,12 +880,13 @@ impl GraphQLUnionType {
         })
     }
 
-    /// graphql-js `getTypes()` (names).
-    pub fn get_types(&self) -> Result<&Vec<String>, GraphQLError> {
+    /// graphql-js `getTypes()` (names), running the thunk.
+    pub(crate) fn get_types(&self) -> Result<&Vec<String>, GraphQLError> {
         self.types.get()
     }
 
-    /// `getTypes()` of a type in a constructed schema.
+    /// graphql-js `getTypes()`: the names of the member types, in definition order.
+    /// [`GraphQLSchema::get_type`](crate::GraphQLSchema::get_type) looks them up.
     pub fn types(&self) -> &[String] {
         self.types.resolved()
     }
@@ -692,7 +894,7 @@ impl GraphQLUnionType {
 
 /// graphql-js `GraphQLEnumValueConfig`.
 #[derive(Clone, Debug, Default)]
-pub struct GraphQLEnumValueConfig {
+pub(crate) struct GraphQLEnumValueConfig {
     pub description: Option<String>,
     /// `None` is `undefined`: the value is the name.
     pub value: Option<JsValue>,
@@ -701,7 +903,7 @@ pub struct GraphQLEnumValueConfig {
 }
 
 /// graphql-js `GraphQLEnumTypeConfig`.
-pub struct GraphQLEnumTypeConfig {
+pub(crate) struct GraphQLEnumTypeConfig {
     pub name: String,
     pub description: Option<String>,
     pub values: Lazy<IndexMap<String, GraphQLEnumValueConfig>>,
@@ -712,15 +914,35 @@ pub struct GraphQLEnumTypeConfig {
 /// graphql-js `GraphQLEnumType`.
 #[derive(Clone, Debug)]
 pub struct GraphQLEnumType {
-    pub name: String,
-    pub description: Option<String>,
-    pub ast_node: Option<EnumTypeDefinition>,
-    pub extension_ast_nodes: Vec<EnumTypeExtension>,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) ast_node: Option<EnumTypeDefinition>,
+    pub(crate) extension_ast_nodes: Vec<EnumTypeExtension>,
     values: Lazy<Vec<GraphQLEnumValue>>,
 }
 
 impl GraphQLEnumType {
-    pub fn new(config: GraphQLEnumTypeConfig) -> Result<Self, GraphQLError> {
+    /// graphql-js `name`.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// graphql-js `description`.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// graphql-js `astNode`: the definition it was built from (`None` for an introspection type).
+    pub fn ast_node(&self) -> Option<&EnumTypeDefinition> {
+        self.ast_node.as_ref()
+    }
+
+    /// graphql-js `extensionASTNodes`: the extensions it was built from.
+    pub fn extension_ast_nodes(&self) -> &[EnumTypeExtension] {
+        &self.extension_ast_nodes
+    }
+
+    pub(crate) fn new(config: GraphQLEnumTypeConfig) -> Result<Self, GraphQLError> {
         assert_name(&config.name)?;
         Ok(GraphQLEnumType {
             values: define_enum_values(&config.name, config.values),
@@ -731,21 +953,32 @@ impl GraphQLEnumType {
         })
     }
 
-    /// graphql-js `getValues()`. Unlike the other thunks, graphql-js does not
-    /// resolve this one when constructing a schema, so it can still throw.
-    pub fn get_values(&self) -> Result<&[GraphQLEnumValue], GraphQLError> {
+    /// graphql-js `getValues()`: the values, in definition order (the type definition's, then
+    /// each extension's).
+    ///
+    /// [`build_schema`](crate::build_schema) resolves the fields, interfaces and member types
+    /// of every type, but graphql-js computes an enum's values on first access, and that throws
+    /// when a value's `@deprecated(reason:)` is not a string (`@deprecated(reason: 1)`): that is
+    /// the `Err`. [`validate_schema`](crate::validate_schema) reads every enum's values, so once
+    /// it has returned `Ok`, this is `Ok` for every enum of the schema.
+    pub fn values(&self) -> Result<&[GraphQLEnumValue], GraphQLError> {
         self.values.get().map(Vec::as_slice)
     }
 
-    /// graphql-js `getValue(name)`.
-    pub fn get_value(&self, name: &str) -> Result<Option<&GraphQLEnumValue>, GraphQLError> {
+    /// graphql-js `getValue(name)`: the value named `name`, with the `Err` of
+    /// [`values`](Self::values).
+    pub fn value(&self, name: &str) -> Result<Option<&GraphQLEnumValue>, GraphQLError> {
         // NOTE(port): `_nameLookup ??= keyMap(values, v => v.name)`: the last
         // value of a name wins.
-        Ok(self.get_values()?.iter().rev().find(|value| value.name == name))
+        Ok(self.values()?.iter().rev().find(|value| value.name == name))
     }
 
     /// graphql-js `coerceInputValue(inputValue, hideSuggestions)`.
-    pub fn coerce_input_value(&self, input_value: &JsValue, hide_suggestions: bool) -> Result<JsValue, GraphQLError> {
+    pub(crate) fn coerce_input_value(
+        &self,
+        input_value: &JsValue,
+        hide_suggestions: bool,
+    ) -> Result<JsValue, GraphQLError> {
         let JsValue::String(input_value) = input_value else {
             let value_str = inspect(input_value);
             let suggestion = if hide_suggestions {
@@ -758,7 +991,7 @@ impl GraphQLEnumType {
                 self.name
             )));
         };
-        let Some(enum_value) = self.get_value(input_value)? else {
+        let Some(enum_value) = self.value(input_value)? else {
             let suggestion = if hide_suggestions {
                 String::new()
             } else {
@@ -773,7 +1006,11 @@ impl GraphQLEnumType {
     }
 
     /// graphql-js `coerceInputLiteral(valueNode, hideSuggestions)`.
-    pub fn coerce_input_literal(&self, value_node: &Value, hide_suggestions: bool) -> Result<JsValue, GraphQLError> {
+    pub(crate) fn coerce_input_literal(
+        &self,
+        value_node: &Value,
+        hide_suggestions: bool,
+    ) -> Result<JsValue, GraphQLError> {
         let Value::Enum(enum_node) = value_node else {
             let value_str = print(value_node);
             let suggestion = if hide_suggestions {
@@ -786,7 +1023,7 @@ impl GraphQLEnumType {
                 self.name
             )));
         };
-        let Some(enum_value) = self.get_value(&enum_node.value)? else {
+        let Some(enum_value) = self.value(&enum_node.value)? else {
             let value_str = print(value_node);
             let suggestion = if hide_suggestions {
                 String::new()
@@ -820,29 +1057,49 @@ fn define_enum_values(
 
 /// graphql-js `didYouMeanEnumValue`.
 fn did_you_mean_enum_value(enum_type: &GraphQLEnumType, unknown_value_str: &str) -> Result<String, GraphQLError> {
-    let all_names: Vec<&str> = enum_type
-        .get_values()?
-        .iter()
-        .map(|value| value.name.as_str())
-        .collect();
+    let all_names: Vec<&str> = enum_type.values()?.iter().map(|value| value.name.as_str()).collect();
     let suggested_values = suggestion_list(unknown_value_str, &all_names);
     Ok(did_you_mean(Some("the enum value"), &suggested_values))
 }
 
-/// graphql-js `GraphQLEnumValue`.
+/// graphql-js `GraphQLEnumValue`: a value of an enum type.
+///
+/// It prints (`Display`) as its schema coordinate, `Enum.VALUE`.
 #[derive(Clone, Debug)]
 pub struct GraphQLEnumValue {
     /// The name of the enum.
-    pub parent_enum: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub value: JsValue,
-    pub deprecation_reason: Option<String>,
-    pub ast_node: Option<EnumValueDefinition>,
+    pub(crate) parent_enum: String,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    /// The internal value; for a value built from SDL, its name.
+    pub(crate) value: JsValue,
+    pub(crate) deprecation_reason: Option<String>,
+    pub(crate) ast_node: Option<EnumValueDefinition>,
 }
 
 impl GraphQLEnumValue {
-    pub fn new(parent_enum: &str, name: &str, config: GraphQLEnumValueConfig) -> Result<Self, GraphQLError> {
+    /// graphql-js `name`.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// graphql-js `description`.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// graphql-js `deprecationReason`: the `reason` of its `@deprecated` directive.
+    pub fn deprecation_reason(&self) -> Option<&str> {
+        self.deprecation_reason.as_deref()
+    }
+
+    /// graphql-js `astNode`: the definition it was built from (`None` for a value of an
+    /// introspection type).
+    pub fn ast_node(&self) -> Option<&EnumValueDefinition> {
+        self.ast_node.as_ref()
+    }
+
+    pub(crate) fn new(parent_enum: &str, name: &str, config: GraphQLEnumValueConfig) -> Result<Self, GraphQLError> {
         assert_enum_value_name(name)?;
         Ok(GraphQLEnumValue {
             parent_enum: parent_enum.to_string(),
@@ -863,7 +1120,7 @@ impl fmt::Display for GraphQLEnumValue {
 
 /// graphql-js `GraphQLInputFieldConfig`.
 #[derive(Clone, Debug)]
-pub struct GraphQLInputFieldConfig {
+pub(crate) struct GraphQLInputFieldConfig {
     pub description: Option<String>,
     pub ty: GraphQLType,
     pub default: Option<DefaultInput>,
@@ -872,7 +1129,7 @@ pub struct GraphQLInputFieldConfig {
 }
 
 /// graphql-js `GraphQLInputObjectTypeConfig`.
-pub struct GraphQLInputObjectTypeConfig {
+pub(crate) struct GraphQLInputObjectTypeConfig {
     pub name: String,
     pub description: Option<String>,
     pub fields: Lazy<IndexMap<String, GraphQLInputFieldConfig>>,
@@ -884,16 +1141,41 @@ pub struct GraphQLInputObjectTypeConfig {
 /// graphql-js `GraphQLInputObjectType`.
 #[derive(Clone, Debug)]
 pub struct GraphQLInputObjectType {
-    pub name: String,
-    pub description: Option<String>,
-    pub ast_node: Option<InputObjectTypeDefinition>,
-    pub extension_ast_nodes: Vec<InputObjectTypeExtension>,
-    pub is_one_of: bool,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) ast_node: Option<InputObjectTypeDefinition>,
+    pub(crate) extension_ast_nodes: Vec<InputObjectTypeExtension>,
+    pub(crate) is_one_of: bool,
     fields: Lazy<IndexMap<String, GraphQLInputField>>,
 }
 
 impl GraphQLInputObjectType {
-    pub fn new(config: GraphQLInputObjectTypeConfig) -> Result<Self, GraphQLError> {
+    /// graphql-js `name`.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// graphql-js `description`.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// graphql-js `isOneOf`: whether the type definition has the `@oneOf` directive.
+    pub fn is_one_of(&self) -> bool {
+        self.is_one_of
+    }
+
+    /// graphql-js `astNode`: the definition it was built from.
+    pub fn ast_node(&self) -> Option<&InputObjectTypeDefinition> {
+        self.ast_node.as_ref()
+    }
+
+    /// graphql-js `extensionASTNodes`: the extensions it was built from.
+    pub fn extension_ast_nodes(&self) -> &[InputObjectTypeExtension] {
+        &self.extension_ast_nodes
+    }
+
+    pub(crate) fn new(config: GraphQLInputObjectTypeConfig) -> Result<Self, GraphQLError> {
         assert_name(&config.name)?;
         Ok(GraphQLInputObjectType {
             fields: define_input_field_map(&config.name, config.fields),
@@ -905,12 +1187,13 @@ impl GraphQLInputObjectType {
         })
     }
 
-    /// graphql-js `getFields()`.
-    pub fn get_fields(&self) -> Result<&IndexMap<String, GraphQLInputField>, GraphQLError> {
+    /// graphql-js `getFields()`, running the thunk.
+    pub(crate) fn get_fields(&self) -> Result<&IndexMap<String, GraphQLInputField>, GraphQLError> {
         self.fields.get()
     }
 
-    /// `getFields()` of a type in a constructed schema.
+    /// graphql-js `getFields()`: the input fields by name, in definition order (the type
+    /// definition's, then each extension's).
     pub fn fields(&self) -> &IndexMap<String, GraphQLInputField> {
         self.fields.resolved()
     }
@@ -935,22 +1218,60 @@ fn define_input_field_map(
     }))
 }
 
-/// graphql-js `GraphQLInputField`.
+/// graphql-js `GraphQLInputField`: a field of an input object type.
+///
+/// It prints (`Display`) as its schema coordinate, `Input.field`.
 #[derive(Clone, Debug)]
 pub struct GraphQLInputField {
     /// The name of the parent input object type.
-    pub parent_type: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub ty: GraphQLType,
+    pub(crate) parent_type: String,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) ty: GraphQLType,
     /// graphql-js `default`. (The legacy `defaultValue` is never set by SDL.)
-    pub default: Option<DefaultInput>,
-    pub deprecation_reason: Option<String>,
-    pub ast_node: Option<InputValueDefinition>,
+    pub(crate) default: Option<DefaultInput>,
+    pub(crate) deprecation_reason: Option<String>,
+    pub(crate) ast_node: Option<InputValueDefinition>,
 }
 
 impl GraphQLInputField {
-    pub fn new(parent_type: &str, name: &str, config: GraphQLInputFieldConfig) -> Result<Self, GraphQLError> {
+    /// graphql-js `name`.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// graphql-js `description`.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// graphql-js `type`.
+    pub fn ty(&self) -> &GraphQLType {
+        &self.ty
+    }
+
+    /// graphql-js `getDefaultValueAST(inputField)`: the default value as a literal, `None` when
+    /// the field has none.
+    pub fn default_value(&self) -> Option<Cow<'_, ConstValue>> {
+        self.default.as_ref().map(DefaultInput::to_literal)
+    }
+
+    /// graphql-js `isRequiredInputField(field)`: non-null and without a default value.
+    pub fn is_required(&self) -> bool {
+        is_required_input_field(self)
+    }
+
+    /// graphql-js `deprecationReason`: the `reason` of its `@deprecated` directive.
+    pub fn deprecation_reason(&self) -> Option<&str> {
+        self.deprecation_reason.as_deref()
+    }
+
+    /// graphql-js `astNode`: the definition it was built from.
+    pub fn ast_node(&self) -> Option<&InputValueDefinition> {
+        self.ast_node.as_ref()
+    }
+
+    pub(crate) fn new(parent_type: &str, name: &str, config: GraphQLInputFieldConfig) -> Result<Self, GraphQLError> {
         // NOTE(port): the `'resolve' in config` devAssert cannot fail: the
         // config type has no `resolve`.
         assert_name(name)?;
@@ -973,13 +1294,13 @@ impl fmt::Display for GraphQLInputField {
 }
 
 /// graphql-js `isRequiredInputField`.
-pub fn is_required_input_field(field: &GraphQLInputField) -> bool {
+pub(crate) fn is_required_input_field(field: &GraphQLInputField) -> bool {
     field.ty.is_non_null() && field.default.is_none()
 }
 
 /// What graphql-js reads from a `GraphQLArgument | GraphQLInputField` (an
 /// "input value"): its type and default, and how it prints.
-pub trait GraphQLInputValue: fmt::Display {
+pub(crate) trait GraphQLInputValue: fmt::Display {
     fn input_type(&self) -> &GraphQLType;
     fn default_input(&self) -> Option<&DefaultInput>;
 }

@@ -92,7 +92,7 @@ fn enumeration(name: &str, values: &[&str]) -> GraphQLNamedType {
         extension_ast_nodes: Vec::new(),
     })
     .expect("introspection type names are valid");
-    enum_type.get_values().expect("introspection enum values are valid");
+    enum_type.values().expect("introspection enum values are valid");
     GraphQLNamedType::Enum(enum_type)
 }
 

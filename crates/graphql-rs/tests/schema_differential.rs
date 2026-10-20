@@ -7,9 +7,9 @@
 use std::sync::OnceLock;
 
 use graphql_rs::__internal::jsutils::JsValue;
-use graphql_rs::__internal::r#type::definition::{DefaultInput, GraphQLArgument, GraphQLNamedType};
-use graphql_rs::GraphQLSchema;
+use graphql_rs::__internal::r#type::definition::{argument_default, input_field_default, DefaultInput};
 use graphql_rs::{assert_valid_schema, build_schema, is_introspection_type, print, validate_schema};
+use graphql_rs::{GraphQLArgument, GraphQLNamedType, GraphQLSchema};
 use serde_json::{json, Value as Json};
 
 fn corpus() -> &'static Json {
@@ -37,14 +37,14 @@ fn js_json(value: &JsValue) -> Json {
     }
 }
 
-fn opt(s: &Option<String>) -> Json {
+fn opt(s: Option<&str>) -> Json {
     match s {
-        Some(s) => Json::String(s.clone()),
+        Some(s) => Json::String(s.to_string()),
         None => Json::Null,
     }
 }
 
-fn default_str(default: &Option<DefaultInput>) -> Json {
+fn default_str(default: Option<&DefaultInput>) -> Json {
     match default {
         None => Json::Null,
         Some(DefaultInput::Literal(literal)) => Json::String(print(literal)),
@@ -54,11 +54,11 @@ fn default_str(default: &Option<DefaultInput>) -> Json {
 
 fn arg_shape(arg: &GraphQLArgument, intro: bool) -> Json {
     json!([
-        arg.name,
-        arg.ty.to_string(),
-        if intro { Json::Null } else { opt(&arg.description) },
-        default_str(&arg.default),
-        opt(&arg.deprecation_reason),
+        arg.name(),
+        arg.ty().to_string(),
+        if intro { Json::Null } else { opt(arg.description()) },
+        default_str(argument_default(arg)),
+        opt(arg.deprecation_reason()),
     ])
 }
 
@@ -78,7 +78,7 @@ fn shape(schema: &GraphQLSchema) -> Json {
             match t {
                 GraphQLNamedType::Scalar(s) => {
                     o.insert("kind".into(), json!("scalar"));
-                    o.insert("specifiedByURL".into(), opt(&s.specified_by_url));
+                    o.insert("specifiedByURL".into(), opt(s.specified_by_url()));
                 }
                 GraphQLNamedType::Object(_) | GraphQLNamedType::Interface(_) => {
                     let (kind, interfaces, fields) = match t {
@@ -92,11 +92,11 @@ fn shape(schema: &GraphQLSchema) -> Json {
                         .values()
                         .map(|f| {
                             json!([
-                                f.name,
-                                f.ty.to_string(),
-                                if intro { Json::Null } else { opt(&f.description) },
-                                opt(&f.deprecation_reason),
-                                f.args.iter().map(|a| arg_shape(a, intro)).collect::<Vec<_>>(),
+                                f.name(),
+                                f.ty().to_string(),
+                                if intro { Json::Null } else { opt(f.description()) },
+                                opt(f.deprecation_reason()),
+                                f.args().iter().map(|a| arg_shape(a, intro)).collect::<Vec<_>>(),
                             ])
                         })
                         .collect();
@@ -108,15 +108,15 @@ fn shape(schema: &GraphQLSchema) -> Json {
                 }
                 GraphQLNamedType::Enum(e) => {
                     o.insert("kind".into(), json!("enum"));
-                    match e.get_values() {
+                    match e.values() {
                         Ok(values) => {
                             let values: Vec<Json> = values
                                 .iter()
                                 .map(|v| {
                                     json!([
-                                        v.name,
-                                        if intro { Json::Null } else { opt(&v.description) },
-                                        opt(&v.deprecation_reason),
+                                        v.name(),
+                                        if intro { Json::Null } else { opt(v.description()) },
+                                        opt(v.deprecation_reason()),
                                     ])
                                 })
                                 .collect();
@@ -129,22 +129,23 @@ fn shape(schema: &GraphQLSchema) -> Json {
                 }
                 GraphQLNamedType::InputObject(i) => {
                     o.insert("kind".into(), json!("input"));
-                    o.insert("isOneOf".into(), json!(i.is_one_of));
+                    o.insert("isOneOf".into(), json!(i.is_one_of()));
                     let fields: Vec<Json> = i
                         .fields()
                         .values()
                         .map(|f| {
                             json!([
-                                f.name,
-                                f.ty.to_string(),
-                                opt(&f.description),
-                                default_str(&f.default),
-                                opt(&f.deprecation_reason),
+                                f.name(),
+                                f.ty().to_string(),
+                                opt(f.description()),
+                                default_str(input_field_default(f)),
+                                opt(f.deprecation_reason()),
                             ])
                         })
                         .collect();
                     o.insert("fields".into(), Json::Array(fields));
                 }
+                _ => unreachable!("graphql-js 17.0.2 has no other kind of named type"),
             }
             Json::Object(o)
         })
@@ -154,17 +155,17 @@ fn shape(schema: &GraphQLSchema) -> Json {
         .iter()
         .map(|d| {
             json!([
-                d.name,
-                opt(&d.description),
-                d.locations.iter().map(|l| l.as_str()).collect::<Vec<_>>(),
-                d.is_repeatable,
-                opt(&d.deprecation_reason),
-                d.args.iter().map(|a| arg_shape(a, false)).collect::<Vec<_>>(),
+                d.name(),
+                opt(d.description()),
+                d.locations().iter().map(|l| l.as_str()).collect::<Vec<_>>(),
+                d.is_repeatable(),
+                opt(d.deprecation_reason()),
+                d.args().iter().map(|a| arg_shape(a, false)).collect::<Vec<_>>(),
             ])
         })
         .collect();
     json!({
-        "description": opt(&schema.description),
+        "description": opt(schema.description()),
         "query": schema.get_query_type().map(|t| t.name()),
         "mutation": schema.get_mutation_type().map(|t| t.name()),
         "subscription": schema.get_subscription_type().map(|t| t.name()),

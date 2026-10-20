@@ -15,7 +15,7 @@ use super::definition::{ArgumentParent, DefaultInput, GraphQLArgument, GraphQLAr
 
 /// graphql-js `GraphQLDirectiveConfig`.
 #[derive(Clone, Debug, Default)]
-pub struct GraphQLDirectiveConfig {
+pub(crate) struct GraphQLDirectiveConfig {
     pub name: String,
     pub description: Option<String>,
     pub locations: Vec<DirectiveLocation>,
@@ -26,21 +26,63 @@ pub struct GraphQLDirectiveConfig {
     pub extension_ast_nodes: Vec<DirectiveExtension>,
 }
 
-/// graphql-js `GraphQLDirective`.
+/// graphql-js `GraphQLDirective`: a directive of a schema, specified or defined in SDL.
+///
+/// It prints (`Display`) as `@name`.
 #[derive(Clone, Debug)]
 pub struct GraphQLDirective {
-    pub name: String,
-    pub description: Option<String>,
-    pub locations: Vec<DirectiveLocation>,
-    pub is_repeatable: bool,
-    pub deprecation_reason: Option<String>,
-    pub ast_node: Option<DirectiveDefinition>,
-    pub extension_ast_nodes: Vec<DirectiveExtension>,
-    pub args: Vec<GraphQLArgument>,
+    pub(crate) name: String,
+    pub(crate) description: Option<String>,
+    pub(crate) locations: Vec<DirectiveLocation>,
+    pub(crate) is_repeatable: bool,
+    pub(crate) deprecation_reason: Option<String>,
+    pub(crate) ast_node: Option<DirectiveDefinition>,
+    pub(crate) extension_ast_nodes: Vec<DirectiveExtension>,
+    pub(crate) args: Vec<GraphQLArgument>,
 }
 
 impl GraphQLDirective {
-    pub fn new(config: GraphQLDirectiveConfig) -> Result<Self, GraphQLError> {
+    /// graphql-js `name` (without the `@`).
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// graphql-js `description`.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// graphql-js `locations`, in definition order.
+    pub fn locations(&self) -> &[DirectiveLocation] {
+        &self.locations
+    }
+
+    /// graphql-js `isRepeatable`.
+    pub fn is_repeatable(&self) -> bool {
+        self.is_repeatable
+    }
+
+    /// graphql-js `args`, in definition order.
+    pub fn args(&self) -> &[GraphQLArgument] {
+        &self.args
+    }
+
+    /// graphql-js `deprecationReason`: the `reason` of its `@deprecated` directive.
+    pub fn deprecation_reason(&self) -> Option<&str> {
+        self.deprecation_reason.as_deref()
+    }
+
+    /// graphql-js `astNode`: the definition it was built from (`None` for a specified directive).
+    pub fn ast_node(&self) -> Option<&DirectiveDefinition> {
+        self.ast_node.as_ref()
+    }
+
+    /// graphql-js `extensionASTNodes`: the extensions it was built from.
+    pub fn extension_ast_nodes(&self) -> &[DirectiveExtension] {
+        &self.extension_ast_nodes
+    }
+
+    pub(crate) fn new(config: GraphQLDirectiveConfig) -> Result<Self, GraphQLError> {
         assert_name(&config.name)?;
         let mut args = Vec::with_capacity(config.args.len());
         for (arg_name, arg_config) in config.args {

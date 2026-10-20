@@ -414,7 +414,7 @@ fn validate_enum_values(
     context: &mut SchemaValidationContext<'_>,
     enum_type: &GraphQLEnumType,
 ) -> Result<(), GraphQLError> {
-    let enum_values = enum_type.get_values()?;
+    let enum_values = enum_type.values()?;
     if enum_values.is_empty() {
         context.report_error(format!("Enum type {} must define one or more values.", enum_type.name));
     }

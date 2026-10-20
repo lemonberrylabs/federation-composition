@@ -13,7 +13,7 @@ use super::scalars::specified_scalar_types;
 
 /// graphql-js `GraphQLSchemaConfig`.
 #[derive(Debug, Default)]
-pub struct GraphQLSchemaConfig {
+pub(crate) struct GraphQLSchemaConfig {
     pub description: Option<String>,
     /// The query root type, by name.
     pub query: Option<String>,
@@ -29,8 +29,11 @@ pub struct GraphQLSchemaConfig {
 
 /// The `{ objects, interfaces }` graphql-js `getImplementations` returns, by name.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Implementations {
+    /// The object types that implement the interface, in type map order.
     pub objects: Vec<String>,
+    /// The interface types that implement the interface, in type map order.
     pub interfaces: Vec<String>,
 }
 
@@ -38,18 +41,34 @@ pub struct Implementations {
 /// [`build_ast_schema`](crate::build_ast_schema) build it. Check it with
 /// [`validate_schema`](crate::validate_schema) or [`assert_valid_schema`](crate::assert_valid_schema).
 ///
-/// Only the paths of `buildSchema` and `validateSchema` are ported, so the type system behind a
-/// schema (its types, fields and directives) is not part of the stable API yet.
+/// Its type system can be read but not changed: the types ([`GraphQLNamedType`]) with their
+/// fields and arguments, and the directives ([`GraphQLDirective`]). Types refer to other types by
+/// name ([`GraphQLType::Named`](crate::GraphQLType::Named), an object type's interfaces, a union's
+/// members), and [`get_type`](Self::get_type) looks a name up. A schema that was built but not
+/// validated can be invalid (a union without members, an object type missing a field of its
+/// interface); the accessors return what the SDL defines either way.
+///
+/// The type map includes the specified scalars the schema uses and the introspection types
+/// (`__Schema`, `__Type`, ...), as in graphql-js. Unlike graphql-js's, the introspection types,
+/// their fields and their arguments have no descriptions.
+///
+/// ```
+/// use graphql_rs::{build_schema, GraphQLNamedType};
+///
+/// let schema = build_schema(
+///     "type Query { node(id: ID!): Node } interface Node { id: ID! } type User implements Node { id: ID! }",
+/// )?;
+/// let node = schema.get_type("Node").expect("Node is defined");
+/// assert!(node.is_interface_type());
+/// assert_eq!(schema.get_possible_types(node), ["User"]);
+/// assert!(schema.is_sub_type(node, "User"));
+/// # Ok::<(), graphql_rs::GraphQLError>(())
+/// ```
 #[derive(Debug)]
 pub struct GraphQLSchema {
-    /// The schema's description (`description`).
-    pub description: Option<String>,
-    /// The schema definition it was built from (`astNode`).
-    pub ast_node: Option<SchemaDefinition>,
-    /// The schema extensions it was built from (`extensionASTNodes`).
-    pub extension_ast_nodes: Vec<SchemaExtension>,
-    /// graphql-js `assumeValid`.
-    pub assume_valid: bool,
+    description: Option<String>,
+    ast_node: Option<SchemaDefinition>,
+    extension_ast_nodes: Vec<SchemaExtension>,
     query_type: Option<String>,
     mutation_type: Option<String>,
     subscription_type: Option<String>,
@@ -153,7 +172,6 @@ impl GraphQLSchema {
             description: config.description,
             ast_node: config.ast_node,
             extension_ast_nodes: config.extension_ast_nodes,
-            assume_valid: config.assume_valid,
             query_type: config.query,
             mutation_type: config.mutation,
             subscription_type: config.subscription,
@@ -164,26 +182,41 @@ impl GraphQLSchema {
         })
     }
 
-    /// graphql-js `getQueryType()`.
-    #[doc(hidden)]
+    /// graphql-js `description`.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    /// graphql-js `astNode`: the schema definition it was built from (`None` when the SDL has no
+    /// `schema { ... }`).
+    pub fn ast_node(&self) -> Option<&SchemaDefinition> {
+        self.ast_node.as_ref()
+    }
+
+    /// graphql-js `extensionASTNodes`: the schema extensions it was built from.
+    pub fn extension_ast_nodes(&self) -> &[SchemaExtension] {
+        &self.extension_ast_nodes
+    }
+
+    /// graphql-js `getQueryType()`: the query root type: the one the schema definition names, or
+    /// without a schema definition the type named `Query`.
     pub fn get_query_type(&self) -> Option<&GraphQLNamedType> {
         self.query_type.as_deref().and_then(|name| self.get_type(name))
     }
 
-    /// graphql-js `getMutationType()`.
-    #[doc(hidden)]
+    /// graphql-js `getMutationType()`: the mutation root type, found as for
+    /// [`get_query_type`](Self::get_query_type).
     pub fn get_mutation_type(&self) -> Option<&GraphQLNamedType> {
         self.mutation_type.as_deref().and_then(|name| self.get_type(name))
     }
 
-    /// graphql-js `getSubscriptionType()`.
-    #[doc(hidden)]
+    /// graphql-js `getSubscriptionType()`: the subscription root type, found as for
+    /// [`get_query_type`](Self::get_query_type).
     pub fn get_subscription_type(&self) -> Option<&GraphQLNamedType> {
         self.subscription_type.as_deref().and_then(|name| self.get_type(name))
     }
 
-    /// graphql-js `getRootType(operation)`.
-    #[doc(hidden)]
+    /// graphql-js `getRootType(operation)`: the root type of an operation type.
     pub fn get_root_type(&self, operation: OperationType) -> Option<&GraphQLNamedType> {
         match operation {
             OperationType::Query => self.get_query_type(),
@@ -192,20 +225,18 @@ impl GraphQLSchema {
         }
     }
 
-    /// graphql-js `getTypeMap()`.
-    #[doc(hidden)]
+    /// graphql-js `getTypeMap()`: every type of the schema by name, in graphql-js's order.
     pub fn get_type_map(&self) -> &IndexMap<String, GraphQLNamedType> {
         &self.type_map
     }
 
-    /// graphql-js `getType(name)`.
-    #[doc(hidden)]
+    /// graphql-js `getType(name)`: the type named `name`.
     pub fn get_type(&self, name: &str) -> Option<&GraphQLNamedType> {
         self.type_map.get(name)
     }
 
-    /// graphql-js `getPossibleTypes(abstractType)`, by name.
-    #[doc(hidden)]
+    /// graphql-js `getPossibleTypes(abstractType)`, by name: the members of a union, or the
+    /// object types that implement an interface (empty for the other kinds of type).
     pub fn get_possible_types(&self, abstract_type: &GraphQLNamedType) -> Vec<String> {
         match abstract_type {
             GraphQLNamedType::Union(union) => union.types().to_vec(),
@@ -213,8 +244,8 @@ impl GraphQLSchema {
         }
     }
 
-    /// graphql-js `getImplementations(interfaceType)`, by interface name.
-    #[doc(hidden)]
+    /// graphql-js `getImplementations(interfaceType)`, by interface name: the object and interface
+    /// types that implement it.
     pub fn get_implementations(&self, interface_type: &str) -> Implementations {
         self.implementations_map
             .get(interface_type)
@@ -222,8 +253,8 @@ impl GraphQLSchema {
             .unwrap_or_default()
     }
 
-    /// graphql-js `isSubType(abstractType, maybeSubType)`.
-    #[doc(hidden)]
+    /// graphql-js `isSubType(abstractType, maybeSubType)`: whether the type named
+    /// `maybe_sub_type` is a member of the union, or implements the interface.
     pub fn is_sub_type(&self, abstract_type: &GraphQLNamedType, maybe_sub_type: &str) -> bool {
         match abstract_type {
             GraphQLNamedType::Union(union) => union.types().iter().any(|t| t == maybe_sub_type),
@@ -238,14 +269,14 @@ impl GraphQLSchema {
         }
     }
 
-    /// graphql-js `getDirectives()`.
-    #[doc(hidden)]
+    /// graphql-js `getDirectives()`: the directives the SDL defines, then the specified
+    /// directives it does not redefine (`@include`, `@skip`, `@deprecated`, `@specifiedBy`,
+    /// `@oneOf`).
     pub fn get_directives(&self) -> &[GraphQLDirective] {
         &self.directives
     }
 
-    /// graphql-js `getDirective(name)`.
-    #[doc(hidden)]
+    /// graphql-js `getDirective(name)`: the directive named `name` (without the `@`).
     pub fn get_directive(&self, name: &str) -> Option<&GraphQLDirective> {
         self.directives.iter().find(|d| d.name == name)
     }

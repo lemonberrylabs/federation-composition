@@ -193,11 +193,14 @@ port it in `crates/federation-composition-rs`, do not substitute graphql-js `pri
   throws, which graphql-js does lazily, during validation) and caches the errors like
   `__validationErrors`; `assert_valid_schema(&schema)` returns `Result<(), GraphQLError>` with
   graphql-js's message. The type system is in the crate-private `r#type` module (`definition`,
-  `directives`, `scalars`, `introspection`, `schema`, `validate`; the differential tests reach
-  `definition` through `graphql_rs::__internal`); named types are
+  `directives`, `scalars`, `introspection`, `schema`, `validate`). Its types are re-exported at the
+  crate root for reading a built schema, with crate-private fields and constructors and accessor
+  methods; the differential tests read the graphql-js `default` of arguments and input fields
+  through `graphql_rs::__internal`. Named types are
   referenced by name (`GraphQLType::Named(String)`), `schema.get_type(name)` resolves
-  them, and the `fields`/`interfaces`/`types`/`values` thunks are `Lazy` values that
-  `GraphQLSchema` construction resolves in graphql-js order. Only the paths these
+  them, and the `fields`/`interfaces`/`types`/`values` thunks are `Lazy` values;
+  `GraphQLSchema` construction resolves all but `values` in graphql-js order (an enum's values
+  are resolved on first access, as in graphql-js). Only the paths these
   functions take are ported: no options, no `extendSchema` of an existing schema, no
   executable-document validation, input coercion without variables. The new type
   system is separate from the AST forms of `specified_directives()` /

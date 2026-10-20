@@ -8,6 +8,7 @@ pub mod extend_schema;
 pub mod type_comparators;
 pub mod validate_input_value;
 pub mod value_from_ast_untyped;
+pub mod value_to_literal;
 
 use crate::ast::Document;
 use crate::block_string::print_block_string;
