@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { GraphQLError, parse } from "graphql";
-import * as api from "federation-composition-wasm";
+import * as api from "@lemonberrylabs/federation-composition-wasm";
 import {
   assertCompositionSuccess,
   composeSchemaContract,
@@ -14,7 +14,7 @@ import {
   transformSupergraphToPublicSchema,
   validate,
   validateSubgraph,
-} from "federation-composition-wasm";
+} from "@lemonberrylabs/federation-composition-wasm";
 
 const users = {
   name: "users",

@@ -19,7 +19,7 @@ packages will be published under, and how to use them from this repository until
 | --------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`federation-composition-rs`](crates/federation-composition-rs) | Rust       | The composition library: a module-for-module port of upstream's `src/`.                                                                                                |
 | [`graphql-rs`](crates/graphql-rs)                               | Rust       | The part of [graphql-js](https://github.com/graphql/graphql-js) 17.0.2 the library needs: AST, lexer, parser, printer, visitor, and `buildSchema`/`assertValidSchema`. |
-| [`federation-composition-wasm`](npm)                            | JavaScript | The library compiled to WebAssembly, as a drop-in replacement for `@theguild/federation-composition`.                                                                  |
+| [`@lemonberrylabs/federation-composition-wasm`](npm)            | JavaScript | The library compiled to WebAssembly, as a drop-in replacement for `@theguild/federation-composition`.                                                                  |
 
 ### federation-composition-rs
 
@@ -28,8 +28,8 @@ packages will be published under, and how to use them from this repository until
 federation-composition-rs = "0.1"
 graphql-rs = "0.1"
 # Until the crates are published:
-# federation-composition-rs = { git = "https://github.com/Enrico2/federation-composition" }
-# graphql-rs = { git = "https://github.com/Enrico2/federation-composition" }
+# federation-composition-rs = { git = "https://github.com/lemonberrylabs/federation-composition" }
+# graphql-rs = { git = "https://github.com/lemonberrylabs/federation-composition" }
 ```
 
 The subgraph schemas are parsed with `graphql-rs` (re-exported as
@@ -70,7 +70,7 @@ one. The Rust examples in this README run as doctests of `federation-composition
 [dependencies]
 graphql-rs = "0.1"
 # Until the crate is published:
-# graphql-rs = { git = "https://github.com/Enrico2/federation-composition" }
+# graphql-rs = { git = "https://github.com/lemonberrylabs/federation-composition" }
 ```
 
 Parsing, printing and schema validation behave like graphql-js, including its error messages:
@@ -87,10 +87,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### federation-composition-wasm (npm)
+### @lemonberrylabs/federation-composition-wasm (npm)
 
 ```sh
-npm install federation-composition-wasm graphql
+npm install @lemonberrylabs/federation-composition-wasm graphql
 ```
 
 It has the same exports, types and results as `@theguild/federation-composition`, so switching is
@@ -98,7 +98,7 @@ a change of import:
 
 ```diff
 -import { composeServices, compositionHasErrors } from "@theguild/federation-composition";
-+import { composeServices, compositionHasErrors } from "federation-composition-wasm";
++import { composeServices, compositionHasErrors } from "@lemonberrylabs/federation-composition-wasm";
 ```
 
 ```ts
@@ -106,7 +106,7 @@ import { parse } from "graphql";
 import {
   composeServices,
   compositionHasErrors,
-} from "federation-composition-wasm";
+} from "@lemonberrylabs/federation-composition-wasm";
 
 const result = composeServices([
   {
@@ -203,7 +203,7 @@ The procedure for porting a release is [docs/upstream-sync.md](docs/upstream-syn
 | [`crates/federation-composition-rs`](crates/federation-composition-rs)     | The library; `src/` mirrors upstream's `src/` file for file. Tests: `tests/suite`, `tests/corpus.rs`, `tests/js_semantics.rs`. |
 | [`crates/graphql-rs`](crates/graphql-rs)                                   | The graphql-js port; `src/` mirrors graphql-js's files. Differential tests and their generators in `tests/`.                   |
 | [`crates/federation-composition-wasm`](crates/federation-composition-wasm) | wasm-bindgen bindings used by the npm package.                                                                                 |
-| [`npm/`](npm)                                                              | The npm package `federation-composition-wasm`: the TypeScript shim (`src/`) and its tests (`test/`).                           |
+| [`npm/`](npm)                                                              | The npm package `@lemonberrylabs/federation-composition-wasm`: the TypeScript shim (`src/`) and its tests (`test/`).           |
 | [`conformance/`](conformance)                                              | The upstream conformance check, the watcher and the known-exceptions list.                                                     |
 | [`docs/`](docs)                                                            | [Architecture](docs/architecture.md) and the [upstream sync procedure](docs/upstream-sync.md).                                 |
 | [`crates/PORTING.md`](crates/PORTING.md)                                   | The porting guide: module mapping, JavaScript semantics to preserve, design decisions, test-porting rules.                     |

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Installs a packed federation-composition-wasm tarball on its own, in an empty project with the
+# Installs a packed @lemonberrylabs/federation-composition-wasm tarball on its own, in an empty project with the
 # given graphql major as its peer dependency, and runs the package's smoke test (by package
 # name, through "exports") plus a CommonJS require() of it.
 #
-#   .github/scripts/npm-smoke.sh path/to/federation-composition-wasm-X.Y.Z.tgz 16|17
+#   .github/scripts/npm-smoke.sh path/to/lemonberrylabs-federation-composition-wasm-X.Y.Z.tgz 16|17
 set -euo pipefail
 
 tarball="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
@@ -20,7 +20,7 @@ echo "node $(node --version), graphql $(node -p 'require("graphql").version')"
 node --test smoke.test.mjs
 # CommonJS consumers: require() of an ES module (Node 22.12 and later).
 node --input-type=commonjs -e '
-const m = require("federation-composition-wasm");
+const m = require("@lemonberrylabs/federation-composition-wasm");
 if (typeof m.composeServices !== "function") throw new Error("require() did not load the package");
 console.log("require() ok");
 '

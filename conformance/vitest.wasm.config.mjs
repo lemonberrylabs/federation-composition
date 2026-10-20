@@ -1,7 +1,7 @@
 // Runs upstream's unchanged test suite (conformance/upstream) against the npm package
-// federation-composition-wasm: every import of a module under upstream's src/ from a test
+// @lemonberrylabs/federation-composition-wasm: every import of a module under upstream's src/ from a test
 // module is redirected to the package's entry point for that module
-// (`federation-composition-wasm/internal/<path>`, the shim in npm/src/<path>.ts).
+// (`@lemonberrylabs/federation-composition-wasm/internal/<path>`, the shim in npm/src/<path>.ts).
 // Build the package first (`pnpm wasm:build`). Run by conformance/run.mjs with upstream's
 // own vitest, so this file imports nothing from vitest.
 import fs from "node:fs";
@@ -53,7 +53,9 @@ const srcToWasm = {
     if (target.endsWith(".spec.ts")) return null;
     const rel = modulePath(target);
     try {
-      return require.resolve(`federation-composition-wasm/internal/${rel}`);
+      return require.resolve(
+        `@lemonberrylabs/federation-composition-wasm/internal/${rel}`,
+      );
     } catch {
       // Never fall back to the TypeScript implementation.
       this.error(
@@ -66,7 +68,7 @@ const srcToWasm = {
     const file = id.split("?")[0];
     if (isUpstreamImplementation(file)) {
       this.error(
-        `Upstream's TypeScript implementation was loaded (${path.relative(root, file)}); the conformance run must only use federation-composition-wasm`,
+        `Upstream's TypeScript implementation was loaded (${path.relative(root, file)}); the conformance run must only use @lemonberrylabs/federation-composition-wasm`,
       );
     }
     return null;

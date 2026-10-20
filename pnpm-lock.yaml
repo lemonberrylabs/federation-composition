@@ -14,7 +14,7 @@ importers:
 
   conformance:
     dependencies:
-      federation-composition-wasm:
+      '@lemonberrylabs/federation-composition-wasm':
         specifier: workspace:*
         version: link:../npm
 

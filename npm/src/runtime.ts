@@ -12,7 +12,7 @@ try {
   gluePath = require.resolve("../pkg/federation_composition_wasm.js");
 } catch {
   throw new Error(
-    "federation-composition-wasm: pkg/ is missing; build the WebAssembly bindings with `pnpm wasm:build`",
+    "@lemonberrylabs/federation-composition-wasm: pkg/ is missing; build the WebAssembly bindings with `pnpm wasm:build`",
   );
 }
 

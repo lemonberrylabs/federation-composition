@@ -1,12 +1,12 @@
 {
-  "name": "federation-composition-wasm",
+  "name": "@lemonberrylabs/federation-composition-wasm",
   "version": "0.1.0",
   "description": "Apollo Federation composition in WebAssembly: a drop-in replacement for @theguild/federation-composition, built from its Rust port",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Enrico2/federation-composition.git",
+    "url": "git+https://github.com/lemonberrylabs/federation-composition.git",
     "directory": "npm"
   },
   "keywords": [

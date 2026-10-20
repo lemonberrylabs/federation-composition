@@ -115,12 +115,12 @@ made by [release-plz](https://release-plz.dev) ([release-plz.toml](release-plz.t
 [release-plz.yml](.github/workflows/release-plz.yml)); the npm package is published by
 [npm-publish.yml](.github/workflows/npm-publish.yml).
 
-| Package                               | Where                                                    | Version source                                                     |
-| ------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------ |
-| `graphql-rs`                          | crates.io                                                | `crates/graphql-rs/Cargo.toml`                                     |
-| `federation-composition-rs`           | crates.io                                                | `crates/federation-composition-rs/Cargo.toml`                      |
-| `federation-composition-wasm` (crate) | not published (`publish = false`); tagged by release-plz | `crates/federation-composition-wasm/Cargo.toml`                    |
-| `federation-composition-wasm` (npm)   | npm, with provenance                                     | the crate's version: the publish job sets `npm/package.json` to it |
+| Package                                             | Where                                                    | Version source                                                     |
+| --------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------ |
+| `graphql-rs`                                        | crates.io                                                | `crates/graphql-rs/Cargo.toml`                                     |
+| `federation-composition-rs`                         | crates.io                                                | `crates/federation-composition-rs/Cargo.toml`                      |
+| `federation-composition-wasm` (crate)               | not published (`publish = false`); tagged by release-plz | `crates/federation-composition-wasm/Cargo.toml`                    |
+| `@lemonberrylabs/federation-composition-wasm` (npm) | npm, with provenance                                     | the crate's version: the publish job sets `npm/package.json` to it |
 
 How a release goes:
 
@@ -143,7 +143,7 @@ To turn it on, the owner adds, in the repository's settings:
 | ---------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `RELEASE_ENABLED` = `true`                                 | Actions variable                         | Both release workflows run only when it is set.                                                                                                                                                                                                                                        |
 | `CARGO_REGISTRY_TOKEN`                                     | Actions secret                           | crates.io API token with the `publish-new` and `publish-update` scopes. (Once the crates exist, crates.io trusted publishing can replace it: add `id-token: write` to the release job and drop the secret.)                                                                            |
-| `NPM_TOKEN`                                                | secret of the `npm` environment          | npm granular access token allowed to publish `federation-composition-wasm`. (npm trusted publishing can replace it after the first publish.)                                                                                                                                           |
+| `NPM_TOKEN`                                                | secret of the `npm` environment          | npm granular access token allowed to publish `@lemonberrylabs/federation-composition-wasm`. (npm trusted publishing can replace it after the first publish.)                                                                                                                           |
 | `RELEASE_PLZ_TOKEN` (optional)                             | Actions secret                           | A fine-grained token with `contents: write` and `pull-requests: write`. Tags and pull requests made with the default `GITHUB_TOKEN` do not trigger other workflows, so without it CI does not run on the release pull request and npm-publish.yml must be run by hand after a release. |
 | "Allow GitHub Actions to create and approve pull requests" | Actions → General → Workflow permissions | release-plz's release pull request (when `RELEASE_PLZ_TOKEN` is not set).                                                                                                                                                                                                              |
 | Pages source: "GitHub Actions"                             | Pages                                    | pages.yml.                                                                                                                                                                                                                                                                             |

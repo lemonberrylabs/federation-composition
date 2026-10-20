@@ -1,4 +1,4 @@
-# Publishes the npm package federation-composition-wasm (npm/) with provenance when release-plz
+# Publishes the npm package @lemonberrylabs/federation-composition-wasm (npm/) with provenance when release-plz
 # tags a release of the crate federation-composition-wasm (federation-composition-wasm-vX.Y.Z),
 # or by hand for an existing tag. The npm version is the crate's version: the tag, Cargo.toml and
 # the published package.json agree, or the job fails. See CONTRIBUTING.md, "Releasing".

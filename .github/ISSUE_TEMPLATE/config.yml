@@ -1,7 +1,7 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/Enrico2/federation-composition/security/advisories/new
+    url: https://github.com/lemonberrylabs/federation-composition/security/advisories/new
     about: Report security issues privately (SECURITY.md).
   - name: Composition behavior of upstream
     url: https://github.com/graphql-hive/federation-composition/issues

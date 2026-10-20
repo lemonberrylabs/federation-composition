@@ -20,7 +20,7 @@ This repository does not contain the TypeScript. `pnpm conformance` checks upstr
 | `crates/graphql-rs` | Port of graphql-js 17.0.2's language layer: AST, lexer, parser, printer, visitor, `stripIgnoredCharacters`, `GraphQLError`, specified scalars/directives; and of `buildSchema`/`buildASTSchema` (with the SDL validation rules) and `validateSchema`/`assertValidSchema`, with the type system they build (`type/`, `utilities/`, `validation/`, `execution/values`, `jsutils/`, mirroring graphql-js's files). |
 | `crates/federation-composition-rs` (`federation_composition_rs`) | Port of `src/`. Depends on `crates/graphql-rs` under the name `graphql_rs`, because `crate::graphql` is the port of `src/graphql/`. |
 | `crates/federation-composition-wasm` | wasm-bindgen bindings used by the JS shim. |
-| `npm/` | The npm package `federation-composition-wasm`: a TypeScript shim (`npm/src`) exposing the same modules and exports as upstream's `src/`, backed by the WebAssembly build. Upstream's tests are pointed at it by the conformance check's Vitest config. |
+| `npm/` | The npm package `@lemonberrylabs/federation-composition-wasm`: a TypeScript shim (`npm/src`) exposing the same modules and exports as upstream's `src/`, backed by the WebAssembly build. Upstream's tests are pointed at it by the conformance check's Vitest config. |
 | `conformance/` | The upstream conformance check and watcher ([conformance/README.md](../conformance/README.md)). |
 
 **Never edit a test to make it pass.** Upstream's tests (`__tests__/` and `src/**/*.spec.ts`)

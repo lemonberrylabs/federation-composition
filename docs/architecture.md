@@ -238,7 +238,7 @@ returned as bytes and decoded by the shim only when `supergraphDocumentNode` is 
 `JsError` is rethrown by the shim as a JavaScript `Error` or `GraphQLError` with the same message.
 
 The shim in `npm/src` mirrors upstream's `src/` paths so that the conformance check can redirect
-each upstream import to `federation-composition-wasm/internal/<path>`. The package's `.` export
+each upstream import to `@lemonberrylabs/federation-composition-wasm/internal/<path>`. The package's `.` export
 matches upstream's `src/index.ts`; the `internal/*` entry points are not a stable API.
 
 ## Tests

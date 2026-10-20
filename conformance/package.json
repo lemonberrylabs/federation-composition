@@ -2,12 +2,12 @@
   "name": "conformance",
   "private": true,
   "type": "module",
-  "description": "Runs upstream's unchanged test suite against federation-composition-wasm and compares native Rust output with upstream's TypeScript output",
+  "description": "Runs upstream's unchanged test suite against @lemonberrylabs/federation-composition-wasm and compares native Rust output with upstream's TypeScript output",
   "scripts": {
     "conformance": "node run.mjs",
     "watch": "node watch.mjs"
   },
   "dependencies": {
-    "federation-composition-wasm": "workspace:*"
+    "@lemonberrylabs/federation-composition-wasm": "workspace:*"
   }
 }

@@ -3,13 +3,13 @@
 ## Supported versions
 
 Only the latest release of each package receives fixes: the crates `graphql-rs` and
-`federation-composition-rs`, and the npm package `federation-composition-wasm`. Before the first
+`federation-composition-rs`, and the npm package `@lemonberrylabs/federation-composition-wasm`. Before the first
 release, that is the `main` branch.
 
 ## Reporting a vulnerability
 
 Report it privately through GitHub's
-[private vulnerability reporting](https://github.com/Enrico2/federation-composition/security/advisories/new)
+[private vulnerability reporting](https://github.com/lemonberrylabs/federation-composition/security/advisories/new)
 ("Report a vulnerability" on the repository's Security tab). Do not open a public issue or pull
 request for it. Include what you can of: the affected package and version, the input (subgraph
 schemas) or a minimal reproduction, and what happens (crash, hang, excessive memory or time,
@@ -62,7 +62,7 @@ schemas that come from untrusted parties, know these properties:
   types (the satisfiability walk and its graph, cycles of input objects and of default values,
   referenced types) use explicit stacks instead of recursion, so a long chain of types (tested
   with 5,000 to 20,000) does not overflow the stack.
-- **The npm package** (`federation-composition-wasm`) receives its arguments as JSON. An argument
+- **The npm package** (`@lemonberrylabs/federation-composition-wasm`) receives its arguments as JSON. An argument
   that nests more than 448 arrays and objects (3 × 128 + 64, enough for any document within
   the limit) throws
   `composition-wasm: invalid <argument> argument: nested deeper than 448 levels` before it is

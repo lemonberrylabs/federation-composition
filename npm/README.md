@@ -1,4 +1,4 @@
-# federation-composition-wasm
+# @lemonberrylabs/federation-composition-wasm
 
 Apollo Federation v1/v2 schema composition for JavaScript, compiled to WebAssembly from
 [federation-composition-rs](../crates/federation-composition-rs), a Rust port of
@@ -14,7 +14,7 @@ the `@theguild/federation-composition` release it matches (recorded in
 ## Installation
 
 ```sh
-npm install federation-composition-wasm graphql
+npm install @lemonberrylabs/federation-composition-wasm graphql
 ```
 
 `graphql` (16 or 17) is a peer dependency, as it is for `@theguild/federation-composition`.
@@ -25,7 +25,7 @@ Replace the import; nothing else changes:
 
 ```diff
 -import { composeServices, compositionHasErrors } from "@theguild/federation-composition";
-+import { composeServices, compositionHasErrors } from "federation-composition-wasm";
++import { composeServices, compositionHasErrors } from "@lemonberrylabs/federation-composition-wasm";
 ```
 
 ```ts
@@ -33,7 +33,7 @@ import { parse } from "graphql";
 import {
   composeServices,
   compositionHasErrors,
-} from "federation-composition-wasm";
+} from "@lemonberrylabs/federation-composition-wasm";
 
 const result = composeServices([
   {
@@ -64,7 +64,7 @@ if (compositionHasErrors(result)) {
 The package is an ES module for Node.js (it loads the WebAssembly module with Node's `require`).
 It needs Node.js 22.12 or later, where CommonJS code can also `require()` it.
 
-`federation-composition-wasm/internal/<path>` exposes the shim of each upstream module
+`@lemonberrylabs/federation-composition-wasm/internal/<path>` exposes the shim of each upstream module
 (`internal/subgraph/state`, `internal/supergraph/composition/ast`, ...). Those entry points exist
 so upstream's tests can run against this package; they are not a stable API.
 

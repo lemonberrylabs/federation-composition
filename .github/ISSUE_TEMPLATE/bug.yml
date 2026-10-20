@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Security issues (including inputs that take excessive time or memory) go through [SECURITY.md](https://github.com/Enrico2/federation-composition/blob/HEAD/SECURITY.md), not here.
+        Security issues (including inputs that take excessive time or memory) go through [SECURITY.md](https://github.com/lemonberrylabs/federation-composition/blob/HEAD/SECURITY.md), not here.
   - type: dropdown
     id: package
     attributes:
@@ -13,7 +13,7 @@ body:
       options:
         - federation-composition-rs (crate)
         - graphql-rs (crate)
-        - federation-composition-wasm (npm)
+        - "@lemonberrylabs/federation-composition-wasm (npm)"
     validations:
       required: true
   - type: input

@@ -1,4 +1,4 @@
-// Builds the npm package federation-composition-wasm:
+// Builds the npm package @lemonberrylabs/federation-composition-wasm:
 // 1. crates/federation-composition-wasm into npm/pkg (gitignored): cargo (release,
 //    wasm32-unknown-unknown) with the rustup toolchain, then wasm-bindgen
 //    --target nodejs, then wasm-opt if it is installed;

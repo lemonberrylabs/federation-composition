@@ -5,7 +5,7 @@ members = ["crates/*"]
 [workspace.package]
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/Enrico2/federation-composition"
+repository = "https://github.com/lemonberrylabs/federation-composition"
 # The oldest toolchain that checks every target of the workspace with Cargo.lock, found by
 # trying each release (CONTRIBUTING.md, "Minimum supported Rust version"); the msrv job of
 # .github/workflows/ci.yml keeps it true.

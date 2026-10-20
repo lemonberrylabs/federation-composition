@@ -4,7 +4,7 @@
 // Usage: pnpm bench:corpus <implementation> [out.json]
 // (node conformance/upstream-bin.mjs tsx --expose-gc bench/run-corpus.ts ...), where
 // <implementation> is "guild-ts" (upstream's TypeScript in conformance/upstream/src) or
-// "guild-wasm" (the npm package federation-composition-wasm as built in npm/dist, so AST
+// "guild-wasm" (the npm package @lemonberrylabs/federation-composition-wasm as built in npm/dist, so AST
 // conversion across the boundary is included). Run `pnpm conformance` first; it checks out
 // upstream, builds the package and records the corpus.
 // Native Rust uses the same protocol: crates/federation-composition-rs/examples/corpus_bench.rs.

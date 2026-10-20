@@ -139,7 +139,7 @@ AST structs are named like graphql-js node kinds without the `Node` suffix (`Fie
 
 The parser, printer and visitor are complete ports. Of the type system, only what `buildSchema`/`buildASTSchema` and `validateSchema` need is ported: there is no `extendSchema` of an existing schema, no execution and no validation of executable documents. A built `GraphQLSchema` can be validated and inspected, but not executed, printed back to SDL or introspected with a query, and its introspection types have no descriptions. The crate has a hidden `__internal` module for this repository's differential tests; it is not part of the public API and can change in any release.
 
-One addition to graphql-js: the parser rejects documents that nest more than `MAX_NESTING_DEPTH` (128) levels of list values, object values, selection sets and list types (`ParseOptions::max_nesting_depth` changes it), so that the recursive printer, visitor and schema building cannot overflow the stack; `check_nesting_depth` checks a document built in code. See [SECURITY.md](https://github.com/Enrico2/federation-composition/blob/main/SECURITY.md#untrusted-input).
+One addition to graphql-js: the parser rejects documents that nest more than `MAX_NESTING_DEPTH` (128) levels of list values, object values, selection sets and list types (`ParseOptions::max_nesting_depth` changes it), so that the recursive printer, visitor and schema building cannot overflow the stack; `check_nesting_depth` checks a document built in code. See [SECURITY.md](https://github.com/lemonberrylabs/federation-composition/blob/main/SECURITY.md#untrusted-input).
 
 ## Credits
 

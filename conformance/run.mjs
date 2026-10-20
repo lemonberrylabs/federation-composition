@@ -1,6 +1,6 @@
 // The upstream conformance check (`pnpm conformance [ref]`): checks out upstream at the ref in
 // UPSTREAM (or the given tag or commit) and runs
-//   wasm    upstream's unchanged test suite against the npm package federation-composition-wasm;
+//   wasm    upstream's unchanged test suite against the npm package @lemonberrylabs/federation-composition-wasm;
 //   capture upstream's test suite on its own TypeScript, recording every composition it performs
 //           and its output, plus the three benchmark fixtures, into conformance/out/corpus.jsonl;
 //   native  crates/federation-composition-rs/tests/corpus.rs, which requires native Rust output to

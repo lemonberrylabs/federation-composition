@@ -32,7 +32,7 @@ Conformance with upstream v0.27.0 (6272ad80299b):
    unchanged test suite with upstream's own vitest and
    [`vitest.wasm.config.mjs`](vitest.wasm.config.mjs). That config redirects every import of a
    module under upstream's `src/` made by a test module (`__tests__/**`, `src/**/*.spec.ts`) to
-   the package's entry point for the same module, `federation-composition-wasm/internal/<path>`
+   the package's entry point for the same module, `@lemonberrylabs/federation-composition-wasm/internal/<path>`
    (the shim in `npm/src/<path>.ts`). Two self-checks keep the run honest: an import with no
    shim is an error (it never falls back to the TypeScript), and loading any module of
    upstream's implementation, by any path, is an error. The result is
