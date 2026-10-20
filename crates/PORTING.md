@@ -10,7 +10,7 @@ against the WebAssembly build and must pass unchanged.
 
 | Crate | Purpose |
 |---|---|
-| `crates/graphql` | Port of graphql-js 17.0.2's language layer: AST, lexer, parser, printer, visitor, `stripIgnoredCharacters`, `GraphQLError`, specified scalars/directives. |
+| `crates/graphql` | Port of graphql-js 17.0.2's language layer: AST, lexer, parser, printer, visitor, `stripIgnoredCharacters`, `GraphQLError`, specified scalars/directives; and of `buildSchema`/`buildASTSchema` (with the SDL validation rules) and `validateSchema`/`assertValidSchema`, with the type system they build (`type/`, `utilities/`, `validation/`, `execution/values`, `jsutils/`, mirroring graphql-js's files). |
 | `crates/composition` (`federation_composition`) | Port of `src/`. Depends on `crates/graphql` under the name `graphql_js`, because `crate::graphql` is the port of `src/graphql/`. |
 | `crates/composition-wasm` | wasm-bindgen bindings used by the JS shim. |
 | `wasm/` | TypeScript shim exposing the same modules and exports as `src/`, backed by the WebAssembly build. Tests are pointed at it by a Vitest alias. |
@@ -166,11 +166,30 @@ port it in `crates/composition`, do not substitute graphql-js `print` for it.
   `is_specified_directive`, `is_specified_scalar_type`, `is_introspection_type`.
 - JSON (serde) matches graphql-js's JSON for parsed documents; deserialization accepts
   missing/`null`/`[]` optional fields and ignores `loc`.
+- Schema building and validation (graphql-js `buildSchema`, `buildASTSchema`,
+  `validateSchema`, `assertValidSchema`, `validateSDL`, `assertValidSDL`):
+  `build_schema(&str)` and `build_ast_schema(&Document)` return
+  `Result<GraphQLSchema, GraphQLError>` (the `Err` message is what graphql-js throws:
+  the SDL errors joined by blank lines, an invalid `@deprecated`/`@specifiedBy`
+  argument, a parse error); `validate_schema(&schema)` returns
+  `Result<Vec<GraphQLError>, GraphQLError>` (`Err` when resolving an enum's values
+  throws, which graphql-js does lazily, during validation) and caches the errors like
+  `__validationErrors`; `assert_valid_schema(&schema)` returns `Result<(), String>` with
+  graphql-js's message. The type system is in `graphql_js::r#type` (`definition`,
+  `directives`, `scalars`, `introspection`, `schema`, `validate`); named types are
+  referenced by name (`GraphQLType::Named(String)`), `schema.get_type(name)` resolves
+  them, and the `fields`/`interfaces`/`types`/`values` thunks are `Lazy` values that
+  `GraphQLSchema` construction resolves in graphql-js order. Only the paths these
+  functions take are ported: no options, no `extendSchema` of an existing schema, no
+  executable-document validation, input coercion without variables. The new type
+  system is separate from the AST forms of `specified_directives()` /
+  `specified_scalar_types()` above, which stay as they are.
 
 `buildASTSchema`/`getNamedType`/`isObjectType` from graphql-js are used only in
 `src/contracts/reachable-type-filter.ts`; port the needed subset of schema building
 inside that module (including any error `buildASTSchema` would throw for the inputs
-the tests use).
+the tests use). (That port predates `graphql_js::build_ast_schema`, which the Rust
+test suite uses for the validity checks the TS tests make.)
 
 ## Done means
 
@@ -298,7 +317,7 @@ with the shim in `wasm/`.
 | Check | Command | Expected |
 |---|---|---|
 | Build, no warnings | `cargo build --workspace` and `cargo build --release --target wasm32-unknown-unknown --workspace` | 0 warnings |
-| Rust unit and differential tests | `cargo test --workspace` | all pass; includes `crates/graphql`'s differential tests against graphql-js (regenerate `crates/graphql/tests/corpus.json` with `node crates/graphql/tests/gen-corpus.mjs`) |
+| Rust unit and differential tests | `cargo test --workspace` | all pass; includes `crates/graphql`'s differential tests against graphql-js (regenerate `crates/graphql/tests/corpus.json` with `node crates/graphql/tests/gen-corpus.mjs`, and `crates/graphql/tests/schema-corpus.json` with `node crates/graphql/tests/gen-schema-corpus.mjs [bench/corpus.jsonl]`, which needs `pnpm bench:capture` first; 1,966 schemas identical to graphql-js on 2026-10-19) |
 | Rust vs TS on every composition the test suite runs | `pnpm bench:capture`, then `cargo test -p federation_composition --release --test corpus -- --ignored` | every captured composition matches (3567/3567 on 2026-10-19) |
 | The TS test suite against the WebAssembly build | `pnpm wasm:build && pnpm test:wasm --run` | 7,350 passed (the 7,343 TS tests plus 7 bridge checks in `wasm/runtime.spec.ts`), 25 skipped, 8 todo |
 | The TS test suite itself | `pnpm test --run` | 7,343 passed, 25 skipped, 8 todo |

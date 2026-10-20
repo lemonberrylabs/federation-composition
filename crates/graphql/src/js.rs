@@ -41,3 +41,47 @@ pub(crate) fn utf16_slice(s: &str, start: usize, units: usize) -> String {
     }
     out
 }
+
+/// JavaScript `String(n)` for a number.
+pub(crate) fn number_to_string(n: f64) -> String {
+    if n.is_nan() {
+        return "NaN".to_string();
+    }
+    if n == 0.0 {
+        return "0".to_string();
+    }
+    if n.is_infinite() {
+        return if n > 0.0 { "Infinity" } else { "-Infinity" }.to_string();
+    }
+    if n < 0.0 {
+        return format!("-{}", number_to_string(-n));
+    }
+
+    // Shortest round-trip digits and exponent: `{:e}` gives "d.ddde±x".
+    let formatted = format!("{n:e}");
+    let (mantissa, exponent) = formatted.split_once('e').expect("{:e} has an exponent");
+    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
+    let k = digits.len() as i32;
+    // n = 0.digits × 10^point
+    let point = exponent.parse::<i32>().expect("valid exponent") + 1;
+
+    if k <= point && point <= 21 {
+        format!("{digits}{}", "0".repeat((point - k) as usize))
+    } else if 0 < point && point <= 21 {
+        format!(
+            "{}.{}",
+            &digits[..point as usize],
+            &digits[point as usize..]
+        )
+    } else if -6 < point && point <= 0 {
+        format!("0.{}{digits}", "0".repeat((-point) as usize))
+    } else {
+        let e = point - 1;
+        let sign = if e < 0 { '-' } else { '+' };
+        if k == 1 {
+            format!("{digits}e{sign}{}", e.abs())
+        } else {
+            format!("{}.{}e{sign}{}", &digits[..1], &digits[1..], e.abs())
+        }
+    }
+}

@@ -174,7 +174,7 @@ fn is_js_whitespace(c: char) -> bool {
 }
 
 /// JS `parseInt(s, 10)`.
-fn js_parse_int(s: &str) -> f64 {
+pub(crate) fn js_parse_int(s: &str) -> f64 {
     let s = s.trim_start_matches(is_js_whitespace);
     let (negative, rest) = match s.as_bytes().first() {
         Some(b'-') => (true, &s[1..]),
@@ -194,7 +194,7 @@ fn js_parse_int(s: &str) -> f64 {
 }
 
 /// JS `parseFloat(s)`.
-fn js_parse_float(s: &str) -> f64 {
+pub(crate) fn js_parse_float(s: &str) -> f64 {
     let s = s.trim_start_matches(is_js_whitespace);
     let bytes = s.as_bytes();
     let mut i = 0;

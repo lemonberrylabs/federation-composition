@@ -1,5 +1,13 @@
-//! Ports of graphql-js `utilities/stripIgnoredCharacters` and
-//! `utilities/concatAST`.
+//! Ports of graphql-js `utilities`: `stripIgnoredCharacters` and
+//! `concatAST` here, and in submodules what building and validating a
+//! schema uses.
+
+pub mod build_ast_schema;
+pub mod coerce_input_value;
+pub mod extend_schema;
+pub mod type_comparators;
+pub mod validate_input_value;
+pub mod value_from_ast_untyped;
 
 use crate::ast::Document;
 use crate::block_string::print_block_string;
