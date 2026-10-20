@@ -84,6 +84,8 @@ if (!dev && wasmOpt.status === 0) {
     "--enable-nontrapping-float-to-int",
     "--enable-sign-ext",
     "--enable-mutable-globals",
+    "--enable-reference-types",
+    "--enable-multivalue",
     bindgenWasm,
     "-o",
     bindgenWasm,
