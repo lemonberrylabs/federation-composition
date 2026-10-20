@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "federation-composition-wasm"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "federation-composition",
  "graphql-core",
