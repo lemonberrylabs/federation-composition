@@ -93,14 +93,6 @@ fn expect_context_spec_definitions(supergraph_sdl: Option<&str>) {
     );
 }
 
-/// `expect(received).not.toContain(expected)` on a string. Like vitest, an `undefined`
-/// received value fails the assertion.
-#[track_caller]
-fn not_to_contain(received: Option<&str>, expected: &str) {
-    let received = received.unwrap_or_else(|| panic!("expected a string, received undefined"));
-    assert!(!received.contains(expected), "expected not to contain {expected:?}\n--- received ---\n{received}\n");
-}
-
 /// `contextNotFound(graphName, typeName, fieldName)` of the "context reachability" tests.
 fn context_not_found(graph_name: &str, type_name: &str, field_name: &str) -> String {
     format!(r#"- from subgraph "{graph_name}": could not find a match for required context for field "{type_name}.{field_name}"."#)
@@ -2168,7 +2160,7 @@ mod supergraph {
             ]);
 
             assert_composition_success(&result);
-            not_to_contain(result.supergraph_sdl(), "scalar federation__ContextFieldValue");
+            assert_not_to_match_string(result.supergraph_sdl(), "scalar federation__ContextFieldValue");
         }
 
         // materializes a nested scalar in join metadata
@@ -2210,9 +2202,9 @@ mod supergraph {
             ]);
 
             assert_composition_success(&result);
-            not_to_contain(result.public_sdl(), "@context");
-            not_to_contain(result.public_sdl(), "@fromContext");
-            not_to_contain(result.public_sdl(), "join__ContextArgument");
+            assert_not_to_match_string(result.public_sdl(), "@context");
+            assert_not_to_match_string(result.public_sdl(), "@fromContext");
+            assert_not_to_match_string(result.public_sdl(), "join__ContextArgument");
             to_contain_graphql(
                 result.public_sdl(),
                 graphql!(r#"
@@ -2286,9 +2278,9 @@ mod supergraph {
             ]);
 
             assert_composition_success(&result);
-            not_to_contain(result.public_sdl(), "@context");
-            not_to_contain(result.public_sdl(), "@fromContext");
-            not_to_contain(result.public_sdl(), "join__ContextArgument");
+            assert_not_to_match_string(result.public_sdl(), "@context");
+            assert_not_to_match_string(result.public_sdl(), "@fromContext");
+            assert_not_to_match_string(result.public_sdl(), "join__ContextArgument");
             to_contain_graphql(
                 result.public_sdl(),
                 graphql!(r#"

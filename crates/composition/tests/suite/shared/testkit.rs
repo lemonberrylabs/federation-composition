@@ -5,13 +5,14 @@
 //! every Guild supergraph (`ApolloSupergraph.buildForTests(..).subgraphs().validate()`) and
 //! its `console.warn` about unported error codes are dropped.
 
+use federation_composition::contracts::tag_extraction::SchemaContractFilter;
 use federation_composition::compose::{
     compose_services as library_compose_services, CompositionFailure, CompositionResult, CompositionSuccess,
 };
 use federation_composition::subgraph::validation::validate_subgraph::InternalOptions;
 use federation_composition::types::ServiceDefinition;
 use federation_composition::utils::js::{parse_float, JsError, JsResult};
-use graphql_js::{Document, GraphQLError};
+use graphql_js::{assert_valid_schema, build_schema, Document, GraphQLError};
 
 /// `versions`.
 pub const VERSIONS: [&str; 10] = ["v2.0", "v2.1", "v2.2", "v2.3", "v2.4", "v2.5", "v2.6", "v2.7", "v2.8", "v2.9"];
@@ -156,16 +157,25 @@ fn describe_errors(errors: &[GraphQLError]) -> String {
 }
 
 /// graphql-js `assertValidSchema(buildSchema(sdl))`, which the TS `assertCompositionSuccess`
-/// runs on `supergraphSdl` and `publicSdl`.
-///
-/// Empty until `buildSchema`/`assertValidSchema` are ported to `crates/graphql`; the call sites
-/// in `assert_composition_success_with_message` are already in place.
-pub fn assert_valid_sdl(_sdl: &str) {}
+/// runs on `supergraphSdl` and `publicSdl`. Panics with the message graphql-js throws.
+#[track_caller]
+pub fn assert_valid_sdl(sdl: &str) {
+    let schema = match build_schema(sdl) {
+        Ok(schema) => schema,
+        Err(error) => panic!("buildSchema threw: {}", error.message),
+    };
+    if let Err(message) = assert_valid_schema(&schema) {
+        panic!("assertValidSchema threw: {message}");
+    }
+}
 
 /// `expect(() => buildSchema(sdl)).not.toThrow()`.
-///
-/// Empty until `buildSchema` is ported to `crates/graphql`.
-pub fn assert_build_schema_does_not_throw(_sdl: &str) {}
+#[track_caller]
+pub fn assert_build_schema_does_not_throw(sdl: &str) {
+    if let Err(error) = build_schema(sdl) {
+        panic!("expected no throw, buildSchema threw: {}", error.message);
+    }
+}
 
 /// `assertCompositionSuccess(result)`. Returns the success, which the TS asserts the type of.
 #[track_caller]
@@ -405,5 +415,33 @@ pub fn assert_does_not_throw<T>(result: Result<T, JsError>) -> T {
     match result {
         Ok(value) => value,
         Err(error) => panic!("expected no throw, threw: {}", error.to_js_string()),
+    }
+}
+
+/// `expect(received).not.toContain(substring)` and `expect(received).not.toMatch(substring)` on a
+/// string (or a regex without metacharacters): `received` must be a string, as vitest throws
+/// otherwise, and must not contain `substring`.
+#[track_caller]
+pub fn assert_not_to_match_string(received: Option<&str>, substring: &str) {
+    let received = received.unwrap_or_else(|| panic!("expected a string, received undefined"));
+    assert!(!received.contains(substring), "expected not to contain {substring:?}\n--- received ---\n{received}\n");
+}
+
+/// `expect(result).not.toEqual(expect.objectContaining({ errors: expect.arrayContaining([m]) }))`
+/// and `expect(errors).not.toEqual(expect.arrayContaining([m]))`: there are no `errors`
+/// (the positive matcher fails on `undefined`, so its negation passes), or none matches `m`.
+#[track_caller]
+pub fn assert_no_error_matches(errors: impl ErrorsSource, matcher: &ErrorMatcher) {
+    if let Some(errors) = errors.errors_or_none() {
+        let matching: Vec<&GraphQLError> = errors.iter().filter(|e| matcher.matches(e)).collect();
+        assert!(matching.is_empty(), "expected no error to match {matcher:?}, matching: {matching:?}");
+    }
+}
+
+/// `{ include: new Set(include), exclude: new Set(exclude) }`, a `SchemaContractFilter`.
+pub fn contract_filter(include: &[&str], exclude: &[&str]) -> SchemaContractFilter {
+    SchemaContractFilter {
+        include: include.iter().map(|tag| tag.to_string()).collect(),
+        exclude: exclude.iter().map(|tag| tag.to_string()).collect(),
     }
 }

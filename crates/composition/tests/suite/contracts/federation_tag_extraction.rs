@@ -4,17 +4,9 @@ use crate::shared::*;
 
 use federation_composition::contracts::tag_extraction::{
     apply_tag_filter_on_subgraphs, apply_tag_filter_to_inaccessible_transform_on_subgraph_schema,
-    build_schema_coordinate_tag_register, SchemaContractFilter, SchemaCoordinateToTagsRegistry,
+    build_schema_coordinate_tag_register, SchemaCoordinateToTagsRegistry,
     TagFilterTransformResult,
 };
-
-/// `const filter: SchemaContractFilter = { include: new Set(include), exclude: new Set(exclude) }`.
-fn contract_filter(include: &[&str], exclude: &[&str]) -> SchemaContractFilter {
-    SchemaContractFilter {
-        include: include.iter().map(|tag| tag.to_string()).collect(),
-        exclude: exclude.iter().map(|tag| tag.to_string()).collect(),
-    }
-}
 
 /// `Array.from(output.typesWithAllFieldsInaccessible.entries())`.
 fn types_with_all_fields_inaccessible_entries(

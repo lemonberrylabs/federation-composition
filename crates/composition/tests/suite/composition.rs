@@ -6,17 +6,6 @@ use federation_composition::specifications::tag::DIRECTIVE as TAG_DIRECTIVE;
 use federation_composition::specifications::{join, link};
 use graphql_js::Definition;
 
-/// `expect(received).not.toMatch(pattern)` for a string or a regex without metacharacters:
-/// the received value must be a string, and must not contain the pattern.
-#[track_caller]
-fn assert_not_to_match(received: Option<&str>, pattern: &str) {
-    let received = received.expect("toMatch: received value must be a string");
-    assert!(
-        !received.contains(pattern),
-        "expected {received:?} not to match {pattern:?}"
-    );
-}
-
 /// `JSON.stringify(result.errors)` in a failure message: `undefined` when there are no
 /// errors, otherwise each error's `message` and `extensions.code` (`GraphQLError.toJSON`
 /// can add `locations` and other extensions; this only changes the text of a failing test).
@@ -880,7 +869,7 @@ mod shareable {
           }
         "#);
 
-            assert_not_to_match(result.public_sdl(), "@inaccessible");
+            assert_not_to_match_string(result.public_sdl(), "@inaccessible");
         }
 
         fn type_annotated_with_inaccessible_should_not_result_in_inaccessible_on_its_fields(api, version) {
@@ -1937,9 +1926,9 @@ test_versions! {
 
         assert_composition_success(&result);
 
-        assert_not_to_match(result.supergraph_sdl(), "lowercase");
-        assert_not_to_match(result.supergraph_sdl(), "uppercase");
-        assert_not_to_match(result.public_sdl(), "lowercase");
+        assert_not_to_match_string(result.supergraph_sdl(), "lowercase");
+        assert_not_to_match_string(result.supergraph_sdl(), "uppercase");
+        assert_not_to_match_string(result.public_sdl(), "lowercase");
     }
 
     fn ignore_directive_if_identically_defined_in_all_subgraphs(api, version) {
@@ -1970,8 +1959,8 @@ test_versions! {
 
         assert_composition_success(&result);
 
-        assert_not_to_match(result.supergraph_sdl(), "lowercase");
-        assert_not_to_match(result.public_sdl(), "lowercase");
+        assert_not_to_match_string(result.supergraph_sdl(), "lowercase");
+        assert_not_to_match_string(result.public_sdl(), "lowercase");
     }
 
     fn ignore_directive_if_not_defined_in_all_subgraphs(api, version) {
@@ -2002,8 +1991,8 @@ test_versions! {
 
         assert_composition_success(&result);
 
-        assert_not_to_match(result.supergraph_sdl(), "lowercase");
-        assert_not_to_match(result.public_sdl(), "lowercase");
+        assert_not_to_match_string(result.supergraph_sdl(), "lowercase");
+        assert_not_to_match_string(result.public_sdl(), "lowercase");
     }
 
     fn ignore_directive_if_defined_differently_across_subgraphs(api, version) {
@@ -2036,8 +2025,8 @@ test_versions! {
 
         assert_composition_success(&result);
 
-        assert_not_to_match(result.supergraph_sdl(), "lowercase");
-        assert_not_to_match(result.public_sdl(), "lowercase");
+        assert_not_to_match_string(result.supergraph_sdl(), "lowercase");
+        assert_not_to_match_string(result.public_sdl(), "lowercase");
     }
 
     fn ignore_directive_if_it_has_different_locations_across_subgraphs(api, version) {
@@ -2070,8 +2059,8 @@ test_versions! {
 
         assert_composition_success(&result);
 
-        assert_not_to_match(result.supergraph_sdl(), "lowercase");
-        assert_not_to_match(result.public_sdl(), "lowercase");
+        assert_not_to_match_string(result.supergraph_sdl(), "lowercase");
+        assert_not_to_match_string(result.public_sdl(), "lowercase");
     }
 
     fn support_compose_directive_when_using_multiple_schema_extensions(api, version) {
@@ -2371,8 +2360,8 @@ test_versions! {
         ]);
 
         assert_composition_success(&result);
-        assert_not_to_match(result.supergraph_sdl(), "lowercase");
-        assert_not_to_match(result.public_sdl(), "lowercase");
+        assert_not_to_match_string(result.supergraph_sdl(), "lowercase");
+        assert_not_to_match_string(result.public_sdl(), "lowercase");
     }
 
     fn requires_on_a_union_with_typename_fails(api, version) {
@@ -6641,7 +6630,7 @@ mod federation_v1_only {
         "#);
 
                 to_contain_graphql(result.supergraph_sdl(), Definition::DirectiveDefinition(TAG_DIRECTIVE.clone()));
-                assert_not_to_match(result.public_sdl(), "@tag");
+                assert_not_to_match_string(result.public_sdl(), "@tag");
 
                 to_contain_graphql(result.supergraph_sdl(), r#"
           schema

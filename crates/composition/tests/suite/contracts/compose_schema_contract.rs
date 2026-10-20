@@ -3,15 +3,6 @@
 use crate::shared::*;
 
 use federation_composition::compose_schema_contract;
-use federation_composition::contracts::tag_extraction::SchemaContractFilter;
-
-/// `{ include: new Set(include), exclude: new Set(exclude) }`.
-fn contract_filter(include: &[&str], exclude: &[&str]) -> SchemaContractFilter {
-    SchemaContractFilter {
-        include: include.iter().map(|tag| tag.to_string()).collect(),
-        exclude: exclude.iter().map(|tag| tag.to_string()).collect(),
-    }
-}
 
 mod compose_schema_contract {
     use super::*;

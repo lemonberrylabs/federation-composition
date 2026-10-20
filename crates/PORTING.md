@@ -309,8 +309,9 @@ allocator, or mimalloc with `--features mimalloc` (`pnpm bench:native:mimalloc`,
 ## Status
 
 Everything is ported: `src/` in `crates/composition` (no `todo!()` left), the graphql-js
-language layer in `crates/graphql`, and the WebAssembly bindings in `crates/composition-wasm`
-with the shim in `wasm/`.
+language layer and `buildSchema`/`assertValidSchema` in `crates/graphql`, and the WebAssembly
+bindings in `crates/composition-wasm` with the shim in `wasm/`. The TS test suite is ported to
+Rust (`crates/composition/tests/suite`, see "Rust test suite" below), guild side only.
 
 ## Verification
 
@@ -318,21 +319,21 @@ with the shim in `wasm/`.
 |---|---|---|
 | Build, no warnings | `cargo build --workspace` and `cargo build --release --target wasm32-unknown-unknown --workspace` | 0 warnings |
 | Rust unit and differential tests | `cargo test --workspace` | all pass; includes `crates/graphql`'s differential tests against graphql-js (regenerate `crates/graphql/tests/corpus.json` with `node crates/graphql/tests/gen-corpus.mjs`, and `crates/graphql/tests/schema-corpus.json` with `node crates/graphql/tests/gen-schema-corpus.mjs [bench/corpus.jsonl]`, which needs `pnpm bench:capture` first; 1,966 schemas identical to graphql-js on 2026-10-19) |
-| Rust vs TS on every composition the test suite runs | `pnpm bench:capture`, then `cargo test -p federation_composition --release --test corpus -- --ignored` | every captured composition matches (3567/3567 on 2026-10-19) |
+| The ported test suite | `cargo test -p federation_composition --test suite` (plus the `src/specifications/link.rs` unit tests) | 3,791 passed, 18 ignored on 2026-10-19 (per-file counts under "Rust test suite") |
+| Rust vs TS on every composition the test suite runs | `pnpm bench:capture`, then `cargo test -p federation_composition --release --test corpus -- --ignored` | every captured composition matches (3567/3567 on 2026-10-19). Without `DYLD_FALLBACK_LIBRARY_PATH` (see Toolchain), a release test build prints a `rust-objcopy` "Library not loaded: libLLVM.dylib" warning; it comes from the toolchain, not the code |
 | The TS test suite against the WebAssembly build | `pnpm wasm:build && pnpm test:wasm --run` | 7,350 passed (the 7,343 TS tests plus 7 bridge checks in `wasm/runtime.spec.ts`), 25 skipped, 8 todo |
 | The TS test suite itself | `pnpm test --run` | 7,343 passed, 25 skipped, 8 todo |
 
 ## Rust test suite
 
-The TypeScript tests (`__tests__/**/*.spec.ts`, `src/**/*.spec.ts`) are being ported to Rust,
-so the library is tested without the WebAssembly bridge. Run them with
+The TypeScript tests (`__tests__/**/*.spec.ts`, `src/**/*.spec.ts`) are ported to Rust, so the
+library is tested without the WebAssembly bridge. Run them with
 `cargo test -p federation_composition --test suite`.
 
 **Layout.** One integration test binary, `crates/composition/tests/suite/main.rs`, whose module
 tree mirrors `__tests__/`: `__tests__/supergraph/errors/FIELD_TYPE_MISMATCH.spec.ts` is
 `suite/supergraph/errors/field_type_mismatch.rs` (lowercase, `-` becomes `_`; `override.spec.ts`
-is `mod r#override`). Every module file and `mod.rs` already exists; a porter only fills in its
-file. `src/specifications/link.spec.ts` is ported by the unit tests in
+is `mod r#override`). `src/specifications/link.spec.ts` is ported by the unit tests in
 `crates/composition/src/specifications/link.rs`. `suite/shared/` is the testkit;
 `suite/supergraph/errors/field_type_mismatch.rs` is the worked example.
 
@@ -390,9 +391,28 @@ the library, never the expectation, and say so in the commit message.
 | `versions`, `federationVersionToJoinSpecVersion`, `satisfiesVersionRange` | `VERSIONS`, `FEDERATION_VERSION_TO_JOIN_SPEC_VERSION` / `federation_version_to_join_spec_version(v)`, `satisfies_version_range(range, v)` |
 | `createStarsStuff()`, `getSubgraphs()` of `fixtures/dgs`, `fixtures/huge-schema` | `create_stars_stuff()`, `get_subgraphs_of_dgs()`, `get_subgraphs_of_huge_schema()` |
 | `expect(() => buildSchema(sdl)).not.toThrow()` | `assert_build_schema_does_not_throw(sdl)` |
+| `expect(s).not.toContain(x)`, `expect(s).not.toMatch(x)` (string or plain regex) | `assert_not_to_match_string(s, x)` (`None` fails, as vitest does) |
+| `expect(r).not.toEqual(expect.objectContaining({ errors: expect.arrayContaining([m]) }))`, `expect(r.errors).not.toEqual(expect.arrayContaining([m]))` | `assert_no_error_matches(&r, &m)`, `assert_no_error_matches(r.errors(), &m)` |
+| `{ include: new Set(..), exclude: new Set(..) }` (`SchemaContractFilter`) | `contract_filter(&[..], &[..])` |
 | `parse`, `print` from `graphql`; `sortSDL` | `parse(..).unwrap()`, `print(&doc)` (graphql-js `print`, not the library printer), `sort_sdl(&doc)` |
 
-`assert_valid_sdl` (the `buildSchema` + `assertValidSchema` that `assertCompositionSuccess` runs
-on `supergraphSdl` and `publicSdl`) and `assert_build_schema_does_not_throw` are empty until
-`buildSchema`/`assertValidSchema` are ported to `crates/graphql`. Anything else (`toBe`,
+`assert_composition_success` runs `assert_valid_sdl` (graphql-js `buildSchema` then
+`assertValidSchema`, panicking with graphql-js's message) on `supergraphSdl` and `publicSdl`, as
+the TS `assertCompositionSuccess` does. Anything else (`toBe`,
 `toHaveLength`, `toBeDefined`) is a plain `assert!`/`assert_eq!` on the same value.
+
+**Counts.** For each of the 93 TS spec files, the Rust module's passing count equals the TS
+guild-side passed count and its ignored count equals skipped + todo, with one exception:
+`composition::guild_composition_one_of::throws_during_composition_when_a_manual_one_of_definition_adds_a_conflicting_required_argument`
+is ignored (1,017 passing against 1,018 in TS). Its expected throw ("The schema is not a valid
+GraphQL schema.. Caused by: ...") comes from `@apollo/federation-internals`, raised by the
+harness's dropped Apollo-gateway check; the library itself succeeds. `supergraph/join.spec.ts`
+(11) and `override-with-label.spec.ts` (178) are wrapped in an outer `describe`, so a count that
+takes the library from the first path segment counts both libraries for them (22 and 356);
+`vitest list` shows 11 and 178 `'guild'` cases. Totals: 3,791 passing and 18 ignored
+(TS guild side: 3,792 passed, 17 skipped + todo).
+
+**Mutation check** (2026-10-19, each change reverted): changing the `ENUM_VALUE_MISMATCH`
+message ("is used as both input type" to "is used as input type") fails 10 tests; dropping the
+`override:` argument of `@join__field` fails 85; inverting `if unreachables.is_empty()` in the
+satisfiability rule fails 173.

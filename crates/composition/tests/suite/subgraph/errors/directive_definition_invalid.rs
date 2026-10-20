@@ -2,16 +2,6 @@
 
 use crate::shared::*;
 
-/// `expect(result).not.toEqual(expect.objectContaining({ errors: expect.arrayContaining([m]) }))`:
-/// the result has no `errors`, or no error matches `m`.
-#[track_caller]
-fn assert_not_errors_contain(result: &CompositionResult, matcher: &ErrorMatcher) {
-    if let Some(errors) = result.errors() {
-        let matching: Vec<&GraphQLError> = errors.iter().filter(|e| matcher.matches(e)).collect();
-        assert!(matching.is_empty(), "expected no error to match {matcher:?}, matching: {matching:?}");
-    }
-}
-
 mod extends {
     use super::*;
 
@@ -212,7 +202,7 @@ mod tag {
 
     test_versions! {
         fn exact_same_definition_should_be_ignored_if_not_imported(api, version) {
-            assert_not_errors_contain(
+            assert_no_error_matches(
                 &api.compose_services(&[
                     service("users", graphql!(r#"
                 extend schema
@@ -376,7 +366,7 @@ mod inaccessible {
         }
 
         fn exact_same_definition_should_be_ignored_when_not_imported(api, version) {
-            assert_not_errors_contain(
+            assert_no_error_matches(
                 &api.compose_services(&[
                     service("users", graphql!(r#"
                 extend schema
@@ -459,7 +449,7 @@ mod r#override {
         }
 
         fn exact_same_definition_should_be_ignored_if_not_imported(api, version) {
-            assert_not_errors_contain(
+            assert_no_error_matches(
                 &api.compose_services(&[service("billing", graphql!(r#"
                 extend schema
                   @link(url: "https://specs.apollo.dev/federation/${version}", import: ["@key"])

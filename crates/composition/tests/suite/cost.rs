@@ -4,14 +4,6 @@
 
 use crate::shared::*;
 
-/// `expect(value).not.toMatch(substring)`: `value` must be a string (vitest throws otherwise)
-/// that does not contain `substring`.
-#[track_caller]
-fn assert_not_to_match(value: Option<&str>, substring: &str) {
-    let value = value.unwrap_or_else(|| panic!("expected a string, received undefined"));
-    assert!(!value.contains(substring), "expected {value:?} not to contain {substring:?}");
-}
-
 test_versions! {
     fn cost_and_list_size_is_not_available_in_this_version(api, version) if "< v2.9" {}
 }
@@ -462,8 +454,8 @@ mod cost {
         ) on ARGUMENT_DEFINITION | ENUM | FIELD_DEFINITION | INPUT_FIELD_DEFINITION | OBJECT | SCALAR
       "#);
 
-            assert_not_to_match(result.public_sdl(), "@price");
-            assert_not_to_match(result.public_sdl(), "@cost");
+            assert_not_to_match_string(result.public_sdl(), "@price");
+            assert_not_to_match_string(result.public_sdl(), "@cost");
 
             to_contain_graphql(result.supergraph_sdl(), r#"
         enum UserType
@@ -1006,7 +998,7 @@ mod list_size {
         ) on FIELD_DEFINITION
       "#);
 
-            assert_not_to_match(result.public_sdl(), "@listSize");
+            assert_not_to_match_string(result.public_sdl(), "@listSize");
 
             to_contain_graphql(result.supergraph_sdl(), r#"
         type Query @join__type(graph: FOO) {
@@ -1045,8 +1037,8 @@ mod list_size {
 
             assert_composition_success(&result);
 
-            assert_not_to_match(result.public_sdl(), "@listSize");
-            assert_not_to_match(result.public_sdl(), "@cartSize");
+            assert_not_to_match_string(result.public_sdl(), "@listSize");
+            assert_not_to_match_string(result.public_sdl(), "@cartSize");
 
             to_contain_graphql(result.supergraph_sdl(), r#"
         schema

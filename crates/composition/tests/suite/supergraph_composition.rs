@@ -2,17 +2,6 @@
 
 use crate::shared::*;
 
-/// `expect(value).not.toMatch(substring)`: `value` is a string that does not contain `substring`
-/// (vitest's `toMatch` with a string argument is `value.includes(substring)`, and it throws when
-/// `value` is not a string).
-#[track_caller]
-fn assert_not_to_match(value: Option<&str>, substring: &str) {
-    let Some(value) = value else {
-        panic!("expected a string, received undefined");
-    };
-    assert!(!value.contains(substring), "expected not to match {substring:?}:\n{value}");
-}
-
 /// `expect(value).not.toEqual(expect.stringContaining(substring))`: `value` is not a string
 /// that contains `substring`.
 #[track_caller]
@@ -623,7 +612,7 @@ test_implementations! {
       directive @authenticated on FIELD_DEFINITION | OBJECT | INTERFACE | SCALAR | ENUM
     "#);
 
-        assert_not_to_match(result.public_sdl(), "@authenticated");
+        assert_not_to_match_string(result.public_sdl(), "@authenticated");
 
         to_contain_graphql(result.supergraph_sdl(), r#"
       directive @requiresScopes(
@@ -631,13 +620,13 @@ test_implementations! {
       ) on FIELD_DEFINITION | OBJECT | INTERFACE | SCALAR | ENUM
     "#);
 
-        assert_not_to_match(result.public_sdl(), "@requiresScopes");
+        assert_not_to_match_string(result.public_sdl(), "@requiresScopes");
 
         to_contain_graphql(result.supergraph_sdl(), r#"
       scalar requiresScopes__Scope
     "#);
 
-        assert_not_to_match(result.public_sdl(), "requiresScopes__Scope");
+        assert_not_to_match_string(result.public_sdl(), "requiresScopes__Scope");
 
         to_contain_graphql(result.supergraph_sdl(), r#"
       directive @policy(
@@ -645,13 +634,13 @@ test_implementations! {
       ) on ENUM | FIELD_DEFINITION | INTERFACE | OBJECT | SCALAR
     "#);
 
-        assert_not_to_match(result.public_sdl(), "policy");
+        assert_not_to_match_string(result.public_sdl(), "policy");
 
         to_contain_graphql(result.supergraph_sdl(), r#"
       scalar policy__Policy
     "#);
 
-        assert_not_to_match(result.public_sdl(), "policy__Policy");
+        assert_not_to_match_string(result.public_sdl(), "policy__Policy");
 
         to_contain_graphql(result.supergraph_sdl(), r#"
       type Mutation @join__type(graph: COMMENTS) {
@@ -767,8 +756,8 @@ test_implementations! {
 
         assert_composition_success(&result);
 
-        assert_not_to_match(result.supergraph_sdl(), "federation__Policy");
-        assert_not_to_match(result.supergraph_sdl(), "federation__Scope");
+        assert_not_to_match_string(result.supergraph_sdl(), "federation__Policy");
+        assert_not_to_match_string(result.supergraph_sdl(), "federation__Scope");
     }
 
     fn override_with_shareable_in_different_conditions(api) {

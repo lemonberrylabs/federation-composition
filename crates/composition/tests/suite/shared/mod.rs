@@ -41,9 +41,9 @@
 //! `use super::*`, so the body sees everything the spec module sees. `test_implementations!`
 //! makes one `#[test] fn` per `fn`.
 
-// Each spec module uses a different part of the testkit, and until every spec file is ported
-// some helpers have no caller.
-#![allow(dead_code, unused_imports, unused_macros)]
+// The testkit ports all of `__tests__/shared` and `__tests__/fixtures`; a few of those helpers
+// (`versions`, `SortSdlSerializer`, `notToEqualGraphQL`, ...) have no caller in the specs.
+#![allow(dead_code, unused_imports)]
 
 mod fixtures;
 mod setup;

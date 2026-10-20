@@ -2,17 +2,6 @@
 
 use crate::shared::*;
 
-/// `expect(errors).not.toEqual(expect.arrayContaining([m]))`: `errors` is an array and no error
-/// matches `m`. (When `errors` is `undefined`, `toEqual(arrayContaining(..))` fails, so its
-/// negation passes.)
-#[track_caller]
-fn assert_no_error_matches(errors: Option<&Vec<GraphQLError>>, matcher: &ErrorMatcher) {
-    if let Some(errors) = errors {
-        let matching: Vec<&GraphQLError> = errors.iter().filter(|e| matcher.matches(e)).collect();
-        assert!(matching.is_empty(), "expected no error to match {matcher:?}, matching: {matching:?}");
-    }
-}
-
 test_versions! {
     fn invalid_graphql_invalid_value_for_fields_input_object(api, version) {
         assert_errors_contain(

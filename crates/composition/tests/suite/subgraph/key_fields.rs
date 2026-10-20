@@ -2,17 +2,6 @@
 
 use crate::shared::*;
 
-/// `expect(result).not.toEqual(expect.objectContaining({ errors: expect.arrayContaining([m]) }))`:
-/// the result has no `errors`, or none of them matches `m`.
-#[track_caller]
-fn assert_no_error_matches(result: &CompositionResult, matcher: &ErrorMatcher) {
-    if let Some(errors) = result.errors() {
-        if let Some(error) = errors.iter().find(|e| matcher.matches(e)) {
-            panic!("expected no error to match {matcher:?}, but found: {}", error.message);
-        }
-    }
-}
-
 test_versions! {
     fn typename_allowed_in_provides(api, version) {
         let result = api.compose_services(&[
