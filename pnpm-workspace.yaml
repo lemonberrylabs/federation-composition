@@ -1,0 +1,6 @@
+packages:
+  - npm
+  - conformance
+  - research
+onlyBuiltDependencies:
+  - esbuild

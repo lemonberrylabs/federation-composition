@@ -1,12 +1,24 @@
-// Replays bench/corpus.jsonl (the compositions captured from the test suite plus the
-// benchmark fixtures) and records per-case timings.
+// Replays the conformance corpus (conformance/out/corpus.jsonl: the compositions captured from
+// upstream's test suite plus the benchmark fixtures) and records per-case timings.
 //
-// Usage: tsx --expose-gc bench/run-corpus.ts <implementation> <out.json>
-// where <implementation> is "guild-ts" (src/) or "guild-wasm" (the WebAssembly build
-// through the wasm/ shim, so AST conversion across the boundary is included).
+// Usage: pnpm bench:corpus <implementation> [out.json]
+// (node conformance/upstream-bin.mjs tsx --expose-gc bench/run-corpus.ts ...), where
+// <implementation> is "guild-ts" (upstream's TypeScript in conformance/upstream/src) or
+// "guild-wasm" (the npm package federation-composition-wasm as built in npm/dist, so AST
+// conversion across the boundary is included). Run `pnpm conformance` first; it checks out
+// upstream, builds the package and records the corpus.
 // Native Rust uses the same protocol: crates/federation-composition-rs/examples/corpus_bench.rs.
 import { readFileSync, writeFileSync } from "node:fs";
-import { DocumentNode, print } from "graphql";
+import { createRequire } from "node:module";
+import type { DocumentNode } from "graphql";
+
+// graphql-js from the upstream checkout (this workspace has no copy of its own).
+const { print } = createRequire(
+  new URL("../conformance/upstream/package.json", import.meta.url),
+)("graphql") as typeof import("graphql");
+const corpusFile =
+  process.env.CONFORMANCE_CORPUS ??
+  new URL("../conformance/out/corpus.jsonl", import.meta.url).pathname;
 
 type Case = {
   id: string;
@@ -20,8 +32,8 @@ const [label = "guild-ts", outFile = `bench/results-${label}.json`] =
   process.argv.slice(2);
 
 const implementations = {
-  "guild-ts": () => import("../src/compose.js"),
-  "guild-wasm": () => import("../wasm/compose.js"),
+  "guild-ts": () => import("../conformance/upstream/src/compose.js"),
+  "guild-wasm": () => import("../npm/dist/compose.js"),
 };
 if (!(label in implementations)) {
   throw new Error(`Unknown implementation "${label}"`);
@@ -29,7 +41,7 @@ if (!(label in implementations)) {
 const { composeServices } =
   await implementations[label as keyof typeof implementations]();
 
-const corpus: Case[] = readFileSync("bench/corpus.jsonl", "utf8")
+const corpus: Case[] = readFileSync(corpusFile, "utf8")
   .split("\n")
   .filter(Boolean)
   .map((line) => JSON.parse(line));

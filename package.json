@@ -1,111 +1,26 @@
 {
-  "name": "@theguild/federation-composition",
-  "version": "0.27.0",
+  "name": "federation-composition-workspace",
+  "private": true,
   "type": "module",
-  "description": "Open Source Composition library for Apollo Federation",
-  "repository": {
-    "type": "git",
-    "url": "graphql-hive/federation-composition"
-  },
-  "author": {
-    "email": "contact@the-guild.dev",
-    "name": "The Guild",
-    "url": "https://the-guild.dev"
-  },
+  "description": "Workspace root: the npm package (npm/), the upstream conformance check (conformance/) and the research site (research/). The Rust crates are in crates/.",
   "license": "MIT",
   "packageManager": "pnpm@10.32.1",
   "engines": {
-    "node": ">=18",
+    "node": ">=20",
     "pnpm": ">=10"
   },
-  "main": "dist/cjs/index.js",
-  "module": "dist/esm/index.js",
-  "exports": {
-    ".": {
-      "require": {
-        "types": "./dist/typings/index.d.cts",
-        "default": "./dist/cjs/index.js"
-      },
-      "import": {
-        "types": "./dist/typings/index.d.ts",
-        "default": "./dist/esm/index.js"
-      },
-      "default": {
-        "types": "./dist/typings/index.d.ts",
-        "default": "./dist/esm/index.js"
-      }
-    },
-    "./package.json": "./package.json"
-  },
-  "typings": "dist/typings/index.d.ts",
-  "files": [
-    "dist"
-  ],
-  "keywords": [
-    "graphql",
-    "federation",
-    "graphql-federation"
-  ],
   "scripts": {
-    "bench": "NODE_ENV=production tsx --expose-gc ./benchmark.ts",
-    "bench:capture": "rm -f bench/raw.jsonl && CAPTURE_FILE=bench/raw.jsonl vitest --run --config bench/vitest.capture.config.js && tsx bench/build-corpus.ts",
-    "bench:corpus": "NODE_ENV=production tsx --expose-gc bench/run-corpus.ts",
-    "bench:native": "cargo run -p federation-composition-rs --release --example corpus_bench -- bench/results-guild-rust.json",
-    "bench:native:mimalloc": "cargo run -p federation-composition-rs --release --features mimalloc --example corpus_bench -- bench/results-guild-rust-mimalloc.json",
-    "build": "rimraf dist && bob build && bob check",
-    "compose": "tsx --expose-gc ./compose.ts",
-    "compose:apollo": "pnpm compose apollo",
-    "compose:debug": "DEBUG_COLORS=0 DEBUG=composition:* pnpm compose > guild.log",
-    "compose:inspect": "tsx --inspect-brk --expose-gc ./compose.ts",
-    "format": "prettier --write .",
-    "release": "pnpm build && changeset publish",
-    "test": "vitest --config ./vitest.config.js",
-    "test:wasm": "vitest --config ./vitest.wasm.config.js",
-    "typecheck": "tsc --noEmit --project tsconfig.build.json",
-    "wasm:build": "node wasm/build.mjs"
-  },
-  "peerDependencies": {
-    "graphql": "^16.0.0 || ^17.0.0"
-  },
-  "dependencies": {
-    "constant-case": "^3.0.4",
-    "debug": "4.4.3",
-    "json5": "^2.2.3",
-    "lodash.sortby": "^4.7.0"
+    "conformance": "node conformance/run.mjs",
+    "conformance:watch": "node conformance/watch.mjs",
+    "wasm:build": "pnpm --filter federation-composition-wasm run build",
+    "test:npm": "pnpm --filter federation-composition-wasm run test",
+    "bench:corpus": "node conformance/upstream-bin.mjs tsx --expose-gc bench/run-corpus.ts",
+    "bench:native": "cargo run -p federation-composition-rs --release --example corpus_bench --",
+    "bench:native:mimalloc": "cargo run -p federation-composition-rs --release --features mimalloc --example corpus_bench --",
+    "bench:summarize": "node conformance/upstream-bin.mjs tsx bench/summarize.ts",
+    "format": "prettier --write ."
   },
   "devDependencies": {
-    "@apollo/composition": "2.13.2",
-    "@apollo/federation-internals": "2.13.2",
-    "@changesets/changelog-github": "0.6.0",
-    "@changesets/cli": "2.30.0",
-    "@types/debug": "4.1.12",
-    "@types/lodash.sortby": "4.7.9",
-    "@types/node": "24.12.0",
-    "@vitest/ui": "4.1.10",
-    "bob-the-bundler": "7.0.1",
-    "graphql": "17.0.2",
-    "lodash.sortby": "4.7.0",
-    "mitata": "1.0.34",
-    "prettier": "3.8.1",
-    "rimraf": "6.1.3",
-    "strip-indent": "4.1.1",
-    "tsx": "4.23.12",
-    "typescript": "5.9.3",
-    "vitest": "4.1.10"
-  },
-  "resolutions": {
-    "braces": "3.0.3"
-  },
-  "publishConfig": {
-    "directory": "dist",
-    "access": "public"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
-  },
-  "typescript": {
-    "definition": "dist/typings/index.d.ts"
+    "prettier": "3.8.1"
   }
 }

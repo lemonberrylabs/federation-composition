@@ -1,210 +1,62 @@
-# Federation Composition
+# Federation Composition in Rust
 
-Supports all Federation versions. Drop-in replacement for `@apollo/composition`.
+A Rust port of [`@theguild/federation-composition`](https://github.com/graphql-hive/federation-composition),
+the open source Apollo Federation v1/v2 composition library by [The Guild](https://the-guild.dev):
+given a set of subgraph schemas, it validates them and composes the supergraph schema. The port
+produces the same supergraph SDL byte for byte and the same errors as the TypeScript library, at the
+upstream release recorded in [`UPSTREAM`](UPSTREAM) (v0.27.0).
 
-[Learn more about compability](#compatibility).
+| Path                                                                       | What it is                                                                                                                                                             |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`crates/federation-composition-rs`](crates/federation-composition-rs)     | The library: the port of upstream's `src/`, module for module, with upstream's test suite ported to Rust (`tests/suite`).                                              |
+| [`crates/graphql-rs`](crates/graphql-rs)                                   | The port of graphql-js 17.0.2 the library needs: the language layer (AST, parser, printer, visitor) and `buildSchema`/`assertValidSchema`.                             |
+| [`crates/federation-composition-wasm`](crates/federation-composition-wasm) | wasm-bindgen bindings of the library.                                                                                                                                  |
+| [`npm/`](npm)                                                              | The npm package `federation-composition-wasm`: the library compiled to WebAssembly, a drop-in replacement for `@theguild/federation-composition`.                      |
+| [`conformance/`](conformance)                                              | The check that the port matches upstream: upstream's unchanged test suite against the npm package, and native Rust against upstream's TypeScript on every composition. |
+| [`docs/upstream-sync.md`](docs/upstream-sync.md)                           | How a new upstream release is ported.                                                                                                                                  |
+| [`crates/PORTING.md`](crates/PORTING.md)                                   | The porting guide.                                                                                                                                                     |
+| [`bench/`](bench), [`research/`](research)                                 | Benchmarks, and the research journal of the port.                                                                                                                      |
 
-[In-browser Federation Playground](https://the-guild.dev/graphql/hive/federation-playground)
+## Using it
 
-## Comparison with `@apollo/composition`
+From Rust (in a function returning `Result<(), Box<dyn std::error::Error>>`):
 
-- Open Source (MIT License)
-- identical API
-- same set of validation rules and exact same error messages
-- produces Supergraph SDL (can be used with Apollo Router and every tool that supports Supergraph
-  SDL)
-- does not support Hints
-- 3-4x faster
-- up to 2x less memory usage
+```rust
+use federation_composition_rs::compose::{compose_services, CompositionResult};
+use federation_composition_rs::types::ServiceDefinition;
 
-## Installation
-
-```bash
-# NPM
-npm install @theguild/federation-composition
-# PNPM
-pnpm add @theguild/federation-composition
-# Yarn
-yarn add @theguild/federation-composition
-```
-
-## Usage
-
-```ts
-import { parse } from "graphql";
-import {
-  composeServices,
-  compositionHasErrors,
-} from "@theguild/federation-composition";
-
-const result = composeServices([
-  {
-    name: "users",
-    typeDefs: parse(/* GraphQL */ `
-      extend schema
-        @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key"])
-
-      type User @key(fields: "id") {
-        id: ID!
-        name: String!
-      }
-
-      type Query {
-        users: [User]
-      }
-    `),
-  },
-  {
-    name: "comments",
-    typeDefs: parse(/* GraphQL */ `
-      extend schema
-        @link(
-          url: "https://specs.apollo.dev/federation/v2.3"
-          import: ["@key", "@external"]
-        )
-
-      extend type User @key(fields: "id") {
-        id: ID! @external
-        comments: [Comment]
-      }
-
-      type Comment {
-        id: ID!
-        text: String!
-        author: User!
-      }
-    `),
-  },
-]);
-
-if (compositionHasErrors(result)) {
-  console.error(result.errors);
-} else {
-  console.log(result.supergraphSdl);
+let services = vec![ServiceDefinition {
+    name: "users".into(),
+    url: None,
+    type_defs: graphql_rs::parse(r#"
+        extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key"])
+        type User @key(fields: "id") { id: ID! name: String! }
+        type Query { users: [User] }
+    "#)?,
+}];
+match compose_services(&services, None)? {
+    CompositionResult::Success(success) => println!("{}", success.supergraph_sdl()),
+    CompositionResult::Failure(failure) => eprintln!("{:?}", failure.errors),
 }
 ```
 
-## Contributing
+From JavaScript, replace `@theguild/federation-composition` with `federation-composition-wasm`
+([npm/README.md](npm/README.md)).
 
-Install the dependencies:
+## Development
 
-```bash
+```sh
+export PATH="$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$PATH"   # see crates/PORTING.md
+cargo test --workspace
 pnpm install
+pnpm conformance     # check out upstream at UPSTREAM; run its tests on wasm; compare native output
+pnpm test:npm        # the npm package's own tests
 ```
 
-Run the tests:
+Nothing is published yet.
 
-```bash
-pnpm test
-```
+## Credits
 
-### How to help?
-
-- Grab one of the failing tests and fix it.
-- Add new tests to cover more cases.
-- Add missing rules.
-- Look for `// TODO:` comments in the code and fix/implement them.
-- Todos with `// TODO: T[NUMBER]` are on Notion.
-- Look for `skipIf` or `skip` in the tests.
-- Refactor code (piece by piece) if you feel like it.
-
-### Compatibility
-
-The lack of a publicly available specification for Apollo Federation, coupled with the non
-open-source license of the Apollo Composition library, makes it difficult or even impossible to
-assure complete compatibility of our open-source composition library.
-
-Given that Apollo tools utilize their composition library, there is a potential for conflicting
-results between our composition library and Apollo's. This may lead to variations in the supergraph,
-differing composition errors, or, in some cases, conflicting composition outcomes.
-
-We are working to ensure that our composition library is as compatible as possible with Apollo's and
-will continue to do so as we learn more about the Federation specification.
-
-Your feedback and bug reports are welcome and appreciated.
-
-## Supergraph SDL Composition
-
-✅ Done
-
-## Validation
-
-### Validation rules
-
-- ✅ `NO_QUERIES`
-- ✅ `TYPE_KIND_MISMATCH`
-- ✅ `EXTENSION_WITH_NO_BASE`
-- ✅ `FIELD_TYPE_MISMATCH`
-- ✅ `FIELD_ARGUMENT_TYPE_MISMATCH`
-- ✅ `EXTERNAL_TYPE_MISMATCH`
-- ✅ `ENUM_VALUE_MISMATCH`
-- ✅ `EMPTY_MERGED_ENUM_TYPE`
-- ✅ `EMPTY_MERGED_INPUT_TYPE`
-- ✅ `OVERRIDE_SOURCE_HAS_OVERRIDE`
-- ✅ `EXTERNAL_MISSING_ON_BASE`
-- ✅ `REQUIRED_ARGUMENT_MISSING_IN_SOME_SUBGRAPH`
-- ✅ `REQUIRED_INPUT_FIELD_MISSING_IN_SOME_SUBGRAPH`
-- ✅ `EXTERNAL_ARGUMENT_MISSING`
-- ✅ `INPUT_FIELD_DEFAULT_MISMATCH`
-- ✅ `FIELD_ARGUMENT_DEFAULT_MISMATCH`
-- ✅ `DEFAULT_VALUE_USES_INACCESSIBLE`
-- ✅ `ONLY_INACCESSIBLE_CHILDREN`
-- ✅ `REFERENCED_INACCESSIBLE`
-- ✅ `INTERFACE_KEY_MISSING_IMPLEMENTATION_TYPE`
-- ✅ `INVALID_FIELD_SHARING`
-- ✅ `PROVIDES_INVALID_FIELDS_TYPE`
-- ✅ `INVALID_GRAPHQL`
-- ✅ `OVERRIDE_ON_INTERFACE`
-- ✅ `OVERRIDE_FROM_SELF_ERROR`
-- ✅ `QUERY_ROOT_TYPE_INACCESSIBLE`
-- ✅ `PROVIDES_UNSUPPORTED_ON_INTERFACE`
-- ✅ `REQUIRES_UNSUPPORTED_ON_INTERFACE`
-- ✅ `KEY_UNSUPPORTED_ON_INTERFACE`
-- ✅ `KEY_INVALID_FIELDS_TYPE`
-- ✅ `KEY_FIELDS_HAS_ARGS`
-- ✅ `KEY_FIELDS_SELECT_INVALID_TYPE`
-- ✅ `KEY_INVALID_FIELDS`
-- ✅ `REQUIRES_INVALID_FIELDS`
-- ✅ `REQUIRES_INVALID_FIELDS_TYPE`
-- ✅ `MERGED_DIRECTIVE_APPLICATION_ON_EXTERNAL`
-- ✅ `INTERFACE_KEY_NOT_ON_IMPLEMENTATION`
-- ✅ `PROVIDES_FIELDS_MISSING_EXTERNAL`
-- ✅ `REQUIRES_FIELDS_MISSING_EXTERNAL`
-- ✅ `PROVIDES_ON_NON_OBJECT_FIELD`
-- ✅ `INVALID_SUBGRAPH_NAME`
-- ✅ `PROVIDES_FIELDS_HAS_ARGS`
-- ✅ `PROVIDES_INVALID_FIELDS`
-- ✅ `EXTERNAL_UNUSED`
-- ✅ `DIRECTIVE_COMPOSITION_ERROR`
-- ✅ `ROOT_QUERY_USED`
-- ✅ `ROOT_MUTATION_USED`
-- ✅ `ROOT_SUBSCRIPTION_USED`
-- ✅ `INVALID_SHAREABLE_USAGE`
-- ✅ `DIRECTIVE_DEFINITION_INVALID`
-- ✅ `KEY_DIRECTIVE_IN_FIELDS_ARG`
-- ✅ `PROVIDES_DIRECTIVE_IN_FIELDS_ARG`
-- ✅ `REQUIRES_DIRECTIVE_IN_FIELDS_ARG`
-- ✅ `TYPE_DEFINITION_INVALID`
-- ✅ `OVERRIDE_COLLISION_WITH_ANOTHER_DIRECTIVE`
-- ✅ `INTERFACE_OBJECT_USAGE_ERROR`
-- ✅ `REQUIRED_INACCESSIBLE`
-- ✅ `SATISFIABILITY_ERROR`
-- ✅ `INTERFACE_FIELD_NO_IMPLEM`
-- ✅ `LINK_IMPORT_NAME_MISMATCH`
-- ✅ `IMPLEMENTED_BY_INACCESSIBLE`
-- ✅ `MISSING_TRANSITIVE_AUTH_REQUIREMENTS`
-- ✅ `CONTEXT_NAME_INVALID`
-- ✅ `CONTEXT_NOT_SET`
-- ✅ `CONTEXT_NO_RESOLVABLE_KEY`
-- ✅ `CONTEXT_INVALID_SELECTION`
-- ✅ `NO_CONTEXT_IN_SELECTION`
-- ✅ `CONTEXTUAL_ARGUMENT_NOT_CONTEXTUAL_IN_ALL_SUBGRAPHS`
-
-### Not yet covered Validation rules
-
-- [ ] `DISALLOWED_INACCESSIBLE`
-- [ ] `EXTERNAL_ARGUMENT_DEFAULT_MISMATCH`
-- [ ] `EXTERNAL_ARGUMENT_TYPE_MISMATCH`
-- [ ] `EXTERNAL_COLLISION_WITH_ANOTHER_DIRECTIVE`
-- [ ] `UNSUPPORTED_LINKED_FEATURE`
-- [ ] `TYPE_WITH_ONLY_UNUSED_EXTERNAL`
+This is a port of `@theguild/federation-composition`, created and maintained by The Guild, and of
+graphql-js by the GraphQL Contributors, and keeps their MIT license. Thanks to The Guild for the
+original library and for encouraging this port. See [LICENSE](LICENSE) and each crate's LICENSE.

@@ -3,11 +3,13 @@ node_modules
 .DS_Store
 dist
 *.cpuprofile
-.bob
-bench/raw.jsonl
-bench/corpus.jsonl
-bench/results-*.json
 /target
+bench/results-*.json
 crates/graphql-rs/tests/corpus.json
 crates/graphql-rs/tests/schema-corpus.json
-wasm/pkg
+# The npm package's build output (pnpm wasm:build).
+npm/pkg
+npm/dist
+# The upstream checkout and everything the conformance check writes (pnpm conformance).
+conformance/upstream
+conformance/out

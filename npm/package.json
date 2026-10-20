@@ -1,0 +1,56 @@
+{
+  "name": "federation-composition-wasm",
+  "version": "0.1.0",
+  "description": "Apollo Federation composition in WebAssembly: a drop-in replacement for @theguild/federation-composition, built from its Rust port",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Enrico2/federation-composition.git",
+    "directory": "npm"
+  },
+  "keywords": [
+    "graphql",
+    "federation",
+    "graphql-federation",
+    "webassembly"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./internal/*": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "pkg/federation_composition_wasm.js",
+    "pkg/federation_composition_wasm.d.ts",
+    "pkg/federation_composition_wasm_bg.wasm",
+    "pkg/federation_composition_wasm_bg.wasm.d.ts",
+    "pkg/package.json",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "peerDependencies": {
+    "graphql": "^16.0.0 || ^17.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.0",
+    "graphql": "17.0.2",
+    "typescript": "5.9.3"
+  }
+}

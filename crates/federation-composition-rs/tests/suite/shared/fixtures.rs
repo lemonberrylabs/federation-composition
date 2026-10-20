@@ -1,5 +1,6 @@
-//! Port of `__tests__/fixtures/stars-stuff.ts` and the `getSubgraphs()` loaders of
-//! `__tests__/fixtures/{dgs,huge-schema}/index.ts` (which read the `.graphql` files in place).
+//! Port of upstream's `__tests__/fixtures/stars-stuff.ts` and the `getSubgraphs()` loaders of
+//! `__tests__/fixtures/{dgs,huge-schema}/index.ts`, which read the `.graphql` files next to them.
+//! Those files are copied from upstream into `tests/fixtures/{dgs,huge-schema}`.
 
 use std::path::Path;
 
@@ -214,11 +215,10 @@ pub fn create_stars_stuff() -> StarsStuff {
 }
 
 /// `getSubgraphs()` of `__tests__/fixtures/<dir>/index.ts`: every `.graphql` file of the
-/// directory, named after the file without `.graphql`, in `readdir` order (sorted by name).
+/// directory (here `tests/fixtures/<dir>`), named after the file without `.graphql`, in `readdir`
+/// order (sorted by name).
 fn get_subgraphs(dir: &str) -> Vec<ServiceDefinition> {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../__tests__/fixtures")
-        .join(dir);
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(dir);
     let mut files: Vec<String> = std::fs::read_dir(&dir)
         .unwrap_or_else(|e| panic!("reading {}: {e}", dir.display()))
         .map(|entry| {

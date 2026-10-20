@@ -1,0 +1,33 @@
+name: Setup
+description: Rust (with wasm32 and the matching wasm-bindgen CLI), Node, pnpm and the workspace's dependencies
+runs:
+  using: composite
+  steps:
+    - name: setup rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-unknown
+        components: rustfmt, clippy
+    - name: cache cargo
+      uses: Swatinem/rust-cache@v2
+    - name: install wasm-bindgen-cli
+      shell: bash
+      # Must match the wasm-bindgen crate in Cargo.lock exactly (npm/build.mjs checks).
+      run: |
+        version=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/"/, "", $3); print $3 }' Cargo.lock)
+        if [ "$(wasm-bindgen --version 2>/dev/null | cut -d' ' -f2)" != "$version" ]; then
+          cargo install wasm-bindgen-cli --version "=$version" --locked
+        fi
+    - name: install binaryen (wasm-opt)
+      shell: bash
+      run: sudo apt-get install -y binaryen
+    - name: setup pnpm
+      uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+    - name: setup node
+      uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      with:
+        node-version-file: .node-version
+        cache: pnpm
+    - name: install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

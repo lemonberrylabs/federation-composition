@@ -1,4 +1,9 @@
-patches
 pnpm-lock.yaml
 dist
-.bob
+target
+npm/pkg
+conformance/upstream
+conformance/out
+research/journal
+crates
+research/data

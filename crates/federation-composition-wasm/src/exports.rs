@@ -161,7 +161,7 @@ struct AddDirectiveOnTypesIn {
     directive_name: String,
 }
 
-/// What the exports returning a composition give back (`CompositionOut` in wasm/compose.ts):
+/// What the exports returning a composition give back (`CompositionOut` in npm/src/compose.ts):
 /// on success the supergraph `Document` JSON as bytes (a `Uint8Array`, which the shim decodes
 /// only when the document is read); on failure the `GraphQLErrorJson[]` JSON string.
 ///
@@ -664,7 +664,7 @@ pub fn extract_link_matches_implementation(links_json: &str, identity: &str, ver
     Ok(implementations.matches_implementation(identity, &version))
 }
 
-// Bridge self-checks, used by wasm/runtime.spec.ts.
+// Bridge self-checks, used by npm/test/runtime.test.mjs.
 
 /// Parses and reserializes a document: the JSON conversion both ways.
 #[wasm_bindgen]

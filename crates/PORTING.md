@@ -1,10 +1,17 @@
-# Porting `src/` to Rust
+# Porting upstream's `src/` to Rust
 
-This is the working guide for the Rust port of `@theguild/federation-composition`.
-The TypeScript in `src/` is the specification. The port must behave identically:
-same supergraph SDL byte for byte, same errors (message, `extensions.code`, order),
-same results from every exported function. The existing TypeScript test suite runs
-against the WebAssembly build and must pass unchanged.
+This is the working guide for the Rust port of `@theguild/federation-composition`
+([graphql-hive/federation-composition](https://github.com/graphql-hive/federation-composition),
+"upstream"), used for the original port and for every upstream release ported since
+([docs/upstream-sync.md](../docs/upstream-sync.md) is the procedure for a release).
+Upstream's TypeScript at the release recorded in [`UPSTREAM`](../UPSTREAM) is the specification.
+The port must behave identically: same supergraph SDL byte for byte, same errors (message,
+`extensions.code`, order), same results from every exported function. Upstream's TypeScript test
+suite runs, unchanged, against the WebAssembly build and must pass.
+
+This repository does not contain the TypeScript. `pnpm conformance` checks upstream out at the
+`UPSTREAM` release into `conformance/upstream/` (gitignored), and every `src/...` and
+`__tests__/...` path in this guide and in the code's comments is a path in that checkout.
 
 ## Layout
 
@@ -13,17 +20,20 @@ against the WebAssembly build and must pass unchanged.
 | `crates/graphql-rs` | Port of graphql-js 17.0.2's language layer: AST, lexer, parser, printer, visitor, `stripIgnoredCharacters`, `GraphQLError`, specified scalars/directives; and of `buildSchema`/`buildASTSchema` (with the SDL validation rules) and `validateSchema`/`assertValidSchema`, with the type system they build (`type/`, `utilities/`, `validation/`, `execution/values`, `jsutils/`, mirroring graphql-js's files). |
 | `crates/federation-composition-rs` (`federation_composition_rs`) | Port of `src/`. Depends on `crates/graphql-rs` under the name `graphql_rs`, because `crate::graphql` is the port of `src/graphql/`. |
 | `crates/federation-composition-wasm` | wasm-bindgen bindings used by the JS shim. |
-| `wasm/` | TypeScript shim exposing the same modules and exports as `src/`, backed by the WebAssembly build. Tests are pointed at it by a Vitest alias. |
+| `npm/` | The npm package `federation-composition-wasm`: a TypeScript shim (`npm/src`) exposing the same modules and exports as upstream's `src/`, backed by the WebAssembly build. Upstream's tests are pointed at it by the conformance check's Vitest config. |
+| `conformance/` | The upstream conformance check and watcher ([conformance/README.md](../conformance/README.md)). |
 
-**Never edit a test to make it pass.** The tests in `__tests__/` and `src/**/*.spec.ts`
+**Never edit a test to make it pass.** Upstream's tests (`__tests__/` and `src/**/*.spec.ts`)
 are the oracle: a failing test means the Rust (or the bindings) is wrong, and the fix goes
-there. Only the routing (`vitest.wasm.config.js`, the `wasm/` shim) may change. If a test
-cannot run against the WebAssembly build at all, stop and ask the owner.
+there. Only the routing (`conformance/vitest.wasm.config.mjs`, the `npm/src` shim) may change.
+If a test cannot run against the WebAssembly build at all, stop and ask the owner. A deliberate
+divergence from upstream is the owner's decision and goes in `conformance/known-exceptions.json`
+with its reason, never in an edit to a test or a recorded output.
 
 The long-term product is the pure Rust library. The WebAssembly build exists so current
-JS users can migrate and so the existing TypeScript tests can verify the port unchanged.
+JS users can migrate and so upstream's TypeScript tests can verify the port unchanged.
 Keep everything JS-specific (JSON/JS object conversion, rebuilding JS `GraphQLError`s,
-lazy getters, class wrappers) in `crates/federation-composition-wasm` and `wasm/`; nothing in
+lazy getters, class wrappers) in `crates/federation-composition-wasm` and `npm/src`; nothing in
 `crates/federation-composition-rs` should exist only to serve the bindings.
 
 Module structure mirrors `src/` one to one: `src/supergraph/composition/object-type.ts`
@@ -49,9 +59,9 @@ finds `libLLVM.dylib` only with
 `DYLD_FALLBACK_LIBRARY_PATH=$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/lib`
 (`pnpm wasm:build` sets it). Building an `rlib` does not link and does not need it.
 
-`pnpm wasm:build` builds `crates/federation-composition-wasm` into `wasm/pkg` (needs
-`cargo install wasm-bindgen-cli --version '=0.2.129' --locked`); `pnpm test:wasm`
-runs the test suite against it.
+`pnpm wasm:build` builds `crates/federation-composition-wasm` into `npm/pkg` and the shim into
+`npm/dist` (needs `cargo install wasm-bindgen-cli --version '=0.2.129' --locked`);
+`pnpm conformance --only=wasm` runs upstream's test suite against it.
 No `unsafe`. No dependencies that need `getrandom` (wasm32).
 
 ## JavaScript semantics that must be preserved
@@ -310,24 +320,27 @@ allocator, or mimalloc with `--features mimalloc` (`pnpm bench:native:mimalloc`,
 
 Everything is ported: `src/` in `crates/federation-composition-rs` (no `todo!()` left), the graphql-js
 language layer and `buildSchema`/`assertValidSchema` in `crates/graphql-rs`, and the WebAssembly
-bindings in `crates/federation-composition-wasm` with the shim in `wasm/`. The TS test suite is ported to
+bindings in `crates/federation-composition-wasm` with the shim in `npm/src`. The TS test suite is ported to
 Rust (`crates/federation-composition-rs/tests/suite`, see "Rust test suite" below), guild side only.
+The port matches the upstream release in `UPSTREAM` (v0.27.0).
 
 ## Verification
 
 | Check | Command | Expected |
 |---|---|---|
 | Build, no warnings | `cargo build --workspace` and `cargo build --release --target wasm32-unknown-unknown --workspace` | 0 warnings |
-| Rust unit and differential tests | `cargo test --workspace` | all pass; includes `crates/graphql-rs`'s differential tests against graphql-js (regenerate `crates/graphql-rs/tests/corpus.json` with `node crates/graphql-rs/tests/gen-corpus.mjs`, and `crates/graphql-rs/tests/schema-corpus.json` with `node crates/graphql-rs/tests/gen-schema-corpus.mjs [bench/corpus.jsonl]`, which needs `pnpm bench:capture` first; 1,966 schemas identical to graphql-js on 2026-10-19) |
+| Format and lints | `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` | clean |
+| Rust unit and differential tests | `cargo test --workspace` | all pass; includes `crates/graphql-rs`'s differential tests against graphql-js. Their expected values are generated from the upstream checkout (graphql-js 17.0.2 and upstream's test documents), so run `pnpm conformance` first, then `node crates/graphql-rs/tests/gen-corpus.mjs` (`crates/graphql-rs/tests/corpus.json`) and `node crates/graphql-rs/tests/gen-schema-corpus.mjs [corpus.jsonl]` (`crates/graphql-rs/tests/schema-corpus.json`, from the conformance corpus by default); 1,966 schemas identical to graphql-js on 2026-10-19 |
 | The ported test suite | `cargo test -p federation-composition-rs --test suite` (plus the `src/specifications/link.rs` unit tests) | 3,792 passed, 17 ignored on 2026-10-19 (per-file counts under "Rust test suite") |
-| Rust vs TS on every composition the test suite runs | `pnpm bench:capture`, then `cargo test -p federation-composition-rs --release --test corpus -- --ignored` | every captured composition matches (3567/3567 on 2026-10-19). Without `DYLD_FALLBACK_LIBRARY_PATH` (see Toolchain), a release test build prints a `rust-objcopy` "Library not loaded: libLLVM.dylib" warning; it comes from the toolchain, not the code |
-| The TS test suite against the WebAssembly build | `pnpm wasm:build && pnpm test:wasm --run` | 7,350 passed (the 7,343 TS tests plus 7 bridge checks in `wasm/runtime.spec.ts`), 25 skipped, 8 todo |
-| The TS test suite itself | `pnpm test --run` | 7,343 passed, 25 skipped, 8 todo |
+| Upstream's TS test suite against the WebAssembly build | `pnpm conformance` (its `wasm` step; `--only=wasm`) | 7,343 passed, 25 skipped, 8 todo, the same as upstream's suite on its own TypeScript (its `capture` step) |
+| Rust vs TS on every composition upstream's test suite runs | `pnpm conformance` (its `capture` and `native` steps: `tests/corpus.rs`) | every captured composition identical (3567/3567 on 2026-10-19). Without `DYLD_FALLBACK_LIBRARY_PATH` (see Toolchain), a release test build prints a `rust-objcopy` "Library not loaded: libLLVM.dylib" warning; it comes from the toolchain, not the code; `pnpm conformance` sets it |
+| The npm package | `pnpm wasm:build && pnpm test:npm` | 12 passed: the 7 checks of the JS <-> Rust bridge (`npm/test/runtime.test.mjs`, formerly counted in `pnpm test:wasm`'s 7,350) and a smoke test of the package as users import it |
 
 ## Rust test suite
 
-The TypeScript tests (`__tests__/**/*.spec.ts`, `src/**/*.spec.ts`) are ported to Rust, so the
-library is tested without the WebAssembly bridge. Run them with
+Upstream's TypeScript tests (`__tests__/**/*.spec.ts`, `src/**/*.spec.ts`) are ported to Rust, so
+the library is tested without the WebAssembly bridge. When an upstream release adds or changes
+tests, port them here with the rules below (docs/upstream-sync.md). Run them with
 `cargo test -p federation-composition-rs --test suite`.
 
 **Layout.** One integration test binary, `crates/federation-composition-rs/tests/suite/main.rs`, whose module
@@ -392,7 +405,7 @@ the library, never the expectation, and say so in the commit message.
 | `expect(r).toEqual(expect.objectContaining({ errors: [..] }))` | `assert_errors_equal(&r, &[..])` |
 | `` expect(v).toMatchInlineSnapshot(`...`) `` | `to_match_inline_snapshot(v, r#"..."#)` for strings, `Option`s, `GraphQLError` lists and `serde_json::Value`; `to_match_inline_snapshot(SortSdlSerializer(s), ..)` in files with the `expect.addSnapshotSerializer` for `specs.apollo.dev` strings |
 | `versions`, `federationVersionToJoinSpecVersion`, `satisfiesVersionRange` | `VERSIONS`, `FEDERATION_VERSION_TO_JOIN_SPEC_VERSION` / `federation_version_to_join_spec_version(v)`, `satisfies_version_range(range, v)` |
-| `createStarsStuff()`, `getSubgraphs()` of `fixtures/dgs`, `fixtures/huge-schema` | `create_stars_stuff()`, `get_subgraphs_of_dgs()`, `get_subgraphs_of_huge_schema()` |
+| `createStarsStuff()`, `getSubgraphs()` of `fixtures/dgs`, `fixtures/huge-schema` | `create_stars_stuff()`, `get_subgraphs_of_dgs()`, `get_subgraphs_of_huge_schema()` (the `.graphql` files are copied from upstream into `crates/federation-composition-rs/tests/fixtures/{dgs,huge-schema}`; copy them again if upstream changes them) |
 | `expect(() => buildSchema(sdl)).not.toThrow()` | `assert_build_schema_does_not_throw(sdl)` |
 | `expect(s).not.toContain(x)`, `expect(s).not.toMatch(x)` (string or plain regex) | `assert_not_to_match_string(s, x)` (`None` fails, as vitest does) |
 | `expect(r).not.toEqual(expect.objectContaining({ errors: expect.arrayContaining([m]) }))`, `expect(r.errors).not.toEqual(expect.arrayContaining([m]))` | `assert_no_error_matches(&r, &m)`, `assert_no_error_matches(r.errors(), &m)` |

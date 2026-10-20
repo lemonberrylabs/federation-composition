@@ -1,0 +1,49 @@
+# The Rust checks and the upstream conformance check (docs/upstream-sync.md): upstream's
+# unchanged test suite against the npm package, and native Rust output against upstream's
+# TypeScript output on every composition that suite performs, at the release in UPSTREAM.
+name: Conformance
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly, Monday 06:00 UTC: catches changes in upstream's dependencies and the toolchains.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  conformance:
+    name: Conformance
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: rustfmt
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: build for wasm32
+        run: cargo build --release --target wasm32-unknown-unknown --workspace
+      - name: conformance (upstream's tests on wasm, native corpus differential)
+        run: pnpm conformance
+      - name: npm package tests
+        run: pnpm test:npm
+      - name: graphql-js differential corpora
+        run: |
+          node crates/graphql-rs/tests/gen-corpus.mjs
+          node crates/graphql-rs/tests/gen-schema-corpus.mjs
+      - name: cargo test
+        run: cargo test --workspace
+      - name: upload conformance results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance
+          path: |
+            conformance/out/summary.json
+            conformance/out/upstream-wasm.json
+            target/corpus-mismatches.jsonl
+          if-no-files-found: ignore

@@ -1,7 +1,8 @@
 // Builds crates/graphql-rs/tests/corpus.json: inputs and graphql-js 17.0.2's
 // results for them, the expected values of the Rust differential tests.
 //
-// Run from the repository root:  node crates/graphql-rs/tests/gen-corpus.mjs
+// Run from the repository root, after `pnpm conformance` (graphql-js and upstream's
+// tests come from its upstream checkout):  node crates/graphql-rs/tests/gen-corpus.mjs
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
@@ -9,7 +10,12 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, "../../..");
-const require = createRequire(path.join(repo, "package.json"));
+// graphql-js and the test documents come from the upstream checkout of `pnpm conformance`.
+const upstream = process.env.UPSTREAM_DIR ?? path.join(repo, "conformance/upstream");
+if (!fs.existsSync(path.join(upstream, "node_modules/graphql"))) {
+  throw new Error(`${upstream} has no node_modules/graphql: run \`pnpm conformance\` first`);
+}
+const require = createRequire(path.join(upstream, "package.json"));
 const g = require("graphql");
 const {
   parse,
@@ -53,8 +59,8 @@ function addDoc(src, text, derived) {
   docInputs.push({ src, text, derived });
 }
 
-walk(path.join(repo, "__tests__/fixtures"), (p) => {
-  if (p.endsWith(".graphql")) addDoc(path.relative(repo, p), fs.readFileSync(p, "utf8"));
+walk(path.join(upstream, "__tests__/fixtures"), (p) => {
+  if (p.endsWith(".graphql")) addDoc(path.relative(upstream, p), fs.readFileSync(p, "utf8"));
 });
 
 const templateRe = /graphql`([^`]*)`/g;
@@ -69,7 +75,7 @@ function collectFields(text) {
     fieldSets.add(f);
   }
 }
-walk(path.join(repo, "__tests__"), (p) => {
+walk(path.join(upstream, "__tests__"), (p) => {
   if (!p.endsWith(".ts")) return;
   const source = fs.readFileSync(p, "utf8");
   collectFields(source);
@@ -79,8 +85,8 @@ walk(path.join(repo, "__tests__"), (p) => {
     try {
       cooked = new Function("return `" + raw + "`")();
     } catch {}
-    addDoc(path.relative(repo, p), cooked);
-    if (cooked !== raw) addDoc(path.relative(repo, p) + " (raw)", raw);
+    addDoc(path.relative(upstream, p), cooked);
+    if (cooked !== raw) addDoc(path.relative(upstream, p) + " (raw)", raw);
     collectFields(cooked);
   }
 });

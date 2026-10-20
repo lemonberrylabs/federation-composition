@@ -1,7 +1,7 @@
 //! WebAssembly bindings of `federation_composition_rs` for the TypeScript shim
-//! in `wasm/`. Everything JS-specific lives here and in the shim.
+//! in `npm/src` (the npm package federation-composition-wasm). Everything JS-specific lives here and in the shim.
 //!
-//! Conventions shared with `wasm/runtime.ts`:
+//! Conventions shared with `npm/src/runtime.ts`:
 //!
 //! * Structured arguments and results are JSON. AST nodes use the graphql-js
 //!   JSON form (`graphql_rs` serde); the shim leaves out `loc` and the

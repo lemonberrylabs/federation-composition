@@ -19,8 +19,11 @@ fn main() {
     let id = args.next().unwrap_or_else(|| "fixture:huge-schema".to_string());
     let seconds: u64 = args.next().map(|s| s.parse().expect("seconds")).unwrap_or(20);
 
-    let corpus =
-        std::fs::read_to_string("bench/corpus.jsonl").expect("bench/corpus.jsonl is missing: run `pnpm bench:capture`");
+    // The conformance corpus (see tests/corpus.rs).
+    let corpus_path = std::env::var("CONFORMANCE_CORPUS")
+        .unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../conformance/out/corpus.jsonl").to_string());
+    let corpus = std::fs::read_to_string(&corpus_path)
+        .unwrap_or_else(|e| panic!("reading {corpus_path}: {e}; run `pnpm conformance --only=capture`"));
     let case: Value = corpus
         .lines()
         .map(|l| serde_json::from_str::<Value>(l).expect("corpus line is JSON"))

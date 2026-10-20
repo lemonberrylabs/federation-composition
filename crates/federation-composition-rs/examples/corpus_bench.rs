@@ -1,5 +1,6 @@
 //! Native counterpart of `bench/run-corpus.ts`: times `compose_services` on every case of
-//! `bench/corpus.jsonl` with the same protocol and writes results in the same format.
+//! the conformance corpus (`conformance/out/corpus.jsonl`, see tests/corpus.rs) with the same
+//! protocol and writes results in the same format.
 //!
 //! `cargo run -p federation-composition-rs --release --example corpus_bench -- bench/results-guild-rust.json`
 //! (`pnpm bench:native`), or with mimalloc as the global allocator:
@@ -59,8 +60,11 @@ fn main() {
     let out_file = std::env::args()
         .nth(1)
         .unwrap_or_else(|| format!("bench/results-{LABEL}.json"));
-    let corpus =
-        std::fs::read_to_string("bench/corpus.jsonl").expect("bench/corpus.jsonl is missing: run `pnpm bench:capture`");
+    // The conformance corpus (see tests/corpus.rs).
+    let corpus_path = std::env::var("CONFORMANCE_CORPUS")
+        .unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../conformance/out/corpus.jsonl").to_string());
+    let corpus = std::fs::read_to_string(&corpus_path)
+        .unwrap_or_else(|e| panic!("reading {corpus_path}: {e}; run `pnpm conformance --only=capture`"));
 
     let started = Instant::now();
     let mut results = Vec::new();

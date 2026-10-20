@@ -2,10 +2,10 @@
 // graphql-js 17.0.2's buildSchema / validateSchema / assertValidSchema do with
 // them, the expected values of crates/graphql-rs/tests/schema_differential.rs.
 //
-// Run from the repository root:
-//   node crates/graphql-rs/tests/gen-schema-corpus.mjs [path/to/bench/corpus.jsonl]
-// The composition corpus defaults to bench/corpus.jsonl (`pnpm bench:capture`
-// writes it).
+// Run from the repository root, after `pnpm conformance` (graphql-js, upstream's
+// tests and the composition corpus come from it):
+//   node crates/graphql-rs/tests/gen-schema-corpus.mjs [path/to/corpus.jsonl]
+// The composition corpus defaults to conformance/out/corpus.jsonl.
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +13,12 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, "../../..");
-const require = createRequire(path.join(repo, "package.json"));
+// graphql-js and the test documents come from the upstream checkout of `pnpm conformance`.
+const upstream = process.env.UPSTREAM_DIR ?? path.join(repo, "conformance/upstream");
+if (!fs.existsSync(path.join(upstream, "node_modules/graphql"))) {
+  throw new Error(`${upstream} has no node_modules/graphql: run \`pnpm conformance\` first`);
+}
+const require = createRequire(path.join(upstream, "package.json"));
 const g = require("graphql");
 if (g.version !== "17.0.2") throw new Error(`expected graphql 17.0.2, got ${g.version}`);
 const {
@@ -30,9 +35,9 @@ const {
   isIntrospectionType,
 } = g;
 
-const corpusPath = process.argv[2] ?? path.join(repo, "bench/corpus.jsonl");
+const corpusPath = process.argv[2] ?? path.join(repo, "conformance/out/corpus.jsonl");
 if (!fs.existsSync(corpusPath)) {
-  throw new Error(`${corpusPath} is missing; run \`pnpm bench:capture\` or pass its path`);
+  throw new Error(`${corpusPath} is missing; run \`pnpm conformance --only=capture\` or pass its path`);
 }
 
 // Messages may contain lone surrogates; converted to UTF-8 they become U+FFFD.
@@ -64,11 +69,11 @@ const corpusCount = cases.length;
 
 // (b) The documents of the TypeScript tests (subgraph SDL, mostly invalid as a
 // standalone schema: federation directives are not defined) and fixtures.
-walk(path.join(repo, "__tests__/fixtures"), (p) => {
-  if (p.endsWith(".graphql")) add(path.relative(repo, p), fs.readFileSync(p, "utf8"));
+walk(path.join(upstream, "__tests__/fixtures"), (p) => {
+  if (p.endsWith(".graphql")) add(path.relative(upstream, p), fs.readFileSync(p, "utf8"));
 });
 const templateRe = /graphql`([^`]*)`/g;
-walk(path.join(repo, "__tests__"), (p) => {
+walk(path.join(upstream, "__tests__"), (p) => {
   if (!p.endsWith(".ts")) return;
   const source = fs.readFileSync(p, "utf8");
   for (const m of source.matchAll(templateRe)) {
@@ -77,7 +82,7 @@ walk(path.join(repo, "__tests__"), (p) => {
     try {
       cooked = new Function("return `" + raw + "`")();
     } catch {}
-    add(path.relative(repo, p), cooked);
+    add(path.relative(upstream, p), cooked);
   }
 });
 const testsCount = cases.length - corpusCount;

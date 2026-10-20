@@ -1,11 +1,12 @@
 // Compacts a run-corpus.ts results file into the data the research site charts.
 //
-// Usage: tsx bench/summarize.ts <results.json> <out.json>
+// Usage: pnpm bench:summarize <results.json> <out.json>
+// (node conformance/upstream-bin.mjs tsx bench/summarize.ts ...)
 import { readFileSync, writeFileSync } from "node:fs";
 
 const [input, output] = process.argv.slice(2);
 if (!input || !output) {
-  throw new Error("Usage: tsx bench/summarize.ts <results.json> <out.json>");
+  throw new Error("Usage: pnpm bench:summarize <results.json> <out.json>");
 }
 
 type Result = {
