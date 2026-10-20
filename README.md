@@ -132,8 +132,8 @@ if (compositionHasErrors(result)) {
 }
 ```
 
-`graphql` 16 or 17 is a peer dependency. The package is an ES module; CommonJS code can
-`require()` it on Node.js 20.19, 22.12 and later. Until it is published, build it from this
+`graphql` 16 or 17 is a peer dependency. The package is an ES module and needs Node.js 22.12 or
+later; CommonJS code can `require()` it. Until it is published, build it from this
 repository with `pnpm wasm:build` (see [npm/README.md](npm/README.md)).
 
 ## Performance

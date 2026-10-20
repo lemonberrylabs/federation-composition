@@ -18,7 +18,7 @@ echo '{ "name": "smoke", "private": true, "type": "module" }' > package.json
 npm install --no-audit --no-fund --no-package-lock "$tarball" "graphql@$graphql"
 echo "node $(node --version), graphql $(node -p 'require("graphql").version')"
 node --test smoke.test.mjs
-# CommonJS consumers: require() of an ES module (Node 20.19 / 22.12 and later).
+# CommonJS consumers: require() of an ES module (Node 22.12 and later).
 node --input-type=commonjs -e '
 const m = require("federation-composition-wasm");
 if (typeof m.composeServices !== "function") throw new Error("require() did not load the package");

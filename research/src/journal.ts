@@ -3,6 +3,7 @@ import port from "../journal/02-port.md?raw";
 import speed from "../journal/03-speed.md?raw";
 import optimize from "../journal/04-optimize.md?raw";
 import tests from "../journal/05-tests.md?raw";
+import openSource from "../journal/06-open-source.md?raw";
 
 export type Phase = {
   title: string;
@@ -30,10 +31,20 @@ export const phases: Phase[] = [
   },
   { title: "Optimize the port without changing its output", status: "done" },
   { title: "Port the tests to Rust", status: "done" },
+  { title: "Make it a Rust open-source project", status: "done" },
 ];
 
 // Newest first.
 export const entries: Entry[] = [
+  {
+    slug: "open-source",
+    date: "2026-10-19",
+    milestone: 6,
+    title: "A Rust project that tracks upstream",
+    summary:
+      "The TypeScript implementation is removed. Upstream's unchanged suite now runs against the WebAssembly build: 7,343 tests pass and 3,567 of 3,567 outputs are byte-identical. Both crates have a deliberate public API, and public entry points return errors instead of panicking. Four fuzz targets ran 164 million inputs.",
+    body: openSource,
+  },
   {
     slug: "tests",
     date: "2026-10-19",

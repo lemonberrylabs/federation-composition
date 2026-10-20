@@ -62,8 +62,7 @@ if (compositionHasErrors(result)) {
 ```
 
 The package is an ES module for Node.js (it loads the WebAssembly module with Node's `require`).
-CommonJS code can `require()` it on Node.js versions that support `require` of ES modules (20.19 and
-22.12 onwards).
+It needs Node.js 22.12 or later, where CommonJS code can also `require()` it.
 
 `federation-composition-wasm/internal/<path>` exposes the shim of each upstream module
 (`internal/subgraph/state`, `internal/supergraph/composition/ast`, ...). Those entry points exist

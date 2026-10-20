@@ -16,7 +16,7 @@
     "webassembly"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
