@@ -30,6 +30,13 @@ If a test cannot run against the WebAssembly build at all, stop and ask the owne
 divergence from upstream is the owner's decision and goes in `conformance/known-exceptions.json`
 with its reason, never in an edit to a test or a recorded output.
 
+graphql-rs has one deliberate divergence from graphql-js 17.0.2. graphql-js prints an anonymous
+query without variables or directives in shorthand, `{ … }`. After a type, interface, input or
+enum definition or extension without a body, or a schema extension without operation types,
+that `{` reads back as the previous definition's body, so the printed document means something
+else. graphql-rs prints `query { … }` in that position only. Composition never prints
+operations, so its output is unaffected.
+
 The long-term product is the pure Rust library. The WebAssembly build exists so current
 JS users can migrate and so upstream's TypeScript tests can verify the port unchanged.
 Keep everything JS-specific (JSON/JS object conversion, rebuilding JS `GraphQLError`s,

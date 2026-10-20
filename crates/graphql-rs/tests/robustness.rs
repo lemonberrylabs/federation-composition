@@ -182,16 +182,49 @@ fn long_chain_of_input_default_values_is_validated() {
 // Found by fuzzing (`parse`): the printer round trip.
 
 #[test]
-fn a_query_in_shorthand_after_a_type_without_fields_prints_like_graphql_js() {
-    // graphql-js prints the anonymous query in shorthand form, and the `{` then reads back as
-    // the type's fields: the one case where printing and parsing does not give the same AST.
+fn a_query_in_shorthand_after_a_definition_without_a_body_keeps_its_keyword() {
+    // graphql-js prints the anonymous query as `{ … }`, and that `{` reads back as the previous
+    // definition's body. This printer writes `query` there, so the document round-trips.
     let document = parse("type RootMutati query { D mu: RootMu }").unwrap();
-    assert_eq!(print(&document), "type RootMutati\n\n{\n  D\n  mu: RootMu\n}");
-    // Each definition on its own prints to text that parses back to it.
-    for definition in &document.definitions {
-        let single = Document::new(vec![definition.clone()]);
-        assert_eq!(parse(&print(&single)).unwrap(), single);
+    assert_eq!(print(&document), "type RootMutati\n\nquery {\n  D\n  mu: RootMu\n}");
+    assert_eq!(parse(&print(&document)).unwrap(), document);
+    for previous in [
+        "type A",
+        "interface A",
+        "input A",
+        "enum A",
+        "extend type A @d",
+        "extend interface A @d",
+        "extend input A @d",
+        "extend enum A @d",
+        "extend schema @d",
+    ] {
+        let document = previous_then_query(previous);
+        let printed = print(&document);
+        assert_eq!(printed, format!("{previous}\n\nquery {{\n  a\n}}"));
+        assert_eq!(parse(&printed).unwrap(), document, "{previous}");
     }
+    // Elsewhere the shorthand stays, as in graphql-js.
+    for previous in [
+        "type A { a: Int }",
+        "union U = A",
+        "scalar S",
+        "{ b }",
+        "fragment F on A { a }",
+    ] {
+        let document = previous_then_query(previous);
+        assert!(print(&document).ends_with("\n\n{\n  a\n}"), "{previous}");
+    }
+    // A query printed on its own keeps the shorthand.
+    assert_eq!(print(&parse("query { a }").unwrap()), "{\n  a\n}");
+}
+
+/// `previous` followed by the query `{ a }`, parsed separately: in one text the `{` would be
+/// read as part of `previous`.
+fn previous_then_query(previous: &str) -> Document {
+    let mut document = parse(previous).unwrap();
+    document.definitions.extend(parse("{ a }").unwrap().definitions);
+    document
 }
 
 // Found by review: documents built in code, which the parser cannot produce.

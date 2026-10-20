@@ -99,10 +99,43 @@ fn print_variable(n: &Variable) -> String {
 }
 
 fn print_document(n: &Document) -> String {
-    join(&ps(&n.definitions), "\n\n")
+    let mut printed = Vec::with_capacity(n.definitions.len());
+    for (i, definition) in n.definitions.iter().enumerate() {
+        printed.push(match definition {
+            // Divergence from graphql-js, which prints `{ a }` here and so changes the document's
+            // meaning: a `{` after a definition without a body reads back as that body.
+            Definition::OperationDefinition(operation) if i > 0 && takes_a_body(&n.definitions[i - 1]) => {
+                print_operation_definition_with_keyword(operation, true)
+            }
+            definition => pn(definition),
+        });
+    }
+    join(&printed, "\n\n")
+}
+
+/// Whether a `{` printed right after `definition` would be parsed as part of it: a type,
+/// interface, input or enum definition or extension without fields or values, or a schema
+/// extension without operation types.
+fn takes_a_body(definition: &Definition) -> bool {
+    match definition {
+        Definition::ObjectTypeDefinition(n) => n.fields.is_empty(),
+        Definition::InterfaceTypeDefinition(n) => n.fields.is_empty(),
+        Definition::InputObjectTypeDefinition(n) => n.fields.is_empty(),
+        Definition::EnumTypeDefinition(n) => n.values.is_empty(),
+        Definition::ObjectTypeExtension(n) => n.fields.is_empty(),
+        Definition::InterfaceTypeExtension(n) => n.fields.is_empty(),
+        Definition::InputObjectTypeExtension(n) => n.fields.is_empty(),
+        Definition::EnumTypeExtension(n) => n.values.is_empty(),
+        Definition::SchemaExtension(n) => n.operation_types.is_empty(),
+        _ => false,
+    }
 }
 
 fn print_operation_definition(n: &OperationDefinition) -> String {
+    print_operation_definition_with_keyword(n, false)
+}
+
+fn print_operation_definition_with_keyword(n: &OperationDefinition, keyword: bool) -> String {
     let var_defs = ps(&n.variable_definitions);
     let var_defs = if has_multiline_items(&var_defs) {
         wrap("(\n", &join(&var_defs, "\n"), "\n)")
@@ -119,7 +152,7 @@ fn print_operation_definition(n: &OperationDefinition) -> String {
             " ",
         );
     let selection_set = pn(&n.selection_set);
-    if prefix == "query" {
+    if prefix == "query" && !keyword {
         selection_set
     } else {
         prefix + " " + &selection_set
