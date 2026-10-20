@@ -4,6 +4,12 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+# Not published to crates.io: it ships inside the npm package federation-composition-wasm
+# (npm/), released by .github/workflows/npm-publish.yml.
+publish = false
 readme = "README.md"
 description = "wasm-bindgen bindings of federation_composition_rs, used by the npm package federation-composition-wasm (npm/)"
 
@@ -11,8 +17,8 @@ description = "wasm-bindgen bindings of federation_composition_rs, used by the n
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-graphql-rs = { path = "../graphql-rs" }
-federation-composition-rs = { path = "../federation-composition-rs" }
+graphql-rs = { version = "0.1.0", path = "../graphql-rs" }
+federation-composition-rs = { version = "0.1.0", path = "../federation-composition-rs" }
 # wasm-bindgen must match the wasm-bindgen-cli version exactly (npm/build.mjs checks).
 wasm-bindgen = "=0.2.129"
 js-sys = "=0.3.106"

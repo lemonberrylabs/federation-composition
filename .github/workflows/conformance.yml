@@ -1,0 +1,56 @@
+# The upstream conformance check (conformance/README.md, docs/upstream-sync.md): upstream's
+# unchanged test suite against the npm package, and native Rust output against upstream's
+# TypeScript output on every composition that suite performs, at the release in UPSTREAM (or,
+# when run by hand, at any upstream tag or commit).
+name: Conformance
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly, Monday 06:00 UTC: catches changes in upstream's dependencies and the toolchains.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Upstream tag or commit to check against (default: the ref in UPSTREAM)"
+        required: false
+        default: ""
+permissions:
+  contents: read
+concurrency:
+  group: conformance-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  conformance:
+    name: Conformance
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: conformance (upstream's tests on wasm, native corpus differential)
+        env:
+          # Passed through the environment, never interpolated into the script.
+          UPSTREAM_REF: ${{ inputs.ref }}
+        run: pnpm conformance ${UPSTREAM_REF:+"$UPSTREAM_REF"}
+      - name: summary
+        if: always()
+        run: node .github/scripts/conformance-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+      - name: upload conformance results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: conformance
+          path: |
+            conformance/out/summary.json
+            conformance/out/upstream-wasm.json
+            target/corpus-mismatches.jsonl
+            target/corpus-summary.json
+          if-no-files-found: ignore
+          retention-days: 14

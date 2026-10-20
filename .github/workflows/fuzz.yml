@@ -1,0 +1,90 @@
+# Short scheduled runs of every cargo-fuzz target in fuzz/ (discovered with `cargo fuzz list`,
+# so new targets are picked up without editing this file). Succeeds without running anything
+# while fuzz/ does not exist. A crash fails the run and uploads the crashing input.
+name: Fuzz
+on:
+  schedule:
+    # Daily, 04:00 UTC.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: Seconds to run each target
+        required: false
+        default: "120"
+permissions:
+  contents: read
+concurrency:
+  group: fuzz
+  cancel-in-progress: true
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  targets:
+    name: Find targets
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.list.outputs.targets }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: check for fuzz/
+        id: fuzz-dir
+        run: |
+          if [ -f fuzz/Cargo.toml ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (2026-10-16)
+        if: steps.fuzz-dir.outputs.present == 'true'
+        with:
+          toolchain: nightly
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        if: steps.fuzz-dir.outputs.present == 'true'
+        with:
+          tool: cargo-fuzz
+      - name: list targets
+        id: list
+        run: |
+          if [ "${{ steps.fuzz-dir.outputs.present }}" != "true" ]; then
+            echo "no fuzz/ directory: nothing to fuzz"
+            echo "targets=[]" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          targets=$(cargo +nightly fuzz list | jq -R . | jq -sc 'map(select(length > 0))')
+          echo "fuzz targets: $targets"
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+
+  fuzz:
+    name: Fuzz ${{ matrix.target }}
+    needs: targets
+    if: needs.targets.outputs.targets != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.targets.outputs.targets) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (2026-10-16)
+        with:
+          toolchain: nightly
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: fuzz
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-fuzz
+      - name: fuzz
+        env:
+          TARGET: ${{ matrix.target }}
+          SECONDS_PER_TARGET: ${{ inputs.seconds || '120' }}
+        run: cargo +nightly fuzz run "$TARGET" -- -max_total_time="$SECONDS_PER_TARGET"
+      - name: upload crashes
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts
+          if-no-files-found: ignore
+          retention-days: 30

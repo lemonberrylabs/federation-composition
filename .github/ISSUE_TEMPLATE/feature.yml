@@ -1,0 +1,20 @@
+name: Feature request
+description: Something the crates or the npm package should do that they do not
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Composition behavior follows upstream, [@theguild/federation-composition](https://github.com/graphql-hive/federation-composition): a change to what composition accepts or produces belongs upstream first, and arrives here when its release is ported. Requests about the Rust API, the WebAssembly package, performance or packaging belong here.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you are trying to do, and what stops you.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What you would like, if you have something in mind.

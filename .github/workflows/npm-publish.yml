@@ -1,0 +1,82 @@
+# Publishes the npm package federation-composition-wasm (npm/) with provenance when release-plz
+# tags a release of the crate federation-composition-wasm (federation-composition-wasm-vX.Y.Z),
+# or by hand for an existing tag. The npm version is the crate's version: the tag, Cargo.toml and
+# the published package.json agree, or the job fails. See CONTRIBUTING.md, "Releasing".
+#
+# Off until the owner turns it on: runs only when the repository variable RELEASE_ENABLED is
+# "true", and needs the NPM_TOKEN secret.
+name: npm publish
+on:
+  push:
+    tags: ["federation-composition-wasm-v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish (federation-composition-wasm-vX.Y.Z)
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  publish:
+    name: Publish to npm
+    if: vars.RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - name: resolve the tag
+        id: tag
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^federation-composition-wasm-v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+            echo "::error::$TAG is not a federation-composition-wasm-vX.Y.Z tag"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: set the package version to the crate's
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/federation-composition-wasm/Cargo.toml | head -1)
+          if [ "$crate" != "$VERSION" ]; then
+            echo "::error::the tag is $VERSION but crates/federation-composition-wasm/Cargo.toml is $crate"
+            exit 1
+          fi
+          cd npm
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+      - name: build
+        run: pnpm wasm:build
+      - name: test
+        run: pnpm test:npm
+      - name: smoke test of the packed package
+        run: |
+          (cd npm && pnpm pack --pack-destination "$RUNNER_TEMP/pack")
+          .github/scripts/npm-smoke.sh "$RUNNER_TEMP"/pack/*.tgz 17
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: publish
+        working-directory: npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          # A prerelease version goes to the "next" dist-tag, not "latest".
+          if [[ "$VERSION" == *-* ]]; then dist=next; else dist=latest; fi
+          npm publish --provenance --access public --tag "$dist"
