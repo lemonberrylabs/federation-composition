@@ -1029,28 +1029,27 @@ impl TypeBuilder<ObjectType, ObjectTypeState> for ObjectTypeBuilder {
             }
         }
 
-        Ok(Definition::ObjectTypeDefinition(create_object_type_node(
-            ObjectTypeAst {
-                name: object_type.name.clone(),
-                // DirectiveNode and ConstDirectiveNode are identical (except the readonly shit...)
-                ast: convert_to_const(&object_type.ast.directives),
-                cost,
-                description: object_type.description.clone(),
-                fields,
-                interfaces: object_type.interfaces.iter().cloned().collect(),
-                tags: object_type.tags.iter().cloned().collect(),
-                inaccessible: object_type.inaccessible,
-                authenticated: object_type.authenticated,
-                policies: object_type.policies.clone(),
-                scopes: object_type.scopes.clone(),
-                contexts: object_type.contexts.iter().cloned().collect(),
-                join: JoinAst {
-                    r#type: join_types,
-                    implements,
-                    ..Default::default()
-                },
+        create_object_type_node(ObjectTypeAst {
+            name: object_type.name.clone(),
+            // DirectiveNode and ConstDirectiveNode are identical (except the readonly shit...)
+            ast: convert_to_const(&object_type.ast.directives),
+            cost,
+            description: object_type.description.clone(),
+            fields,
+            interfaces: object_type.interfaces.iter().cloned().collect(),
+            tags: object_type.tags.iter().cloned().collect(),
+            inaccessible: object_type.inaccessible,
+            authenticated: object_type.authenticated,
+            policies: object_type.policies.clone(),
+            scopes: object_type.scopes.clone(),
+            contexts: object_type.contexts.iter().cloned().collect(),
+            join: JoinAst {
+                r#type: join_types,
+                implements,
+                ..Default::default()
             },
-        )))
+        })
+        .map(Definition::ObjectTypeDefinition)
     }
 }
 

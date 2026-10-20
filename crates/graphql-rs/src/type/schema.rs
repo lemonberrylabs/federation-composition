@@ -6,7 +6,7 @@ use crate::ast::{OperationType, SchemaDefinition, SchemaExtension};
 use crate::collections::{IndexMap, IndexSet};
 use crate::error::GraphQLError;
 
-use super::definition::{GraphQLNamedType, GraphQLType, TypeLookup};
+use super::definition::{GraphQLField, GraphQLNamedType, TypeLookup};
 use super::directives::{specified_directives, GraphQLDirective};
 use super::introspection::introspection_types;
 use super::scalars::specified_scalar_types;
@@ -258,54 +258,103 @@ impl TypeLookup for GraphQLSchema {
 }
 
 /// graphql-js `collectReferencedTypes`, by name.
-fn collect_referenced_types(
-    type_name: &str,
-    pool: &IndexMap<String, GraphQLNamedType>,
+///
+/// NOTE(port): graphql-js recurses once per type it reaches through a field, an argument, an
+/// interface or a union member, so a long chain of types would overflow the stack. This runs the
+/// same depth-first search with an explicit stack of the calls that are iterating over the types
+/// they reference; the types are added, and the lazy fields, interfaces and members resolved (and
+/// their errors returned), in the order of the recursion.
+fn collect_referenced_types<'p>(
+    type_name: &'p str,
+    pool: &'p IndexMap<String, GraphQLNamedType>,
     type_set: &mut IndexSet<String>,
 ) -> Result<(), GraphQLError> {
+    let mut stack: Vec<ReferencedTypes<'p>> = Vec::new();
+    stack.extend(start_collecting(type_name, pool, type_set)?);
+    while let Some(frame) = stack.last_mut() {
+        if let Some(&referenced) = frame.names.get(frame.next) {
+            frame.next += 1;
+            if let Some(call) = start_collecting(referenced, pool, type_set)? {
+                stack.push(call);
+            }
+            continue;
+        }
+        // An object or interface type collects its interfaces first, then the types of its
+        // fields and their arguments.
+        match frame.fields_of.take() {
+            Some(GraphQLNamedType::Object(object)) => frame.restart(field_type_names(object.get_fields()?)),
+            Some(GraphQLNamedType::Interface(interface)) => frame.restart(field_type_names(interface.get_fields()?)),
+            _ => {
+                stack.pop();
+            }
+        }
+    }
+    Ok(())
+}
+
+/// A `collectReferencedTypes` call in [`collect_referenced_types`]'s explicit stack: the names
+/// of the types its current loop collects, and the type whose fields it collects after that.
+struct ReferencedTypes<'p> {
+    names: Vec<&'p str>,
+    next: usize,
+    fields_of: Option<&'p GraphQLNamedType>,
+}
+
+impl<'p> ReferencedTypes<'p> {
+    fn restart(&mut self, names: Vec<&'p str>) {
+        self.names = names;
+        self.next = 0;
+    }
+}
+
+/// A `collectReferencedTypes(typeName)` call up to its first recursive call: `None` when it
+/// makes none.
+fn start_collecting<'p>(
+    type_name: &str,
+    pool: &'p IndexMap<String, GraphQLNamedType>,
+    type_set: &mut IndexSet<String>,
+) -> Result<Option<ReferencedTypes<'p>>, GraphQLError> {
     if type_set.contains(type_name) {
-        return Ok(());
+        return Ok(None);
     }
     type_set.insert(type_name.to_string());
     let Some(named_type) = pool.get(type_name) else {
-        return Ok(());
+        return Ok(None);
     };
-    let collect_type =
-        |ty: &GraphQLType, type_set: &mut IndexSet<String>| collect_referenced_types(ty.named_type(), pool, type_set);
-    match named_type {
-        GraphQLNamedType::Union(union) => {
-            for member_type in union.get_types()? {
-                collect_referenced_types(member_type, pool, type_set)?;
-            }
-        }
-        GraphQLNamedType::Object(object) => {
-            for interface_type in object.get_interfaces()? {
-                collect_referenced_types(interface_type, pool, type_set)?;
-            }
-            for field in object.get_fields()?.values() {
-                collect_type(&field.ty, type_set)?;
-                for arg in &field.args {
-                    collect_type(&arg.ty, type_set)?;
-                }
-            }
-        }
-        GraphQLNamedType::Interface(interface) => {
-            for interface_type in interface.get_interfaces()? {
-                collect_referenced_types(interface_type, pool, type_set)?;
-            }
-            for field in interface.get_fields()?.values() {
-                collect_type(&field.ty, type_set)?;
-                for arg in &field.args {
-                    collect_type(&arg.ty, type_set)?;
-                }
-            }
-        }
-        GraphQLNamedType::InputObject(input_object) => {
-            for field in input_object.get_fields()?.values() {
-                collect_type(&field.ty, type_set)?;
-            }
-        }
-        GraphQLNamedType::Scalar(_) | GraphQLNamedType::Enum(_) => {}
+    let (names, fields_of): (Vec<&'p str>, _) = match named_type {
+        GraphQLNamedType::Union(union) => (union.get_types()?.iter().map(String::as_str).collect(), None),
+        GraphQLNamedType::Object(object) => (
+            object.get_interfaces()?.iter().map(String::as_str).collect(),
+            Some(named_type),
+        ),
+        GraphQLNamedType::Interface(interface) => (
+            interface.get_interfaces()?.iter().map(String::as_str).collect(),
+            Some(named_type),
+        ),
+        GraphQLNamedType::InputObject(input_object) => (
+            input_object
+                .get_fields()?
+                .values()
+                .map(|field| field.ty.named_type())
+                .collect(),
+            None,
+        ),
+        GraphQLNamedType::Scalar(_) | GraphQLNamedType::Enum(_) => return Ok(None),
+    };
+    Ok(Some(ReferencedTypes {
+        names,
+        next: 0,
+        fields_of,
+    }))
+}
+
+/// The types of the fields and of their arguments, in the order `collectReferencedTypes` visits
+/// them.
+fn field_type_names(fields: &IndexMap<String, GraphQLField>) -> Vec<&str> {
+    let mut names = Vec::new();
+    for field in fields.values() {
+        names.push(field.ty.named_type());
+        names.extend(field.args.iter().map(|arg| arg.ty.named_type()));
     }
-    Ok(())
+    names
 }

@@ -340,6 +340,10 @@ impl CompositionSuccess {
 
     /// The supergraph SDL (the `supergraphSdl` getter): the supergraph document printed with
     /// the library's printer.
+    ///
+    /// Printing recurses once per nesting level: a supergraph from a composition is within the
+    /// parser's limit, but one given to [`create_composition_success_read_cache_container`]
+    /// should be checked with [`graphql_rs::check_nesting_depth`] first.
     pub fn supergraph_sdl(&self) -> &str {
         self.supergraph_sdl
             .get_or_init(|| print(&self.supergraph_document_node))
@@ -354,6 +358,8 @@ impl CompositionSuccess {
         if let Some(public_document_node) = self.public_document_node.get() {
             return Ok(public_document_node);
         }
+        // Not in upstream: a supergraph built in code may nest too deeply (see SECURITY.md).
+        crate::check_nesting_depth(&self.supergraph_document_node)?;
         let public_document_node = transform_supergraph_to_public_schema(&self.supergraph_document_node)?;
         Ok(self.public_document_node.get_or_init(|| public_document_node))
     }

@@ -1,0 +1,50 @@
+# cargo-fuzz targets (`cargo +nightly fuzz run <target>`; fuzz/README.md). A workspace of its own,
+# so the main workspace's builds, lints and `Cargo.lock` never see libFuzzer.
+[package]
+name = "federation-composition-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "MIT"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+graphql-rs = { path = "../crates/graphql-rs" }
+federation-composition-rs = { path = "../crates/federation-composition-rs" }
+
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "parse"
+path = "fuzz_targets/parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "build_schema"
+path = "fuzz_targets/build_schema.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "compose"
+path = "fuzz_targets/compose.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "compose_ast"
+path = "fuzz_targets/compose_ast.rs"
+test = false
+doc = false
+bench = false

@@ -54,7 +54,11 @@ pub enum CoercedLiteral {
 }
 
 /// One of graphql-js `specifiedScalarTypes`.
+///
+/// Only this crate creates them (`#[non_exhaustive]`), so every value is one of the five
+/// specified scalars, which [`SpecifiedScalarType::coerce_input_literal`] relies on.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct SpecifiedScalarType {
     /// The scalar's name, e.g. `Int`.
     pub name: &'static str,
@@ -161,7 +165,7 @@ impl SpecifiedScalarType {
                     print(value_node)
                 ))),
             },
-            _ => unreachable!("not a specified scalar"),
+            _ => unreachable!("a SpecifiedScalarType is one of SPECIFIED_SCALAR_TYPES"),
         }
     }
 }

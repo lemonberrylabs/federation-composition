@@ -180,6 +180,12 @@ In TypeScript these graphs are object graphs with identity. In Rust they are are
   graph.
 - `MoveValidator` and `PathFinder` are cheap `Clone` structs over `Rc<Graph>`. The TypeScript cycle
   MoveValidator -> PathFinder -> MoveValidator is broken by creating the finder on demand.
+- The TypeScript recurses where the depth grows with the schema: `createNodesAndEdgesForType`
+  builds the node of each field's type before the field's edge, and `dfsInner` recurses once per
+  step of the walk. Both run on explicit stacks in Rust (`CreateFrame` in `graph.rs`, `DfsFrame` in
+  `walker.rs`) that do the same work in the same order, so long chains of types cannot overflow
+  the stack. The same goes for the input object and default value cycle checks and graphql-rs's
+  `collectReferencedTypes` (SECURITY.md, "Untrusted input").
 - Upstream's `bigint` context masks are `ContextMask`, a bit set that can grow past 128 bits, and
   `lazy(() => ...)` values are `helpers::Lazy`. Subgraph names are interned (`GraphNames`, shared
   by the graphs of one `Supergraph`), so visited-graph checks and queue entries compare integers

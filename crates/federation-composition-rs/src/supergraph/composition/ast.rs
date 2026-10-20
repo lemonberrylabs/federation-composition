@@ -22,7 +22,7 @@ use graphql_rs::{
 
 use crate::graphql::printer::print;
 use crate::subgraph::state::{ArgumentKind, Deprecated, Description};
-use crate::utils::js::number_to_string;
+use crate::utils::js::{number_to_string, JsError, JsResult};
 
 /// `DescriptionAST`: `{ value, block }`.
 pub type DescriptionAst = Description;
@@ -380,9 +380,9 @@ pub fn create_schema_node(schema: &SchemaAst) -> SchemaDefinition {
     }
 }
 
-pub fn create_directive_node(directive: impl AstArg<DirectiveAst>) -> DirectiveDefinition {
+pub fn create_directive_node(directive: impl AstArg<DirectiveAst>) -> JsResult<DirectiveDefinition> {
     let directive = directive.into_arg();
-    DirectiveDefinition {
+    Ok(DirectiveDefinition {
         description: None,
         name: Name::new(directive.name),
         locations: directive.locations.into_iter().map(Name::new).collect(),
@@ -391,14 +391,14 @@ pub fn create_directive_node(directive: impl AstArg<DirectiveAst>) -> DirectiveD
             .arguments
             .into_iter()
             .map(create_field_argument_node)
-            .collect(),
+            .collect::<JsResult<_>>()?,
         directives: vec![],
-    }
+    })
 }
 
-pub fn create_object_type_node(object_type: impl AstArg<ObjectTypeAst>) -> ObjectTypeDefinition {
+pub fn create_object_type_node(object_type: impl AstArg<ObjectTypeAst>) -> JsResult<ObjectTypeDefinition> {
     let object_type = object_type.into_arg();
-    ObjectTypeDefinition {
+    Ok(ObjectTypeDefinition {
         name: Name::new(object_type.name),
         directives: apply_directives(CommonDirectivesAst {
             ast: object_type.ast,
@@ -412,15 +412,19 @@ pub fn create_object_type_node(object_type: impl AstArg<ObjectTypeAst>) -> Objec
             cost: object_type.cost.as_ref(),
             ..Default::default()
         }),
-        fields: object_type.fields.into_iter().map(create_field_node).collect(),
+        fields: object_type
+            .fields
+            .into_iter()
+            .map(create_field_node)
+            .collect::<JsResult<_>>()?,
         description: object_type.description.map(create_description_node),
         interfaces: object_type.interfaces.into_iter().map(create_named_type_node).collect(),
-    }
+    })
 }
 
-pub fn create_interface_type_node(interface_type: impl AstArg<InterfaceTypeAst>) -> InterfaceTypeDefinition {
+pub fn create_interface_type_node(interface_type: impl AstArg<InterfaceTypeAst>) -> JsResult<InterfaceTypeDefinition> {
     let interface_type = interface_type.into_arg();
-    InterfaceTypeDefinition {
+    Ok(InterfaceTypeDefinition {
         name: Name::new(interface_type.name),
         directives: apply_directives(CommonDirectivesAst {
             ast: interface_type.ast,
@@ -434,18 +438,24 @@ pub fn create_interface_type_node(interface_type: impl AstArg<InterfaceTypeAst>)
             ..Default::default()
         }),
         description: interface_type.description.map(create_description_node),
-        fields: interface_type.fields.into_iter().map(create_field_node).collect(),
+        fields: interface_type
+            .fields
+            .into_iter()
+            .map(create_field_node)
+            .collect::<JsResult<_>>()?,
         interfaces: interface_type
             .interfaces
             .into_iter()
             .map(create_named_type_node)
             .collect(),
-    }
+    })
 }
 
-pub fn create_input_object_type_node(input_object_type: impl AstArg<InputObjectTypeAst>) -> InputObjectTypeDefinition {
+pub fn create_input_object_type_node(
+    input_object_type: impl AstArg<InputObjectTypeAst>,
+) -> JsResult<InputObjectTypeDefinition> {
     let input_object_type = input_object_type.into_arg();
-    InputObjectTypeDefinition {
+    Ok(InputObjectTypeDefinition {
         name: Name::new(input_object_type.name),
         directives: apply_directives(CommonDirectivesAst {
             ast: input_object_type.ast,
@@ -459,9 +469,9 @@ pub fn create_input_object_type_node(input_object_type: impl AstArg<InputObjectT
             .fields
             .into_iter()
             .map(create_input_field_node)
-            .collect(),
+            .collect::<JsResult<_>>()?,
         description: input_object_type.description.map(create_description_node),
-    }
+    })
 }
 
 pub fn create_union_type_node(union_type: impl AstArg<UnionTypeAst>) -> UnionTypeDefinition {
@@ -538,19 +548,22 @@ pub fn create_join_graph_enum_type_node(graphs: &[JoinGraphAst]) -> EnumTypeDefi
     })
 }
 
-/// NOTE(port): `parseType(field.type)` throws on an invalid type string; the types are printed
-/// by the subgraph state from parsed type nodes, so they always parse.
-fn parse_type_string(ty: &str) -> Type {
+/// `parseType(field.type)`. NOTE(port): it throws on an invalid type string. The types are
+/// printed by the subgraph state from the subgraphs' type nodes, so they parse when the names in
+/// those nodes are valid, as in any document the parser produced; a document built in code (or
+/// deserialized) can hold any string as a name, and then this throws the parser's error, like the
+/// TS.
+fn parse_type_string(ty: &str) -> JsResult<Type> {
     // PERF: printed type strings (`[User!]!`) have no whitespace, comments or commas, so they
     // are read directly; `parseType` would produce the same node. Anything else goes through
     // the parser.
     let mut position = 0;
     if let Some(parsed) = parse_printed_type(ty, &mut position) {
         if position == ty.len() {
-            return parsed;
+            return Ok(parsed);
         }
     }
-    graphql_rs::parse_type(ty).unwrap_or_else(|e| panic!("{}", e.message))
+    graphql_rs::parse_type(ty).map_err(JsError::GraphQL)
 }
 
 /// `Type : NamedType | "[" Type "]" | Type "!"` (a non-null type cannot be wrapped in another
@@ -587,17 +600,18 @@ fn parse_printed_type(ty: &str, position: &mut usize) -> Option<Type> {
     Some(parsed)
 }
 
-/// NOTE(port): `parseConstValue(value)` throws on invalid input; default values are printed by
-/// the subgraph state from parsed value nodes, so they always parse.
-fn parse_const_value_string(value: &str) -> ConstValue {
-    graphql_rs::parse_const_value(value).unwrap_or_else(|e| panic!("{}", e.message))
+/// `parseConstValue(value)`. NOTE(port): it throws on invalid input. Default values are printed
+/// by the subgraph state from the subgraphs' value nodes, so they parse when those nodes are
+/// valid (see [`parse_type_string`]); otherwise this throws the parser's error, like the TS.
+fn parse_const_value_string(value: &str) -> JsResult<ConstValue> {
+    graphql_rs::parse_const_value(value).map_err(JsError::GraphQL)
 }
 
-fn create_field_node(field: impl AstArg<FieldAst>) -> FieldDefinition {
+fn create_field_node(field: impl AstArg<FieldAst>) -> JsResult<FieldDefinition> {
     let field = field.into_arg();
-    FieldDefinition {
+    Ok(FieldDefinition {
         name: Name::new(field.name),
-        ty: parse_type_string(&field.r#type),
+        ty: parse_type_string(&field.r#type)?,
         directives: apply_directives(CommonDirectivesAst {
             ast: field.ast,
             join: Some(field.join),
@@ -612,15 +626,19 @@ fn create_field_node(field: impl AstArg<FieldAst>) -> FieldDefinition {
             ..Default::default()
         }),
         description: field.description.map(create_description_node),
-        arguments: field.arguments.into_iter().map(create_field_argument_node).collect(),
-    }
+        arguments: field
+            .arguments
+            .into_iter()
+            .map(create_field_argument_node)
+            .collect::<JsResult<_>>()?,
+    })
 }
 
-fn create_input_field_node(input_field: impl AstArg<InputFieldAst>) -> InputValueDefinition {
+fn create_input_field_node(input_field: impl AstArg<InputFieldAst>) -> JsResult<InputValueDefinition> {
     let input_field = input_field.into_arg();
-    InputValueDefinition {
+    Ok(InputValueDefinition {
         name: Name::new(input_field.name),
-        ty: parse_type_string(&input_field.r#type),
+        ty: parse_type_string(&input_field.r#type)?,
         directives: apply_directives(CommonDirectivesAst {
             ast: input_field.ast,
             join: Some(input_field.join),
@@ -631,8 +649,12 @@ fn create_input_field_node(input_field: impl AstArg<InputFieldAst>) -> InputValu
             ..Default::default()
         }),
         description: input_field.description.map(create_description_node),
-        default_value: input_field.default_value.as_deref().map(parse_const_value_string),
-    }
+        default_value: input_field
+            .default_value
+            .as_deref()
+            .map(parse_const_value_string)
+            .transpose()?,
+    })
 }
 
 fn create_enum_value_node(enum_value: impl AstArg<EnumValueAst>) -> EnumValueDefinition {
@@ -653,10 +675,12 @@ fn create_enum_value_node(enum_value: impl AstArg<EnumValueAst>) -> EnumValueDef
 
 /// `createDefaultValue(defaultValue, kind)`: parses the printed default value back into a
 /// const value node.
-/// NOTE(port): the body uses graphql-js `parseConstValue`; it throws on invalid input, which
-/// validation rules out before composition, so the port panics with the parser message.
-fn create_default_value(default_value: Option<&str>, kind: ArgumentKind) -> Option<ConstValue> {
-    let default_value = default_value?;
+/// NOTE(port): the body uses graphql-js `parseConstValue`, which throws on invalid input (see
+/// [`parse_const_value_string`]).
+fn create_default_value(default_value: Option<&str>, kind: ArgumentKind) -> JsResult<Option<ConstValue>> {
+    let Some(default_value) = default_value else {
+        return Ok(None);
+    };
 
     if kind == ArgumentKind::Enum {
         let value = if default_value.starts_with('"') && default_value.ends_with('"') {
@@ -664,10 +688,10 @@ fn create_default_value(default_value: Option<&str>, kind: ArgumentKind) -> Opti
         } else {
             default_value
         };
-        return Some(ConstValue::enum_value(value));
+        return Ok(Some(ConstValue::enum_value(value)));
     }
 
-    Some(parse_const_value_string(default_value))
+    parse_const_value_string(default_value).map(Some)
 }
 
 /// JS `str.substring(start, end)` for byte offsets on an ASCII boundary: the arguments are
@@ -677,12 +701,12 @@ fn js_substring(s: &str, start: usize, end: usize) -> &str {
     &s[start.min(s.len())..end.min(s.len())]
 }
 
-fn create_field_argument_node(argument: impl AstArg<FieldArgumentAst>) -> InputValueDefinition {
+fn create_field_argument_node(argument: impl AstArg<FieldArgumentAst>) -> JsResult<InputValueDefinition> {
     let argument = argument.into_arg();
-    InputValueDefinition {
+    Ok(InputValueDefinition {
         name: Name::new(argument.name),
-        default_value: create_default_value(argument.default_value.as_deref(), argument.kind),
-        ty: parse_type_string(&argument.r#type),
+        default_value: create_default_value(argument.default_value.as_deref(), argument.kind)?,
+        ty: parse_type_string(&argument.r#type)?,
         directives: apply_directives(CommonDirectivesAst {
             ast: argument.ast,
             inaccessible: argument.inaccessible,
@@ -692,7 +716,7 @@ fn create_field_argument_node(argument: impl AstArg<FieldArgumentAst>) -> InputV
             ..Default::default()
         }),
         description: argument.description.map(create_description_node),
-    }
+    })
 }
 
 /// A JS truthiness check on an optional string.
@@ -1315,7 +1339,8 @@ mod tests {
                 ..Default::default()
             }],
             ..Default::default()
-        });
+        })
+        .unwrap();
         assert_eq!(
             print_js(&node),
             "type Book implements Media @join__type(graph: A, key: \"id\", extension: true) \
@@ -1358,7 +1383,8 @@ mod tests {
             }),
             deprecated: Some(Deprecated { reason: None }),
             ..Default::default()
-        });
+        })
+        .unwrap();
         assert_eq!(
             print_js(&node),
             "f: Int @join__field(graph: A, usedOverridden: true, external: true) @tag(name: \"t1\") \
@@ -1437,24 +1463,48 @@ mod tests {
     }
 
     #[test]
+    fn unparsable_printed_types_and_values_throw_the_parser_error() {
+        // A name that is not a GraphQL name can only come from a document that was not parsed.
+        assert_eq!(
+            parse_type_string("Foo Bar").unwrap_err(),
+            JsError::GraphQL(graphql_rs::GraphQLError::new(
+                "Syntax Error: Expected <EOF>, found Name \"Bar\"."
+            ))
+        );
+        assert_eq!(
+            create_default_value(Some("{"), ArgumentKind::Scalar).unwrap_err(),
+            JsError::GraphQL(graphql_rs::GraphQLError::new(
+                "Syntax Error: Expected Name, found <EOF>."
+            ))
+        );
+        let err = create_field_node(&FieldAst {
+            name: "f".into(),
+            r#type: "[Int".into(),
+            ..Default::default()
+        })
+        .unwrap_err();
+        assert_eq!(err.to_string(), "Syntax Error: Expected \"]\", found <EOF>.");
+    }
+
+    #[test]
     fn default_values() {
         // ENUM kind: surrounding quotes are dropped, the value becomes an enum value.
         assert_eq!(
-            create_default_value(Some("\"A\""), ArgumentKind::Enum),
+            create_default_value(Some("\"A\""), ArgumentKind::Enum).unwrap(),
             Some(ConstValue::enum_value("A"))
         );
         // `'"'.substring(1, 0)` is `'"'`.
         assert_eq!(
-            create_default_value(Some("\""), ArgumentKind::Enum),
+            create_default_value(Some("\""), ArgumentKind::Enum).unwrap(),
             Some(ConstValue::enum_value("\""))
         );
         assert_eq!(
-            create_default_value(Some("B"), ArgumentKind::Enum),
+            create_default_value(Some("B"), ArgumentKind::Enum).unwrap(),
             Some(ConstValue::enum_value("B"))
         );
-        assert_eq!(create_default_value(None, ArgumentKind::Scalar), None);
+        assert_eq!(create_default_value(None, ArgumentKind::Scalar).unwrap(), None);
         assert_eq!(
-            create_default_value(Some("\"A\""), ArgumentKind::Scalar),
+            create_default_value(Some("\"A\""), ArgumentKind::Scalar).unwrap(),
             Some(ConstValue::string("A"))
         );
         let arg = create_field_argument_node(&FieldArgumentAst {
@@ -1462,7 +1512,8 @@ mod tests {
             r#type: "[Int]".into(),
             default_value: Some("[1, 2]".into()),
             ..Default::default()
-        });
+        })
+        .unwrap();
         assert_eq!(print_js(&arg), "a: [Int] = [1, 2]");
     }
 
@@ -1583,7 +1634,8 @@ mod tests {
                 ..Default::default()
             }],
             ..Default::default()
-        });
+        })
+        .unwrap();
         assert_eq!(
             print_js(&input),
             "input I @oneOf {\n  a: E = FOO @deprecated(reason: \"old\")\n}"

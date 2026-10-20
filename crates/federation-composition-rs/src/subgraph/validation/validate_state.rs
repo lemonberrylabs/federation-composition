@@ -12,6 +12,7 @@ use crate::subgraph::state::{
     UnionType,
 };
 use crate::utils::format::and_list;
+use crate::utils::js::{JsError, JsResult};
 use crate::utils::state::{is_list, is_non_null, strip_list, strip_non_null, strip_type_modifiers};
 
 /// `specifiedScalars`.
@@ -48,7 +49,10 @@ impl TypeCheck {
 /// `validateSubgraphState(state, context)`: errors with `extensions.code` `INVALID_GRAPHQL`.
 /// The context is only read (`isLinkSpecDirective`, `isLinkSpecType`); the caller passes the
 /// state through `&context.state_builder.state`.
-pub fn validate_subgraph_state(state: &SubgraphState, context: &SubgraphValidationContext<'_>) -> Vec<GraphQLError> {
+pub fn validate_subgraph_state(
+    state: &SubgraphState,
+    context: &SubgraphValidationContext<'_>,
+) -> JsResult<Vec<GraphQLError>> {
     let mut errors: Vec<GraphQLError> = Vec::new();
 
     let mut report_error = |message: String| {
@@ -57,9 +61,9 @@ pub fn validate_subgraph_state(state: &SubgraphState, context: &SubgraphValidati
 
     validate_root_types(state, &mut report_error);
     validate_directives(state, &mut report_error, context);
-    validate_types(state, &mut report_error);
+    validate_types(state, &mut report_error)?;
 
-    errors
+    Ok(errors)
 }
 
 fn validate_root_types(state: &SubgraphState, report_error: ReportErrorFn<'_>) {
@@ -170,7 +174,7 @@ fn validate_directives(
     }
 }
 
-fn validate_types(state: &SubgraphState, report_error: ReportErrorFn<'_>) {
+fn validate_types(state: &SubgraphState, report_error: ReportErrorFn<'_>) -> JsResult<()> {
     let mut validate_input_object_circular_refs = create_input_object_circular_refs_validator(state);
     let mut implementations_map: IndexMap<String, IndexSet<String>> = IndexMap::default();
 
@@ -206,14 +210,14 @@ fn validate_types(state: &SubgraphState, report_error: ReportErrorFn<'_>) {
         match ty {
             SubgraphType::Object(_) => {
                 // Ensure fields are valid
-                validate_fields(state, report_error, ty);
+                validate_fields(state, report_error, ty)?;
 
                 // Ensure objects implement the interfaces they claim to.
                 validate_interfaces(state, &mut implementations_map, report_error, ty);
             }
             SubgraphType::Interface(_) => {
                 // Ensure fields are valid.
-                validate_fields(state, report_error, ty);
+                validate_fields(state, report_error, ty)?;
 
                 // Ensure interfaces implement the interfaces they claim to.
                 validate_interfaces(state, &mut implementations_map, report_error, ty);
@@ -228,7 +232,7 @@ fn validate_types(state: &SubgraphState, report_error: ReportErrorFn<'_>) {
             }
             SubgraphType::InputObject(input_obj) => {
                 // Ensure Input Object fields are valid.
-                validate_input_fields(state, report_error, input_obj);
+                validate_input_fields(state, report_error, input_obj)?;
 
                 // Ensure Input Objects do not contain non-nullable circular references
                 validate_input_object_circular_refs.detect_cycle_recursive(input_obj, report_error);
@@ -236,6 +240,7 @@ fn validate_types(state: &SubgraphState, report_error: ReportErrorFn<'_>) {
             _ => {}
         }
     }
+    Ok(())
 }
 
 fn validate_name(report_error: ReportErrorFn<'_>, name: &str) {
@@ -257,7 +262,7 @@ fn object_or_interface_parts(ty: &SubgraphType) -> (&str, &IndexMap<String, Fiel
 }
 
 /// `validateFields(state, reportError, type)` for an object or interface type.
-fn validate_fields(state: &SubgraphState, report_error: ReportErrorFn<'_>, ty: &SubgraphType) {
+fn validate_fields(state: &SubgraphState, report_error: ReportErrorFn<'_>, ty: &SubgraphType) -> JsResult<()> {
     let (type_name, fields, _) = object_or_interface_parts(ty);
     let is_root_type = Some(type_name) == state.schema.query_type()
         || Some(type_name) == state.schema.mutation_type()
@@ -344,7 +349,7 @@ fn validate_fields(state: &SubgraphState, report_error: ReportErrorFn<'_>, ty: &
 
             // Ensure default value is valid
             if let Some(default_value) = &arg.default_value {
-                let value = parse_default_value(default_value);
+                let value = parse_default_value(default_value)?;
                 if !is_validate_default_value(state, report_error, &arg.r#type, &value) {
                     report_error(format!(
                         "Invalid default value (got: {default_value}) provided for argument {type_name}.{}({}:) of type {}.",
@@ -354,12 +359,14 @@ fn validate_fields(state: &SubgraphState, report_error: ReportErrorFn<'_>, ty: &
             }
         }
     }
+    Ok(())
 }
 
 /// `parseValue(defaultValue)`. The default values in the state are printed AST values, which
-/// always parse back.
-fn parse_default_value(default_value: &str) -> Value {
-    graphql_rs::parse_value(default_value).expect("printed default values parse")
+/// parse back unless the document was not parsed (built in code or deserialized) and holds a
+/// name that is not a GraphQL name; then this throws the parser's error, like the TS.
+fn parse_default_value(default_value: &str) -> JsResult<Value> {
+    graphql_rs::parse_value(default_value).map_err(JsError::GraphQL)
 }
 
 // TS: `isValidateDefaultValue` takes `reportError` and only passes it on.
@@ -499,7 +506,11 @@ fn validate_enum_values(report_error: ReportErrorFn<'_>, enum_type: &EnumType) {
     }
 }
 
-fn validate_input_fields(state: &SubgraphState, report_error: ReportErrorFn<'_>, input_obj: &InputObjectType) {
+fn validate_input_fields(
+    state: &SubgraphState,
+    report_error: ReportErrorFn<'_>,
+    input_obj: &InputObjectType,
+) -> JsResult<()> {
     let fields = &input_obj.fields;
 
     if fields.is_empty() {
@@ -555,7 +566,7 @@ fn validate_input_fields(state: &SubgraphState, report_error: ReportErrorFn<'_>,
 
         // Ensure default value is valid
         if let Some(default_value) = &field.default_value {
-            let value = parse_default_value(default_value);
+            let value = parse_default_value(default_value)?;
             if !is_validate_default_value(state, report_error, &field.r#type, &value) {
                 report_error(format!(
                     "Invalid default value (got: {default_value}) provided for input field {}.{} of type {}.",
@@ -564,6 +575,7 @@ fn validate_input_fields(state: &SubgraphState, report_error: ReportErrorFn<'_>,
             }
         }
     }
+    Ok(())
 }
 
 /// `validateInterfaces(state, implementationsMap, reportError, type)` for an object or
@@ -806,28 +818,45 @@ fn create_input_object_circular_refs_validator(state: &SubgraphState) -> InputOb
     }
 }
 
-impl InputObjectCircularRefsValidator<'_> {
+impl<'s> InputObjectCircularRefsValidator<'s> {
     // This does a straight-forward DFS to find cycles.
     // It does not terminate when a cycle was found but continues to explore
     // the graph to find all possible cycles.
-    fn detect_cycle_recursive(&mut self, input_obj: &InputObjectType, report_error: ReportErrorFn<'_>) {
-        if self.visited_types.contains(&input_obj.name) {
-            return;
+    //
+    // NOTE(port): the TS recurses once per input object on the path, so a long chain of input
+    // objects would overflow the stack. This runs the same search with an explicit stack: each
+    // frame is a call that is iterating over its fields, and the work happens in the order of
+    // the recursion.
+    fn detect_cycle_recursive(&mut self, input_obj: &'s InputObjectType, report_error: ReportErrorFn<'_>) {
+        // (input object, next field, whether the caller pushed onto `field_path` for this call)
+        let mut stack: Vec<(&'s InputObjectType, usize, bool)> = Vec::new();
+        if self.enter(input_obj) {
+            stack.push((input_obj, 0, false));
         }
-
-        self.visited_types.insert(input_obj.name.clone());
-        self.field_path_index_by_type_name
-            .insert(input_obj.name.clone(), self.field_path.len());
-
         let state = self.state;
-        for field in input_obj.fields.values() {
+        while let Some(&mut (input_obj, ref mut next_field, _)) = stack.last_mut() {
+            let Some((_, field)) = input_obj.fields.get_index(*next_field) else {
+                self.field_path_index_by_type_name.shift_remove(&input_obj.name);
+                if let Some((_, _, pushed_field_path)) = stack.pop() {
+                    if pushed_field_path {
+                        self.field_path.pop();
+                    }
+                }
+                continue;
+            };
+            *next_field += 1;
             if is_non_null(&field.r#type) {
                 if let Some(SubgraphType::InputObject(field_type)) = state.types.get(&strip_non_null(&field.r#type)) {
                     let cycle_index = self.field_path_index_by_type_name.get(&field_type.name).copied();
 
                     self.field_path.push(field.name.clone());
                     match cycle_index {
-                        None => self.detect_cycle_recursive(field_type, report_error),
+                        None => {
+                            if self.enter(field_type) {
+                                stack.push((field_type, 0, true));
+                                continue;
+                            }
+                        }
                         Some(cycle_index) => {
                             let cycle_path = &self.field_path[cycle_index..];
                             report_error(format!(
@@ -841,8 +870,19 @@ impl InputObjectCircularRefsValidator<'_> {
                 }
             }
         }
+    }
 
-        self.field_path_index_by_type_name.shift_remove(&input_obj.name);
+    /// The start of a `detectCycleRecursive(inputObj)` call, before its loop: `false` when it
+    /// returns right away (the input object was visited).
+    fn enter(&mut self, input_obj: &InputObjectType) -> bool {
+        if self.visited_types.contains(&input_obj.name) {
+            return false;
+        }
+
+        self.visited_types.insert(input_obj.name.clone());
+        self.field_path_index_by_type_name
+            .insert(input_obj.name.clone(), self.field_path.len());
+        true
     }
 }
 

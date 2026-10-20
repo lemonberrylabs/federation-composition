@@ -323,6 +323,17 @@ lazily through a `RefCell` and is shared as `Rc<Contexts>`. The TS `Symbol` grap
 `GraphId::{Supergraph, MergedGraph}`. `toString` caches (nodes, edges, moves, paths) feed only
 the no-op logger; compute them on demand.
 
+**Recursion.** A recursive TS function whose depth grows with the size of the input (one level
+per type of a chain, per step of a walk) becomes a loop over an explicit stack of frames that
+runs the same work in the same order (see `walker.rs` `dfs_inner`, `graph.rs`
+`create_nodes_and_edges_for_type`), with a `NOTE(port)`. Recursion over the nesting of a
+document (values, types, selection sets) stays recursive: the parser bounds it at
+`graphql_rs::MAX_NESTING_DEPTH` levels, and the public functions check documents that did not
+come from the parser. Keep such recursive functions' frames small (move work that does not
+recurse into a separate function): 128 levels must fit a 2 MiB stack in a debug build. A TS
+`throw` or runtime `TypeError` on bad input becomes an `Err` with the same message, never a
+panic (`crates/*/tests/robustness.rs` has the examples).
+
 **Results.** `CompositionResult` is an enum; `CompositionSuccess` caches `supergraphSdl`,
 `publicDocumentNode`, `publicSdl` in `OnceCell`s (the getters that can throw return `Result<_, Error>`).
 `apply_tag_filter_on_subgraphs` works on `ServiceDefinition`s; the extra properties the TS
@@ -348,11 +359,11 @@ The port matches the upstream release in `UPSTREAM` (v0.27.0).
 |---|---|---|
 | Build, no warnings | `cargo build --workspace` and `cargo build --release --target wasm32-unknown-unknown --workspace` | 0 warnings |
 | Format and lints | `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` | clean |
-| Rust unit and differential tests | `cargo test --workspace` | all pass; includes `crates/graphql-rs`'s differential tests against graphql-js. Their expected values are generated from the upstream checkout (graphql-js 17.0.2 and upstream's test documents), so run `pnpm conformance` first, then `node crates/graphql-rs/tests/gen-corpus.mjs` (`crates/graphql-rs/tests/corpus.json`) and `node crates/graphql-rs/tests/gen-schema-corpus.mjs [corpus.jsonl]` (`crates/graphql-rs/tests/schema-corpus.json`, from the conformance corpus by default); 1,966 schemas identical to graphql-js on 2026-10-19 |
+| Rust unit and differential tests | `cargo test --workspace` | all pass; includes the robustness tests (`tests/robustness.rs` in both crates: the nesting limits, long chains of types, and inputs that once panicked) and `crates/graphql-rs`'s differential tests against graphql-js. Their expected values are generated from the upstream checkout (graphql-js 17.0.2 and upstream's test documents), so run `pnpm conformance` first, then `node crates/graphql-rs/tests/gen-corpus.mjs` (`crates/graphql-rs/tests/corpus.json`) and `node crates/graphql-rs/tests/gen-schema-corpus.mjs [corpus.jsonl]` (`crates/graphql-rs/tests/schema-corpus.json`, from the conformance corpus by default); 1,966 schemas identical to graphql-js on 2026-10-19 |
 | The ported test suite | `cargo test -p federation-composition-rs --test suite` (plus the `src/specifications/link.rs` unit tests) | 3,792 passed, 17 ignored on 2026-10-19 (per-file counts under "Rust test suite") |
 | Upstream's TS test suite against the WebAssembly build | `pnpm conformance` (its `wasm` step; `--only=wasm`) | 7,343 passed, 25 skipped, 8 todo, the same as upstream's suite on its own TypeScript (its `capture` step) |
 | Rust vs TS on every composition upstream's test suite runs | `pnpm conformance` (its `capture` and `native` steps: `tests/corpus.rs`) | every captured composition identical (3567/3567 on 2026-10-19). Without `DYLD_FALLBACK_LIBRARY_PATH` (see Toolchain), a release test build prints a `rust-objcopy` "Library not loaded: libLLVM.dylib" warning; it comes from the toolchain, not the code; `pnpm conformance` sets it |
-| The npm package | `pnpm wasm:build && pnpm test:npm` | 12 passed: the 7 checks of the JS <-> Rust bridge (`npm/test/runtime.test.mjs`, formerly counted in `pnpm test:wasm`'s 7,350) and a smoke test of the package as users import it |
+| The npm package | `pnpm wasm:build && pnpm test:npm` | 15 passed: the 10 checks of the JS <-> Rust bridge (`npm/test/runtime.test.mjs`: 7 formerly counted in `pnpm test:wasm`'s 7,350, and 3 of the input limits) and a smoke test of the package as users import it |
 
 ## Rust test suite
 

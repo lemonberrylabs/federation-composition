@@ -40,11 +40,11 @@ fn field(name: &str, ty: &str) -> FieldAst {
 }
 
 fn object(object_type: ObjectTypeAst) -> Definition {
-    Definition::ObjectTypeDefinition(create_object_type_node(object_type))
+    Definition::ObjectTypeDefinition(create_object_type_node(object_type).expect("the TS does not throw"))
 }
 
 fn interface(interface_type: InterfaceTypeAst) -> Definition {
-    Definition::InterfaceTypeDefinition(create_interface_type_node(interface_type))
+    Definition::InterfaceTypeDefinition(create_interface_type_node(interface_type).expect("the TS does not throw"))
 }
 
 fn union(union_type: UnionTypeAst) -> Definition {
@@ -52,7 +52,9 @@ fn union(union_type: UnionTypeAst) -> Definition {
 }
 
 fn input_object(input_object_type: InputObjectTypeAst) -> Definition {
-    Definition::InputObjectTypeDefinition(create_input_object_type_node(input_object_type))
+    Definition::InputObjectTypeDefinition(
+        create_input_object_type_node(input_object_type).expect("the TS does not throw"),
+    )
 }
 
 fn enum_type(enum_type: EnumTypeAst) -> Definition {

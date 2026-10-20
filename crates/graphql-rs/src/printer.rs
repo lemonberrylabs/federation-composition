@@ -8,6 +8,11 @@ use crate::js::js_len;
 const MAX_LINE_LENGTH: usize = 80;
 
 /// graphql-js `print`: converts an AST into a string.
+///
+/// Recurses once per nesting level of the AST. A document the parser produced is within
+/// [`MAX_NESTING_DEPTH`](crate::MAX_NESTING_DEPTH) levels, which fits any thread's stack; check
+/// one built in code or deserialized with [`check_nesting_depth`](crate::check_nesting_depth)
+/// first.
 pub fn print<'a>(node: impl Into<NodeRef<'a>>) -> String {
     p(node.into())
 }
@@ -28,305 +33,469 @@ fn ps<T: AsNodeRef>(nodes: &[T]) -> Vec<String> {
 }
 
 fn p(node: NodeRef<'_>) -> String {
+    // One function per kind, as graphql-js's `printDocASTReducer` has one `leave` per kind:
+    // printing recurses once per nesting level, and a single `match` holding every kind's
+    // temporaries would make each level's stack frame as large as all of them together.
     match node {
-        NodeRef::Name(n) => n.value.clone(),
-        NodeRef::Variable(n) => format!("${}", pn(&n.name)),
-        NodeRef::Document(n) => join(&ps(&n.definitions), "\n\n"),
-        NodeRef::OperationDefinition(n) => {
-            let var_defs = ps(&n.variable_definitions);
-            let var_defs = if has_multiline_items(&var_defs) {
-                wrap("(\n", &join(&var_defs, "\n"), "\n)")
-            } else {
-                wrap("(", &join(&var_defs, ", "), ")")
-            };
-            let prefix = wrap("", &po(&n.description), "\n")
-                + &join(
-                    &[
-                        n.operation.as_str().to_owned(),
-                        join(&[po(&n.name), var_defs], ""),
-                        join(&ps(&n.directives), " "),
-                    ],
-                    " ",
-                );
-            let selection_set = pn(&n.selection_set);
-            if prefix == "query" {
-                selection_set
-            } else {
-                prefix + " " + &selection_set
-            }
-        }
-        NodeRef::VariableDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + &pn(&n.variable)
-                + ": "
-                + &pn(&n.ty)
-                + &wrap(" = ", &po(&n.default_value), "")
-                + &wrap(" ", &join(&ps(&n.directives), " "), "")
-        }
-        NodeRef::SelectionSet(n) => block(&ps(&n.selections)),
-        NodeRef::Field(n) => {
-            let prefix = join(&[wrap("", &po(&n.alias), ": "), pn(&n.name)], "");
-            join(
-                &[
-                    wrapped_line_and_args(prefix, &ps(&n.arguments)),
-                    wrap(" ", &join(&ps(&n.directives), " "), ""),
-                    wrap(" ", &po(&n.selection_set), ""),
-                ],
-                "",
-            )
-        }
-        NodeRef::Argument(n) => pn(&n.name) + ": " + &pn(&n.value),
-        NodeRef::FragmentArgument(n) => pn(&n.name) + ": " + &pn(&n.value),
-        NodeRef::FragmentSpread(n) => {
-            let prefix = "...".to_owned() + &pn(&n.name);
-            wrapped_line_and_args(prefix, &ps(&n.arguments)) + &wrap(" ", &join(&ps(&n.directives), " "), "")
-        }
-        NodeRef::InlineFragment(n) => join(
+        NodeRef::Name(n) => print_name(n),
+        NodeRef::Variable(n) => print_variable(n),
+        NodeRef::Document(n) => print_document(n),
+        NodeRef::OperationDefinition(n) => print_operation_definition(n),
+        NodeRef::VariableDefinition(n) => print_variable_definition(n),
+        NodeRef::SelectionSet(n) => print_selection_set(n),
+        NodeRef::Field(n) => print_field(n),
+        NodeRef::Argument(n) => print_argument(n),
+        NodeRef::FragmentArgument(n) => print_fragment_argument(n),
+        NodeRef::FragmentSpread(n) => print_fragment_spread(n),
+        NodeRef::InlineFragment(n) => print_inline_fragment(n),
+        NodeRef::FragmentDefinition(n) => print_fragment_definition(n),
+        NodeRef::IntValue(n) => print_int_value(n),
+        NodeRef::FloatValue(n) => print_float_value(n),
+        NodeRef::StringValue(n) => print_string_value(n),
+        NodeRef::BooleanValue(n) => print_boolean_value(n),
+        NodeRef::NullValue(n) => print_null_value(n),
+        NodeRef::EnumValue(n) => print_enum_value(n),
+        NodeRef::ListValue(n) => print_list_value(n),
+        NodeRef::ObjectValue(n) => print_object_value(n),
+        NodeRef::ObjectField(n) => print_object_field(n),
+        NodeRef::Directive(n) => print_directive(n),
+        NodeRef::NamedType(n) => print_named_type(n),
+        NodeRef::ListType(n) => print_list_type(n),
+        NodeRef::NonNullType(n) => print_non_null_type(n),
+        NodeRef::SchemaDefinition(n) => print_schema_definition(n),
+        NodeRef::OperationTypeDefinition(n) => print_operation_type_definition(n),
+        NodeRef::ScalarTypeDefinition(n) => print_scalar_type_definition(n),
+        NodeRef::ObjectTypeDefinition(n) => print_object_type_definition(n),
+        NodeRef::FieldDefinition(n) => print_field_definition(n),
+        NodeRef::InputValueDefinition(n) => print_input_value_definition(n),
+        NodeRef::InterfaceTypeDefinition(n) => print_interface_type_definition(n),
+        NodeRef::UnionTypeDefinition(n) => print_union_type_definition(n),
+        NodeRef::EnumTypeDefinition(n) => print_enum_type_definition(n),
+        NodeRef::EnumValueDefinition(n) => print_enum_value_definition(n),
+        NodeRef::InputObjectTypeDefinition(n) => print_input_object_type_definition(n),
+        NodeRef::DirectiveDefinition(n) => print_directive_definition(n),
+        NodeRef::SchemaExtension(n) => print_schema_extension(n),
+        NodeRef::ScalarTypeExtension(n) => print_scalar_type_extension(n),
+        NodeRef::ObjectTypeExtension(n) => print_object_type_extension(n),
+        NodeRef::InterfaceTypeExtension(n) => print_interface_type_extension(n),
+        NodeRef::UnionTypeExtension(n) => print_union_type_extension(n),
+        NodeRef::EnumTypeExtension(n) => print_enum_type_extension(n),
+        NodeRef::InputObjectTypeExtension(n) => print_input_object_type_extension(n),
+        NodeRef::DirectiveExtension(n) => print_directive_extension(n),
+        NodeRef::TypeCoordinate(n) => print_type_coordinate(n),
+        NodeRef::MemberCoordinate(n) => print_member_coordinate(n),
+        NodeRef::ArgumentCoordinate(n) => print_argument_coordinate(n),
+        NodeRef::DirectiveCoordinate(n) => print_directive_coordinate(n),
+        NodeRef::DirectiveArgumentCoordinate(n) => print_directive_argument_coordinate(n),
+    }
+}
+
+fn print_name(n: &Name) -> String {
+    n.value.clone()
+}
+
+fn print_variable(n: &Variable) -> String {
+    format!("${}", pn(&n.name))
+}
+
+fn print_document(n: &Document) -> String {
+    join(&ps(&n.definitions), "\n\n")
+}
+
+fn print_operation_definition(n: &OperationDefinition) -> String {
+    let var_defs = ps(&n.variable_definitions);
+    let var_defs = if has_multiline_items(&var_defs) {
+        wrap("(\n", &join(&var_defs, "\n"), "\n)")
+    } else {
+        wrap("(", &join(&var_defs, ", "), ")")
+    };
+    let prefix = wrap("", &po(&n.description), "\n")
+        + &join(
             &[
-                "...".to_owned(),
-                wrap("on ", &po(&n.type_condition), ""),
+                n.operation.as_str().to_owned(),
+                join(&[po(&n.name), var_defs], ""),
                 join(&ps(&n.directives), " "),
-                pn(&n.selection_set),
             ],
             " ",
-        ),
-        NodeRef::FragmentDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + "fragment "
-                + &pn(&n.name)
-                + &wrap("(", &join(&ps(&n.variable_definitions), ", "), ")")
-                + " on "
-                + &pn(&n.type_condition)
-                + " "
-                + &wrap("", &join(&ps(&n.directives), " "), " ")
-                + &pn(&n.selection_set)
-        }
-        NodeRef::IntValue(n) => n.value.clone(),
-        NodeRef::FloatValue(n) => n.value.clone(),
-        NodeRef::StringValue(n) => {
-            if n.block {
-                print_block_string(&n.value, false)
-            } else {
-                print_string(&n.value)
-            }
-        }
-        NodeRef::BooleanValue(n) => (if n.value { "true" } else { "false" }).to_owned(),
-        NodeRef::NullValue(_) => "null".to_owned(),
-        NodeRef::EnumValue(n) => n.value.clone(),
-        NodeRef::ListValue(n) => {
-            let values = ps(&n.values);
-            let values_line = "[".to_owned() + &join(&values, ", ") + "]";
-            if js_len(&values_line) > MAX_LINE_LENGTH {
-                return "[\n".to_owned() + &indent(&join(&values, "\n")) + "\n]";
-            }
-            values_line
-        }
-        NodeRef::ObjectValue(n) => {
-            let fields = ps(&n.fields);
-            let fields_line = "{ ".to_owned() + &join(&fields, ", ") + " }";
-            if js_len(&fields_line) > MAX_LINE_LENGTH {
-                block(&fields)
-            } else {
-                fields_line
-            }
-        }
-        NodeRef::ObjectField(n) => pn(&n.name) + ": " + &pn(&n.value),
-        NodeRef::Directive(n) => "@".to_owned() + &pn(&n.name) + &wrap("(", &join(&ps(&n.arguments), ", "), ")"),
-        NodeRef::NamedType(n) => pn(&n.name),
-        NodeRef::ListType(n) => "[".to_owned() + &pn(&n.ty) + "]",
-        NodeRef::NonNullType(n) => pn(&n.ty) + "!",
-        NodeRef::SchemaDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + &join(
-                    &[
-                        "schema".to_owned(),
-                        join(&ps(&n.directives), " "),
-                        block(&ps(&n.operation_types)),
-                    ],
-                    " ",
-                )
-        }
-        NodeRef::OperationTypeDefinition(n) => n.operation.as_str().to_owned() + ": " + &pn(&n.ty),
-        NodeRef::ScalarTypeDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + &join(&["scalar".to_owned(), pn(&n.name), join(&ps(&n.directives), " ")], " ")
-        }
-        NodeRef::ObjectTypeDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + &join(
-                    &[
-                        "type".to_owned(),
-                        pn(&n.name),
-                        wrap("implements ", &join(&ps(&n.interfaces), " & "), ""),
-                        join(&ps(&n.directives), " "),
-                        block(&ps(&n.fields)),
-                    ],
-                    " ",
-                )
-        }
-        NodeRef::FieldDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + &pn(&n.name)
-                + &print_args_definition(&ps(&n.arguments))
-                + ": "
-                + &pn(&n.ty)
-                + &wrap(" ", &join(&ps(&n.directives), " "), "")
-        }
-        NodeRef::InputValueDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + &join(
-                    &[
-                        pn(&n.name) + ": " + &pn(&n.ty),
-                        wrap("= ", &po(&n.default_value), ""),
-                        join(&ps(&n.directives), " "),
-                    ],
-                    " ",
-                )
-        }
-        NodeRef::InterfaceTypeDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + &join(
-                    &[
-                        "interface".to_owned(),
-                        pn(&n.name),
-                        wrap("implements ", &join(&ps(&n.interfaces), " & "), ""),
-                        join(&ps(&n.directives), " "),
-                        block(&ps(&n.fields)),
-                    ],
-                    " ",
-                )
-        }
-        NodeRef::UnionTypeDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + &join(
-                    &[
-                        "union".to_owned(),
-                        pn(&n.name),
-                        join(&ps(&n.directives), " "),
-                        wrap("= ", &join(&ps(&n.types), " | "), ""),
-                    ],
-                    " ",
-                )
-        }
-        NodeRef::EnumTypeDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + &join(
-                    &[
-                        "enum".to_owned(),
-                        pn(&n.name),
-                        join(&ps(&n.directives), " "),
-                        block(&ps(&n.values)),
-                    ],
-                    " ",
-                )
-        }
-        NodeRef::EnumValueDefinition(n) => {
-            wrap("", &po(&n.description), "\n") + &join(&[pn(&n.name), join(&ps(&n.directives), " ")], " ")
-        }
-        NodeRef::InputObjectTypeDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + &join(
-                    &[
-                        "input".to_owned(),
-                        pn(&n.name),
-                        join(&ps(&n.directives), " "),
-                        block(&ps(&n.fields)),
-                    ],
-                    " ",
-                )
-        }
-        NodeRef::DirectiveDefinition(n) => {
-            wrap("", &po(&n.description), "\n")
-                + "directive @"
-                + &pn(&n.name)
-                + &print_args_definition(&ps(&n.arguments))
-                + &wrap(" ", &join(&ps(&n.directives), " "), "")
-                + (if n.repeatable { " repeatable" } else { "" })
-                + " on "
-                + &join(&ps(&n.locations), " | ")
-        }
-        NodeRef::SchemaExtension(n) => join(
+        );
+    let selection_set = pn(&n.selection_set);
+    if prefix == "query" {
+        selection_set
+    } else {
+        prefix + " " + &selection_set
+    }
+}
+
+fn print_variable_definition(n: &VariableDefinition) -> String {
+    wrap("", &po(&n.description), "\n")
+        + &pn(&n.variable)
+        + ": "
+        + &pn(&n.ty)
+        + &wrap(" = ", &po(&n.default_value), "")
+        + &wrap(" ", &join(&ps(&n.directives), " "), "")
+}
+
+fn print_selection_set(n: &SelectionSet) -> String {
+    block(&ps(&n.selections))
+}
+
+fn print_field(n: &Field) -> String {
+    let prefix = join(&[wrap("", &po(&n.alias), ": "), pn(&n.name)], "");
+    join(
+        &[
+            wrapped_line_and_args(prefix, &ps(&n.arguments)),
+            wrap(" ", &join(&ps(&n.directives), " "), ""),
+            wrap(" ", &po(&n.selection_set), ""),
+        ],
+        "",
+    )
+}
+
+fn print_argument(n: &Argument) -> String {
+    pn(&n.name) + ": " + &pn(&n.value)
+}
+
+fn print_fragment_argument(n: &FragmentArgument) -> String {
+    pn(&n.name) + ": " + &pn(&n.value)
+}
+
+fn print_fragment_spread(n: &FragmentSpread) -> String {
+    let prefix = "...".to_owned() + &pn(&n.name);
+    wrapped_line_and_args(prefix, &ps(&n.arguments)) + &wrap(" ", &join(&ps(&n.directives), " "), "")
+}
+
+fn print_inline_fragment(n: &InlineFragment) -> String {
+    join(
+        &[
+            "...".to_owned(),
+            wrap("on ", &po(&n.type_condition), ""),
+            join(&ps(&n.directives), " "),
+            pn(&n.selection_set),
+        ],
+        " ",
+    )
+}
+
+fn print_fragment_definition(n: &FragmentDefinition) -> String {
+    wrap("", &po(&n.description), "\n")
+        + "fragment "
+        + &pn(&n.name)
+        + &wrap("(", &join(&ps(&n.variable_definitions), ", "), ")")
+        + " on "
+        + &pn(&n.type_condition)
+        + " "
+        + &wrap("", &join(&ps(&n.directives), " "), " ")
+        + &pn(&n.selection_set)
+}
+
+fn print_int_value(n: &IntValue) -> String {
+    n.value.clone()
+}
+
+fn print_float_value(n: &FloatValue) -> String {
+    n.value.clone()
+}
+
+fn print_string_value(n: &StringValue) -> String {
+    if n.block {
+        print_block_string(&n.value, false)
+    } else {
+        print_string(&n.value)
+    }
+}
+
+fn print_boolean_value(n: &BooleanValue) -> String {
+    (if n.value { "true" } else { "false" }).to_owned()
+}
+
+fn print_null_value(_: &NullValue) -> String {
+    "null".to_owned()
+}
+
+fn print_enum_value(n: &EnumValue) -> String {
+    n.value.clone()
+}
+
+fn print_list_value(n: &ListValue) -> String {
+    let values = ps(&n.values);
+    let values_line = "[".to_owned() + &join(&values, ", ") + "]";
+    if js_len(&values_line) > MAX_LINE_LENGTH {
+        return "[\n".to_owned() + &indent(&join(&values, "\n")) + "\n]";
+    }
+    values_line
+}
+
+fn print_object_value(n: &ObjectValue) -> String {
+    let fields = ps(&n.fields);
+    let fields_line = "{ ".to_owned() + &join(&fields, ", ") + " }";
+    if js_len(&fields_line) > MAX_LINE_LENGTH {
+        block(&fields)
+    } else {
+        fields_line
+    }
+}
+
+fn print_object_field(n: &ObjectField) -> String {
+    pn(&n.name) + ": " + &pn(&n.value)
+}
+
+fn print_directive(n: &Directive) -> String {
+    "@".to_owned() + &pn(&n.name) + &wrap("(", &join(&ps(&n.arguments), ", "), ")")
+}
+
+fn print_named_type(n: &NamedType) -> String {
+    pn(&n.name)
+}
+
+fn print_list_type(n: &ListType) -> String {
+    "[".to_owned() + &pn(&n.ty) + "]"
+}
+
+fn print_non_null_type(n: &NonNullType) -> String {
+    pn(&n.ty) + "!"
+}
+
+fn print_schema_definition(n: &SchemaDefinition) -> String {
+    wrap("", &po(&n.description), "\n")
+        + &join(
             &[
-                "extend schema".to_owned(),
+                "schema".to_owned(),
                 join(&ps(&n.directives), " "),
                 block(&ps(&n.operation_types)),
             ],
             " ",
-        ),
-        NodeRef::ScalarTypeExtension(n) => join(
-            &["extend scalar".to_owned(), pn(&n.name), join(&ps(&n.directives), " ")],
-            " ",
-        ),
-        NodeRef::ObjectTypeExtension(n) => join(
+        )
+}
+
+fn print_operation_type_definition(n: &OperationTypeDefinition) -> String {
+    n.operation.as_str().to_owned() + ": " + &pn(&n.ty)
+}
+
+fn print_scalar_type_definition(n: &ScalarTypeDefinition) -> String {
+    wrap("", &po(&n.description), "\n") + &join(&["scalar".to_owned(), pn(&n.name), join(&ps(&n.directives), " ")], " ")
+}
+
+fn print_object_type_definition(n: &ObjectTypeDefinition) -> String {
+    wrap("", &po(&n.description), "\n")
+        + &join(
             &[
-                "extend type".to_owned(),
+                "type".to_owned(),
                 pn(&n.name),
                 wrap("implements ", &join(&ps(&n.interfaces), " & "), ""),
                 join(&ps(&n.directives), " "),
                 block(&ps(&n.fields)),
             ],
             " ",
-        ),
-        NodeRef::InterfaceTypeExtension(n) => join(
+        )
+}
+
+fn print_field_definition(n: &FieldDefinition) -> String {
+    wrap("", &po(&n.description), "\n")
+        + &pn(&n.name)
+        + &print_args_definition(&ps(&n.arguments))
+        + ": "
+        + &pn(&n.ty)
+        + &wrap(" ", &join(&ps(&n.directives), " "), "")
+}
+
+fn print_input_value_definition(n: &InputValueDefinition) -> String {
+    wrap("", &po(&n.description), "\n")
+        + &join(
             &[
-                "extend interface".to_owned(),
+                pn(&n.name) + ": " + &pn(&n.ty),
+                wrap("= ", &po(&n.default_value), ""),
+                join(&ps(&n.directives), " "),
+            ],
+            " ",
+        )
+}
+
+fn print_interface_type_definition(n: &InterfaceTypeDefinition) -> String {
+    wrap("", &po(&n.description), "\n")
+        + &join(
+            &[
+                "interface".to_owned(),
                 pn(&n.name),
                 wrap("implements ", &join(&ps(&n.interfaces), " & "), ""),
                 join(&ps(&n.directives), " "),
                 block(&ps(&n.fields)),
             ],
             " ",
-        ),
-        NodeRef::UnionTypeExtension(n) => join(
+        )
+}
+
+fn print_union_type_definition(n: &UnionTypeDefinition) -> String {
+    wrap("", &po(&n.description), "\n")
+        + &join(
             &[
-                "extend union".to_owned(),
+                "union".to_owned(),
                 pn(&n.name),
                 join(&ps(&n.directives), " "),
                 wrap("= ", &join(&ps(&n.types), " | "), ""),
             ],
             " ",
-        ),
-        NodeRef::EnumTypeExtension(n) => join(
+        )
+}
+
+fn print_enum_type_definition(n: &EnumTypeDefinition) -> String {
+    wrap("", &po(&n.description), "\n")
+        + &join(
             &[
-                "extend enum".to_owned(),
+                "enum".to_owned(),
                 pn(&n.name),
                 join(&ps(&n.directives), " "),
                 block(&ps(&n.values)),
             ],
             " ",
-        ),
-        NodeRef::InputObjectTypeExtension(n) => join(
+        )
+}
+
+fn print_enum_value_definition(n: &EnumValueDefinition) -> String {
+    wrap("", &po(&n.description), "\n") + &join(&[pn(&n.name), join(&ps(&n.directives), " ")], " ")
+}
+
+fn print_input_object_type_definition(n: &InputObjectTypeDefinition) -> String {
+    wrap("", &po(&n.description), "\n")
+        + &join(
             &[
-                "extend input".to_owned(),
+                "input".to_owned(),
                 pn(&n.name),
                 join(&ps(&n.directives), " "),
                 block(&ps(&n.fields)),
             ],
             " ",
-        ),
-        NodeRef::DirectiveExtension(n) => join(
-            &[
-                "extend directive @".to_owned() + &pn(&n.name),
-                join(&ps(&n.directives), " "),
-            ],
-            " ",
-        ),
-        NodeRef::TypeCoordinate(n) => pn(&n.name),
-        NodeRef::MemberCoordinate(n) => join(&[pn(&n.name), wrap(".", &pn(&n.member_name), "")], ""),
-        NodeRef::ArgumentCoordinate(n) => join(
-            &[
-                pn(&n.name),
-                wrap(".", &pn(&n.field_name), ""),
-                wrap("(", &pn(&n.argument_name), ":)"),
-            ],
-            "",
-        ),
-        NodeRef::DirectiveCoordinate(n) => join(&["@".to_owned(), pn(&n.name)], ""),
-        NodeRef::DirectiveArgumentCoordinate(n) => join(
-            &["@".to_owned(), pn(&n.name), wrap("(", &pn(&n.argument_name), ":)")],
-            "",
-        ),
-    }
+        )
+}
+
+fn print_directive_definition(n: &DirectiveDefinition) -> String {
+    wrap("", &po(&n.description), "\n")
+        + "directive @"
+        + &pn(&n.name)
+        + &print_args_definition(&ps(&n.arguments))
+        + &wrap(" ", &join(&ps(&n.directives), " "), "")
+        + (if n.repeatable { " repeatable" } else { "" })
+        + " on "
+        + &join(&ps(&n.locations), " | ")
+}
+
+fn print_schema_extension(n: &SchemaExtension) -> String {
+    join(
+        &[
+            "extend schema".to_owned(),
+            join(&ps(&n.directives), " "),
+            block(&ps(&n.operation_types)),
+        ],
+        " ",
+    )
+}
+
+fn print_scalar_type_extension(n: &ScalarTypeExtension) -> String {
+    join(
+        &["extend scalar".to_owned(), pn(&n.name), join(&ps(&n.directives), " ")],
+        " ",
+    )
+}
+
+fn print_object_type_extension(n: &ObjectTypeExtension) -> String {
+    join(
+        &[
+            "extend type".to_owned(),
+            pn(&n.name),
+            wrap("implements ", &join(&ps(&n.interfaces), " & "), ""),
+            join(&ps(&n.directives), " "),
+            block(&ps(&n.fields)),
+        ],
+        " ",
+    )
+}
+
+fn print_interface_type_extension(n: &InterfaceTypeExtension) -> String {
+    join(
+        &[
+            "extend interface".to_owned(),
+            pn(&n.name),
+            wrap("implements ", &join(&ps(&n.interfaces), " & "), ""),
+            join(&ps(&n.directives), " "),
+            block(&ps(&n.fields)),
+        ],
+        " ",
+    )
+}
+
+fn print_union_type_extension(n: &UnionTypeExtension) -> String {
+    join(
+        &[
+            "extend union".to_owned(),
+            pn(&n.name),
+            join(&ps(&n.directives), " "),
+            wrap("= ", &join(&ps(&n.types), " | "), ""),
+        ],
+        " ",
+    )
+}
+
+fn print_enum_type_extension(n: &EnumTypeExtension) -> String {
+    join(
+        &[
+            "extend enum".to_owned(),
+            pn(&n.name),
+            join(&ps(&n.directives), " "),
+            block(&ps(&n.values)),
+        ],
+        " ",
+    )
+}
+
+fn print_input_object_type_extension(n: &InputObjectTypeExtension) -> String {
+    join(
+        &[
+            "extend input".to_owned(),
+            pn(&n.name),
+            join(&ps(&n.directives), " "),
+            block(&ps(&n.fields)),
+        ],
+        " ",
+    )
+}
+
+fn print_directive_extension(n: &DirectiveExtension) -> String {
+    join(
+        &[
+            "extend directive @".to_owned() + &pn(&n.name),
+            join(&ps(&n.directives), " "),
+        ],
+        " ",
+    )
+}
+
+fn print_type_coordinate(n: &TypeCoordinate) -> String {
+    pn(&n.name)
+}
+
+fn print_member_coordinate(n: &MemberCoordinate) -> String {
+    join(&[pn(&n.name), wrap(".", &pn(&n.member_name), "")], "")
+}
+
+fn print_argument_coordinate(n: &ArgumentCoordinate) -> String {
+    join(
+        &[
+            pn(&n.name),
+            wrap(".", &pn(&n.field_name), ""),
+            wrap("(", &pn(&n.argument_name), ":)"),
+        ],
+        "",
+    )
+}
+
+fn print_directive_coordinate(n: &DirectiveCoordinate) -> String {
+    join(&["@".to_owned(), pn(&n.name)], "")
+}
+
+fn print_directive_argument_coordinate(n: &DirectiveArgumentCoordinate) -> String {
+    join(
+        &["@".to_owned(), pn(&n.name), wrap("(", &pn(&n.argument_name), ":)")],
+        "",
+    )
 }
 
 /// The argument list of `FieldDefinition` and `DirectiveDefinition`.

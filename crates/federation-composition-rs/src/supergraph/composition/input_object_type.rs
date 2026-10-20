@@ -179,28 +179,27 @@ impl TypeBuilder<InputObjectType, InputObjectTypeState> for InputObjectTypeBuild
             });
         }
 
-        Ok(Definition::InputObjectTypeDefinition(create_input_object_type_node(
-            InputObjectTypeAst {
-                name: input_object_type.name.clone(),
-                tags: input_object_type.tags.iter().cloned().collect(),
-                inaccessible: input_object_type.inaccessible,
-                description: input_object_type.description.clone(),
-                is_one_of: input_object_type.is_one_of == Some(true),
-                ast: convert_to_const(&input_object_type.ast.directives),
-                fields,
-                join: JoinAst {
-                    r#type: input_object_type
-                        .by_graph
-                        .keys()
-                        .map(|graph| JoinTypeAst {
-                            graph: graph.clone(),
-                            ..Default::default()
-                        })
-                        .collect(),
-                    ..Default::default()
-                },
+        create_input_object_type_node(InputObjectTypeAst {
+            name: input_object_type.name.clone(),
+            tags: input_object_type.tags.iter().cloned().collect(),
+            inaccessible: input_object_type.inaccessible,
+            description: input_object_type.description.clone(),
+            is_one_of: input_object_type.is_one_of == Some(true),
+            ast: convert_to_const(&input_object_type.ast.directives),
+            fields,
+            join: JoinAst {
+                r#type: input_object_type
+                    .by_graph
+                    .keys()
+                    .map(|graph| JoinTypeAst {
+                        graph: graph.clone(),
+                        ..Default::default()
+                    })
+                    .collect(),
+                ..Default::default()
             },
-        )))
+        })
+        .map(Definition::InputObjectTypeDefinition)
     }
 }
 

@@ -32,7 +32,9 @@ use serde_json::json;
 use wasm_bindgen::prelude::*;
 
 use crate::convert::{self, LinkClassIn, LinkUrlIn};
-use crate::{from_json, graphql_error_json, thrown, to_json, to_json_bytes, JsResult, ThrownError};
+use crate::{
+    check_nesting_depth, from_json, graphql_error_json, thrown, to_json, to_json_bytes, JsResult, ThrownError,
+};
 
 #[derive(Deserialize)]
 struct Service {
@@ -53,10 +55,11 @@ impl From<Service> for ServiceDefinition {
 }
 
 fn services(json: &[u8]) -> JsResult<Vec<ServiceDefinition>> {
-    Ok(from_json::<Vec<Service>>("services", json)?
-        .into_iter()
-        .map(Into::into)
-        .collect())
+    let services = from_json::<Vec<Service>>("services", json)?;
+    for service in &services {
+        check_nesting_depth(&service.type_defs)?;
+    }
+    Ok(services.into_iter().map(Into::into).collect())
 }
 
 /// `composeServices`'s and `validate`'s `__internal` argument.
@@ -171,7 +174,17 @@ fn composition_out(result: CompositionResult) -> JsValue {
 }
 
 fn document(what: &str, json: &[u8]) -> JsResult<Document> {
-    from_json(what, json)
+    let document = from_json(what, json)?;
+    check_nesting_depth(&document)?;
+    Ok(document)
+}
+
+fn documents(what: &str, json: &[u8]) -> JsResult<Vec<Document>> {
+    let documents: Vec<Document> = from_json(what, json)?;
+    for document in &documents {
+        check_nesting_depth(document)?;
+    }
+    Ok(documents)
 }
 
 // compose.ts
@@ -236,7 +249,9 @@ pub fn validate(subgraphs_json: &[u8], internal_json: Option<String>) -> JsResul
 /// `validateSubgraph(subgraph)` → `GraphQLErrorJson[]`.
 #[wasm_bindgen]
 pub fn validate_subgraph(subgraph_json: &[u8]) -> JsResult<String> {
-    let subgraph: ServiceDefinition = from_json::<Service>("subgraph", subgraph_json)?.into();
+    let subgraph: Service = from_json("subgraph", subgraph_json)?;
+    check_nesting_depth(&subgraph.type_defs)?;
+    let subgraph: ServiceDefinition = subgraph.into();
     let errors = fc::validate_subgraph(&subgraph).map_err(thrown)?;
     Ok(to_json(&errors.iter().map(graphql_error_json).collect::<Vec<_>>()))
 }
@@ -327,6 +342,7 @@ pub fn get_reachable_types(document_json: &[u8]) -> JsResult<String> {
 #[wasm_bindgen]
 pub fn add_directive_on_types(args_json: &[u8]) -> JsResult<String> {
     let args: AddDirectiveOnTypesIn = from_json("args", args_json)?;
+    check_nesting_depth(&args.document_node)?;
     let excluded: IndexSet<String> = args.excluded_type_names.into_iter().collect();
     Ok(to_json(
         &fc::__internal::contracts::reachable_type_filter::add_directive_on_types(AddDirectiveOnTypesArgs {
@@ -349,7 +365,7 @@ fn tag_register_json(register: &SchemaCoordinateToTagsRegistry) -> String {
 /// `buildSchemaCoordinateTagRegister(documentNodes)` → `TagRegister`.
 #[wasm_bindgen]
 pub fn build_schema_coordinate_tag_register(document_nodes_json: &[u8]) -> JsResult<String> {
-    let documents: Vec<Document> = from_json("documentNodes", document_nodes_json)?;
+    let documents = documents("documentNodes", document_nodes_json)?;
     let refs: Vec<&Document> = documents.iter().collect();
     let register =
         fc::__internal::contracts::tag_extraction::build_schema_coordinate_tag_register(&refs).map_err(thrown)?;
@@ -396,7 +412,7 @@ pub fn apply_tag_filter_to_inaccessible_transform_on_subgraph_schema(
 /// subgraph objects.
 #[wasm_bindgen]
 pub fn apply_tag_filter_on_subgraphs(type_defs_json: &[u8], filter_json: &str) -> JsResult<String> {
-    let documents: Vec<Document> = from_json("subgraphs' typeDefs", type_defs_json)?;
+    let documents = documents("subgraphs' typeDefs", type_defs_json)?;
     let refs: Vec<&Document> = documents.iter().collect();
     let filter = tag_filter(filter_json)?;
     let results = fc::__internal::contracts::tag_extraction::apply_tag_filter_on_subgraph_type_defs(&refs, &filter)
@@ -445,7 +461,7 @@ pub fn create_schema_node(input: &str) -> JsResult<String> {
 pub fn create_object_type_node(input: &str) -> JsResult<String> {
     let input: convert::ObjectLikeIn = from_json("createObjectTypeNode", input.as_bytes())?;
     let input: core_ast::ObjectTypeAst = input.into();
-    Ok(to_json(&core_ast::create_object_type_node(input)))
+    Ok(to_json(&core_ast::create_object_type_node(input).map_err(thrown)?))
 }
 
 /// `createInterfaceTypeNode(interfaceType)` → `InterfaceTypeDefinition`.
@@ -453,7 +469,7 @@ pub fn create_object_type_node(input: &str) -> JsResult<String> {
 pub fn create_interface_type_node(input: &str) -> JsResult<String> {
     let input: convert::ObjectLikeIn = from_json("createInterfaceTypeNode", input.as_bytes())?;
     let input: core_ast::InterfaceTypeAst = input.into();
-    Ok(to_json(&core_ast::create_interface_type_node(input)))
+    Ok(to_json(&core_ast::create_interface_type_node(input).map_err(thrown)?))
 }
 
 /// `createInputObjectTypeNode(inputObjectType)` → `InputObjectTypeDefinition`.
@@ -461,7 +477,9 @@ pub fn create_interface_type_node(input: &str) -> JsResult<String> {
 pub fn create_input_object_type_node(input: &str) -> JsResult<String> {
     let input: convert::InputObjectIn = from_json("createInputObjectTypeNode", input.as_bytes())?;
     let input: core_ast::InputObjectTypeAst = input.into();
-    Ok(to_json(&core_ast::create_input_object_type_node(input)))
+    Ok(to_json(
+        &core_ast::create_input_object_type_node(input).map_err(thrown)?,
+    ))
 }
 
 /// `createUnionTypeNode(unionType)` → `UnionTypeDefinition`.

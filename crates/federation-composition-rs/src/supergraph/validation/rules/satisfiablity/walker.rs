@@ -292,6 +292,10 @@ impl<'s> Walker<'s> {
     }
 
     /// `nextStep(state, superTail, next, isEdgeIgnored)`. `next` may throw.
+    ///
+    /// NOTE(port): split in two so that [`Self::dfs_inner`] can run it one edge at a time:
+    /// [`Self::next_step_edges`] is the part before the loop over the edges, and
+    /// [`Self::next_step_edge`] one iteration of the loop, up to the `next` call.
     fn next_step(
         &self,
         state: &WalkTracker<'s>,
@@ -299,6 +303,20 @@ impl<'s> Walker<'s> {
         next: &mut dyn FnMut(WalkTracker<'s>, EdgeId) -> JsResult<()>,
         is_edge_ignored: IsEdgeIgnored<'_>,
     ) -> JsResult<()> {
+        let Some(super_edges) = self.next_step_edges(state, super_tail) else {
+            return Ok(());
+        };
+        for super_edge in super_edges {
+            if let Some(next_state) = self.next_step_edge(state, super_edge, is_edge_ignored)? {
+                next(next_state, super_edge)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// `nextStep` up to its loop: marks the graphs leading to `super_tail` as visited and returns
+    /// the edges to try, or `None` when they were visited already (the TS returns early).
+    fn next_step_edges(&self, state: &WalkTracker<'s>, super_tail: NodeId) -> Option<Vec<EdgeId>> {
         let supergraph = &*self.supergraph;
         let merged_graph = &*self.merged_graph;
 
@@ -340,136 +358,143 @@ impl<'s> Walker<'s> {
         let super_tail_node = supergraph.node(super_tail);
         if super_tail_node.is_graph_combo_visited(&graphs_leading_to_node, &state.label_values) {
             self.logger.log(|| format!("Node already visited: {}", super_tail_node));
-            return Ok(());
+            return None;
         }
 
         super_tail_node.set_graph_combo_as_visited(graphs_leading_to_node);
 
-        let super_edges = supergraph.edges_of_head(super_tail);
+        Some(supergraph.edges_of_head(super_tail))
+    }
 
-        for super_edge in super_edges {
-            if is_edge_ignored(super_edge) {
-                continue;
-            }
-            self.logger.group(|| {
-                format!(
-                    "Attempt to advance to {} ({} paths)",
-                    supergraph.edge_to_string(super_edge),
-                    state.paths.len()
-                )
-            });
+    /// One iteration of `nextStep`'s loop over the edges: the state `next` is called with, or
+    /// `None` where the TS `continue`s.
+    fn next_step_edge(
+        &self,
+        state: &WalkTracker<'s>,
+        super_edge: EdgeId,
+        is_edge_ignored: IsEdgeIgnored<'_>,
+    ) -> JsResult<Option<WalkTracker<'s>>> {
+        let supergraph = &*self.supergraph;
+        let merged_graph = &*self.merged_graph;
+        if is_edge_ignored(super_edge) {
+            return Ok(None);
+        }
+        self.logger.group(|| {
+            format!(
+                "Attempt to advance to {} ({} paths)",
+                supergraph.edge_to_string(super_edge),
+                state.paths.len()
+            )
+        });
 
-            if state.is_edge_visited(super_edge) {
-                self.logger
-                    .group_end(|| format!("Edge already visited: {}", supergraph.edge_to_string(super_edge)));
-                continue;
-            }
-
-            let se = supergraph.edge(super_edge);
-
-            if !(is_field_edge(se) || is_abstract_edge(se)) {
-                return Err(JsError::error("Expected edge to have a FieldMove or AbstractMove"));
-            }
-
-            if let Move::Field(field_move) = &se.r#move {
-                if let Some(r#override) = &field_move.r#override {
-                    if is_truthy_str(&r#override.label) {
-                        let label = r#override.label.as_deref().unwrap_or_default();
-                        let label_value = state.label_values.get(label);
-                        if label_value.is_some_and(|v| v != r#override.value) {
-                            self.logger.group_end(|| {
-                                format!(
-                                    "Different label value. Skipping {}",
-                                    supergraph.edge_to_string(super_edge)
-                                )
-                            });
-                            continue;
-                        }
-                    }
-                }
-            }
-
-            let mut next_state = state.r#move(supergraph, super_edge)?;
-            let mut shortest_path_per_tail: ShortestPaths = IndexMap::default();
-            let (target_type_name, target_field_name) = match &se.r#move {
-                Move::Field(field_move) => (field_move.type_name.as_str(), Some(field_move.field_name.as_str())),
-                _ => (supergraph.node(se.tail).type_name.as_str(), None),
-            };
-            let super_tail_is_leaf = supergraph.node(se.tail).is_leaf;
-
-            for path in &state.paths {
-                self.logger
-                    .group(|| format!("Advance path: {}", path.to_string(merged_graph)));
-
-                let direct_paths_result = self.path_finder.find_direct_paths(
-                    path,
-                    target_type_name,
-                    target_field_name,
-                    &[],
-                    &next_state.label_values,
-                )?;
-
-                let direct_success = matches!(direct_paths_result, PathFinderResult::Success { .. });
-
-                match direct_paths_result {
-                    // Special case when it's an abstract type and there are no direct paths
-                    PathFinderResult::Success { paths } if paths.is_empty() => {
-                        self.logger.group_end("Abstract type");
-                        continue;
-                    }
-                    PathFinderResult::Success { paths } => {
-                        set_shortest_path(merged_graph, &mut shortest_path_per_tail, paths);
-                    }
-                    PathFinderResult::Failure { errors } => {
-                        next_state.add_error(errors);
-                    }
-                }
-
-                if direct_success && super_tail_is_leaf {
-                    self.logger
-                        .group_end("Reached leaf node, no need to find indirect paths");
-                    break;
-                }
-
-                let indirect_paths_result = self.path_finder.find_indirect_paths(
-                    path,
-                    target_type_name,
-                    target_field_name,
-                    &[],
-                    &[],
-                    &[],
-                    &next_state.label_values,
-                )?;
-
-                let indirect_success = matches!(indirect_paths_result, PathFinderResult::Success { .. });
-
-                match indirect_paths_result {
-                    PathFinderResult::Success { paths } => {
-                        set_shortest_path(merged_graph, &mut shortest_path_per_tail, paths);
-                    }
-                    PathFinderResult::Failure { errors } => {
-                        next_state.add_error(errors);
-                    }
-                }
-                self.logger.group_end(|| {
-                    if direct_success || indirect_success {
-                        "Can advance".to_string()
-                    } else {
-                        "Cannot advance".to_string()
-                    }
-                });
-            }
-
-            // PERF: the map is not used afterwards, so its paths move into the state.
-            for paths_by_contexts in shortest_path_per_tail.into_values() {
-                for shortest_path in paths_by_contexts.into_values() {
-                    next_state.add_path(shortest_path);
-                }
-            }
-            next(next_state, super_edge)?;
+        if state.is_edge_visited(super_edge) {
+            self.logger
+                .group_end(|| format!("Edge already visited: {}", supergraph.edge_to_string(super_edge)));
+            return Ok(None);
         }
 
-        Ok(())
+        let se = supergraph.edge(super_edge);
+
+        if !(is_field_edge(se) || is_abstract_edge(se)) {
+            return Err(JsError::error("Expected edge to have a FieldMove or AbstractMove"));
+        }
+
+        if let Move::Field(field_move) = &se.r#move {
+            if let Some(r#override) = &field_move.r#override {
+                if is_truthy_str(&r#override.label) {
+                    let label = r#override.label.as_deref().unwrap_or_default();
+                    let label_value = state.label_values.get(label);
+                    if label_value.is_some_and(|v| v != r#override.value) {
+                        self.logger.group_end(|| {
+                            format!(
+                                "Different label value. Skipping {}",
+                                supergraph.edge_to_string(super_edge)
+                            )
+                        });
+                        return Ok(None);
+                    }
+                }
+            }
+        }
+
+        let mut next_state = state.r#move(supergraph, super_edge)?;
+        let mut shortest_path_per_tail: ShortestPaths = IndexMap::default();
+        let (target_type_name, target_field_name) = match &se.r#move {
+            Move::Field(field_move) => (field_move.type_name.as_str(), Some(field_move.field_name.as_str())),
+            _ => (supergraph.node(se.tail).type_name.as_str(), None),
+        };
+        let super_tail_is_leaf = supergraph.node(se.tail).is_leaf;
+
+        for path in &state.paths {
+            self.logger
+                .group(|| format!("Advance path: {}", path.to_string(merged_graph)));
+
+            let direct_paths_result = self.path_finder.find_direct_paths(
+                path,
+                target_type_name,
+                target_field_name,
+                &[],
+                &next_state.label_values,
+            )?;
+
+            let direct_success = matches!(direct_paths_result, PathFinderResult::Success { .. });
+
+            match direct_paths_result {
+                // Special case when it's an abstract type and there are no direct paths
+                PathFinderResult::Success { paths } if paths.is_empty() => {
+                    self.logger.group_end("Abstract type");
+                    continue;
+                }
+                PathFinderResult::Success { paths } => {
+                    set_shortest_path(merged_graph, &mut shortest_path_per_tail, paths);
+                }
+                PathFinderResult::Failure { errors } => {
+                    next_state.add_error(errors);
+                }
+            }
+
+            if direct_success && super_tail_is_leaf {
+                self.logger
+                    .group_end("Reached leaf node, no need to find indirect paths");
+                break;
+            }
+
+            let indirect_paths_result = self.path_finder.find_indirect_paths(
+                path,
+                target_type_name,
+                target_field_name,
+                &[],
+                &[],
+                &[],
+                &next_state.label_values,
+            )?;
+
+            let indirect_success = matches!(indirect_paths_result, PathFinderResult::Success { .. });
+
+            match indirect_paths_result {
+                PathFinderResult::Success { paths } => {
+                    set_shortest_path(merged_graph, &mut shortest_path_per_tail, paths);
+                }
+                PathFinderResult::Failure { errors } => {
+                    next_state.add_error(errors);
+                }
+            }
+            self.logger.group_end(|| {
+                if direct_success || indirect_success {
+                    "Can advance".to_string()
+                } else {
+                    "Cannot advance".to_string()
+                }
+            });
+        }
+
+        // PERF: the map is not used afterwards, so its paths move into the state.
+        for paths_by_contexts in shortest_path_per_tail.into_values() {
+            for shortest_path in paths_by_contexts.into_values() {
+                next_state.add_path(shortest_path);
+            }
+        }
+        Ok(Some(next_state))
     }
 
     fn dfs(&self) -> JsResult<Vec<WalkTracker<'s>>> {
@@ -492,47 +517,68 @@ impl<'s> Walker<'s> {
         Ok(unreachable)
     }
 
+    /// `dfsInner(superTail, state)`.
+    ///
+    /// NOTE(port): the TS recurses once per edge of the supergraph path (`dfsInner` calls
+    /// `nextStep`, whose callback calls `dfsInner`), so a schema with long chains of types would
+    /// overflow the stack. This runs the same depth-first walk with an explicit stack of the
+    /// pending `nextStep` loops: each frame is a call of `dfsInner` that is iterating over its
+    /// edges, and the work happens in the same order as the recursion.
     fn dfs_inner(
         &self,
         super_tail: NodeId,
         state: WalkTracker<'s>,
         unreachable: &mut Vec<WalkTracker<'s>>,
     ) -> JsResult<()> {
-        if self.supergraph.node(super_tail).is_leaf {
-            return Ok(());
-        }
-
         let supergraph = &*self.supergraph;
-        self.next_step(
-            &state,
-            super_tail,
-            &mut |next_state, super_edge| {
-                if next_state.is_possible() {
-                    self.logger.group_end(|| {
-                        format!(
-                            "Advanced to {} with {} paths",
-                            supergraph.edge_to_string(super_edge),
-                            next_state.paths.len()
-                        )
-                    });
-                    self.dfs_inner(supergraph.edge(super_edge).tail, next_state, unreachable)?;
-                } else if next_state.gives_empty_result(supergraph) {
-                    self.logger.group_end(|| {
-                        format!(
-                            "Federation will resolve an empty object for {}",
-                            supergraph.edge_to_string(super_edge)
-                        )
-                    });
-                } else {
-                    self.logger.log("Dead end");
-                    self.logger
-                        .group_end(|| format!("Unreachable path {}", next_state.super_path.to_string(supergraph)));
-                    unreachable.push(next_state);
-                }
-                Ok(())
-            },
-            &default_is_edge_ignored,
-        )
+        let mut stack: Vec<DfsFrame<'s>> = Vec::new();
+        stack.extend(self.dfs_enter(super_tail, state));
+        while let Some(frame) = stack.last_mut() {
+            let Some(super_edge) = frame.super_edges.next() else {
+                stack.pop();
+                continue;
+            };
+            let Some(next_state) = self.next_step_edge(&frame.state, super_edge, &default_is_edge_ignored)? else {
+                continue;
+            };
+            // The `nextStep` callback of `dfsInner`.
+            if next_state.is_possible() {
+                self.logger.group_end(|| {
+                    format!(
+                        "Advanced to {} with {} paths",
+                        supergraph.edge_to_string(super_edge),
+                        next_state.paths.len()
+                    )
+                });
+                stack.extend(self.dfs_enter(supergraph.edge(super_edge).tail, next_state));
+            } else if next_state.gives_empty_result(supergraph) {
+                self.logger.group_end(|| {
+                    format!(
+                        "Federation will resolve an empty object for {}",
+                        supergraph.edge_to_string(super_edge)
+                    )
+                });
+            } else {
+                self.logger.log("Dead end");
+                self.logger
+                    .group_end(|| format!("Unreachable path {}", next_state.super_path.to_string(supergraph)));
+                unreachable.push(next_state);
+            }
+        }
+        Ok(())
+    }
+
+    /// A `dfsInner(superTail, state)` call up to `nextStep`'s loop over the edges: `None` when it
+    /// returns before the loop (a leaf, or graphs that visited the node already).
+    fn dfs_enter(&self, super_tail: NodeId, state: WalkTracker<'s>) -> Option<DfsFrame<'s>> {
+        if self.supergraph.node(super_tail).is_leaf {
+            return None;
+        }
+        let super_edges = self.next_step_edges(&state, super_tail)?;
+        Some(DfsFrame {
+            state,
+            super_edges: super_edges.into_iter(),
+        })
     }
 
     fn bfs(&self) -> JsResult<Vec<WalkTracker<'s>>> {
@@ -590,6 +636,13 @@ impl<'s> Walker<'s> {
 
         Ok(unreachable)
     }
+}
+
+/// A call of `dfsInner` in [`Walker::dfs_inner`]'s explicit stack: the state it was given and
+/// the edges its `nextStep` loop has not tried yet.
+struct DfsFrame<'s> {
+    state: WalkTracker<'s>,
+    super_edges: std::vec::IntoIter<EdgeId>,
 }
 
 /// `setShortestPath(shortestPathPerTail, paths)`. Paths reaching the same node are

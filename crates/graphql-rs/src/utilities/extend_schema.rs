@@ -384,15 +384,18 @@ fn build_directive(
     GraphQLDirective::new(GraphQLDirectiveConfig {
         name: node.name.value.clone(),
         description: node.description.as_ref().map(|d| d.value.clone()),
+        // NOTE(port): graphql-js keeps the location names as strings. The parser accepts only
+        // directive locations, but a document built in code (or deserialized) can name anything;
+        // that is an error here, where graphql-js would build a directive with that location.
         locations: node
             .locations
             .iter()
             .map(|name| {
                 name.value
                     .parse::<DirectiveLocation>()
-                    .expect("the parser accepts only directive locations")
+                    .map_err(|_| GraphQLError::new(format!("Unexpected directive location \"{}\".", name.value)))
             })
-            .collect(),
+            .collect::<Result<_, _>>()?,
         is_repeatable: node.repeatable,
         args,
         deprecation_reason,

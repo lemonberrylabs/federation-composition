@@ -568,16 +568,29 @@ struct CycleReporter<'r, 's> {
 }
 
 impl<'s> CycleReporter<'_, 's> {
+    /// NOTE(port): graphql-js's `reportCycleRecursive` recurses once per input object on the
+    /// path, so a long chain of input objects would overflow the stack. This runs the same
+    /// depth-first search with an explicit stack: each frame is a call that is iterating over its
+    /// targets, and the work happens in the order of the recursion.
     fn report_cycle_recursive(&mut self, index: usize) {
-        let state = &self.states[index];
-        let input_obj = state.input_obj;
-        let name = input_obj.name.as_str();
-        if self.visited_types.contains(name) {
-            return;
+        // (state index, next target, whether the caller pushed onto `field_path` for this call)
+        let mut stack: Vec<(usize, usize, bool)> = Vec::new();
+        if self.enter(index) {
+            stack.push((index, 0, false));
         }
-        self.visited_types.insert(name);
-        self.field_path_index_by_type.insert(name, self.field_path.len());
-        for &(field_name, target) in &state.targets {
+        while let Some(&mut (index, ref mut next_target, _)) = stack.last_mut() {
+            let state = &self.states[index];
+            let name = state.input_obj.name.as_str();
+            let Some(&(field_name, target)) = state.targets.get(*next_target) else {
+                self.field_path_index_by_type.shift_remove(name);
+                if let Some((_, _, pushed_field_path)) = stack.pop() {
+                    if pushed_field_path {
+                        self.field_path.pop();
+                    }
+                }
+                continue;
+            };
+            *next_target += 1;
             let Some(target_index) = self.states.get_index_of(target) else {
                 continue;
             };
@@ -587,7 +600,12 @@ impl<'s> CycleReporter<'_, 's> {
             let cycle_index = self.field_path_index_by_type.get(target).copied();
             self.field_path.push(format!("{name}.{field_name}"));
             match cycle_index {
-                None => self.report_cycle_recursive(target_index),
+                None => {
+                    if self.enter(target_index) {
+                        stack.push((target_index, 0, true));
+                        continue;
+                    }
+                }
                 Some(cycle_index) => {
                     let path_str = self.field_path[cycle_index..].join(", ");
                     self.errors.push(format!(
@@ -597,7 +615,18 @@ impl<'s> CycleReporter<'_, 's> {
             }
             self.field_path.pop();
         }
-        self.field_path_index_by_type.shift_remove(name);
+    }
+
+    /// The start of a `reportCycleRecursive(index)` call, before its loop: `false` when it returns
+    /// right away (the input object was visited).
+    fn enter(&mut self, index: usize) -> bool {
+        let name = self.states[index].input_obj.name.as_str();
+        if self.visited_types.contains(name) {
+            return false;
+        }
+        self.visited_types.insert(name);
+        self.field_path_index_by_type.insert(name, self.field_path.len());
+        true
     }
 }
 
@@ -643,8 +672,35 @@ struct InputObjectDefaultValueCircularRefsValidator {
 }
 
 impl InputObjectDefaultValueCircularRefsValidator {
+    /// NOTE(port): graphql-js's `detectValueDefaultValueCycle`, `detectLiteralDefaultValueCycle`
+    /// and `detectFieldDefaultValueCycle` call each other recursively, once per input object a
+    /// default value reaches, so a long chain of input objects would overflow the stack. They run
+    /// here as [`DefaultValueCycleStep`]s on an explicit stack, in the order of the recursion: a
+    /// call's own work happens when its step is popped, and the calls it makes are pushed in
+    /// reverse so that the first one runs first.
     fn validate(&mut self, context: &mut SchemaValidationContext<'_>, input_obj: &GraphQLInputObjectType) {
-        self.detect_value_default_value_cycle(context, input_obj, &JsValue::Object(IndexMap::default()));
+        let empty_object = JsValue::Object(IndexMap::default());
+        let mut stack = vec![DefaultValueCycleStep::Value(input_obj, &empty_object)];
+        while let Some(step) = stack.pop() {
+            let start = stack.len();
+            match step {
+                DefaultValueCycleStep::Value(input_obj, default_value) => {
+                    Self::detect_value_default_value_cycle(context, input_obj, default_value, &mut stack)
+                }
+                DefaultValueCycleStep::Literal(input_obj, default_value) => {
+                    Self::detect_literal_default_value_cycle(context, input_obj, default_value, &mut stack)
+                }
+                DefaultValueCycleStep::Field(field, field_type, field_str) => {
+                    self.detect_field_default_value_cycle(context, field, field_type, field_str, &mut stack)
+                }
+                DefaultValueCycleStep::Leave(field_str) => {
+                    self.field_path.pop();
+                    // `fieldPathIndex[fieldStr] = undefined`.
+                    self.field_path_index.shift_remove(&field_str);
+                }
+            }
+            stack[start..].reverse();
+        }
     }
 
     fn input_object_of<'s>(
@@ -657,16 +713,18 @@ impl InputObjectDefaultValueCircularRefsValidator {
         }
     }
 
-    fn detect_value_default_value_cycle(
-        &mut self,
-        context: &mut SchemaValidationContext<'_>,
-        input_obj: &GraphQLInputObjectType,
-        default_value: &JsValue,
+    /// `detectValueDefaultValueCycle(inputObj, defaultValue)`: pushes the calls it makes, in call
+    /// order.
+    fn detect_value_default_value_cycle<'s: 'v, 'v>(
+        context: &SchemaValidationContext<'s>,
+        input_obj: &'v GraphQLInputObjectType,
+        default_value: &'v JsValue,
+        calls: &mut Vec<DefaultValueCycleStep<'v>>,
     ) {
         let object = match default_value {
             JsValue::List(items) => {
                 for item_value in items {
-                    self.detect_value_default_value_cycle(context, input_obj, item_value);
+                    calls.push(DefaultValueCycleStep::Value(input_obj, item_value));
                 }
                 return;
             }
@@ -677,28 +735,27 @@ impl InputObjectDefaultValueCircularRefsValidator {
             let Some(named_field_type) = Self::input_object_of(context, &field.ty) else {
                 continue;
             };
-            match object.get(&field.name) {
-                Some(field_value) => self.detect_value_default_value_cycle(context, named_field_type, field_value),
-                None => self.detect_field_default_value_cycle(
-                    context,
-                    field,
-                    named_field_type,
-                    format!("{}.{}", input_obj.name, field.name),
-                ),
-            }
+            calls.push(match object.get(&field.name) {
+                Some(field_value) => DefaultValueCycleStep::Value(named_field_type, field_value),
+                None => {
+                    DefaultValueCycleStep::Field(field, named_field_type, format!("{}.{}", input_obj.name, field.name))
+                }
+            });
         }
     }
 
-    fn detect_literal_default_value_cycle(
-        &mut self,
-        context: &mut SchemaValidationContext<'_>,
-        input_obj: &GraphQLInputObjectType,
-        default_value: &Value,
+    /// `detectLiteralDefaultValueCycle(inputObj, defaultValue)`: pushes the calls it makes, in
+    /// call order.
+    fn detect_literal_default_value_cycle<'s: 'v, 'v>(
+        context: &SchemaValidationContext<'s>,
+        input_obj: &'v GraphQLInputObjectType,
+        default_value: &'v Value,
+        calls: &mut Vec<DefaultValueCycleStep<'v>>,
     ) {
         let object = match default_value {
             Value::List(list) => {
                 for item_literal in &list.values {
-                    self.detect_literal_default_value_cycle(context, input_obj, item_literal);
+                    calls.push(DefaultValueCycleStep::Literal(input_obj, item_literal));
                 }
                 return;
             }
@@ -714,26 +771,24 @@ impl InputObjectDefaultValueCircularRefsValidator {
             let Some(named_field_type) = Self::input_object_of(context, &field.ty) else {
                 continue;
             };
-            match field_nodes.get(field.name.as_str()) {
-                Some(field_node) => {
-                    self.detect_literal_default_value_cycle(context, named_field_type, &field_node.value)
+            calls.push(match field_nodes.get(field.name.as_str()) {
+                Some(field_node) => DefaultValueCycleStep::Literal(named_field_type, &field_node.value),
+                None => {
+                    DefaultValueCycleStep::Field(field, named_field_type, format!("{}.{}", input_obj.name, field.name))
                 }
-                None => self.detect_field_default_value_cycle(
-                    context,
-                    field,
-                    named_field_type,
-                    format!("{}.{}", input_obj.name, field.name),
-                ),
-            }
+            });
         }
     }
 
-    fn detect_field_default_value_cycle(
+    /// `detectFieldDefaultValueCycle(field, fieldType, fieldStr)`: pushes the call it makes and
+    /// then the [`DefaultValueCycleStep::Leave`] that runs the code after it.
+    fn detect_field_default_value_cycle<'v>(
         &mut self,
         context: &mut SchemaValidationContext<'_>,
-        field: &super::definition::GraphQLInputField,
-        field_type: &GraphQLInputObjectType,
+        field: &'v super::definition::GraphQLInputField,
+        field_type: &'v GraphQLInputObjectType,
         field_str: String,
+        calls: &mut Vec<DefaultValueCycleStep<'v>>,
     ) {
         let Some(default_input) = &field.default else {
             return;
@@ -756,13 +811,27 @@ impl InputObjectDefaultValueCircularRefsValidator {
             self.visited_fields.insert(field_str.clone());
             self.field_path.push(field_str.clone());
             self.field_path_index.insert(field_str.clone(), self.field_path.len());
-            match default_input {
-                DefaultInput::Literal(literal) => self.detect_literal_default_value_cycle(context, field_type, literal),
-                DefaultInput::Value(value) => self.detect_value_default_value_cycle(context, field_type, value),
-            }
-            self.field_path.pop();
-            // `fieldPathIndex[fieldStr] = undefined`.
-            self.field_path_index.shift_remove(&field_str);
+            calls.push(match default_input {
+                DefaultInput::Literal(literal) => DefaultValueCycleStep::Literal(field_type, literal),
+                DefaultInput::Value(value) => DefaultValueCycleStep::Value(field_type, value),
+            });
+            calls.push(DefaultValueCycleStep::Leave(field_str));
         }
     }
+}
+
+/// A call of [`InputObjectDefaultValueCircularRefsValidator::validate`]'s explicit stack.
+enum DefaultValueCycleStep<'v> {
+    /// `detectValueDefaultValueCycle(inputObj, defaultValue)`.
+    Value(&'v GraphQLInputObjectType, &'v JsValue),
+    /// `detectLiteralDefaultValueCycle(inputObj, defaultValue)`.
+    Literal(&'v GraphQLInputObjectType, &'v Value),
+    /// `detectFieldDefaultValueCycle(field, fieldType, fieldStr)`.
+    Field(
+        &'v super::definition::GraphQLInputField,
+        &'v GraphQLInputObjectType,
+        String,
+    ),
+    /// The end of `detectFieldDefaultValueCycle`, after its call returned.
+    Leave(String),
 }

@@ -134,17 +134,83 @@ impl From<ThrownError> for JsValue {
 
 pub(crate) type JsResult<T> = Result<T, JsValue>;
 
+/// The deepest nesting of arrays and objects a JSON argument may have: enough for a document at
+/// the parser's nesting limit (`graphql_rs::MAX_NESTING_DEPTH`), whose deepest levels (object
+/// values and selection sets) take three JSON levels each, inside the arguments' own structure.
+/// serde_json's default limit, 128 JSON levels, would reject documents graphql-js and the Rust
+/// parser accept (a list value 60 levels deep).
+pub(crate) const MAX_JSON_DEPTH: usize = 3 * graphql_rs::MAX_NESTING_DEPTH + 64;
+
 /// Parses a JSON argument sent by the shim, either a string (`json.as_bytes()`) or the UTF-8
 /// bytes of one (`encodeJSON` in the shim, for documents).
+///
+/// An argument nested deeper than [`MAX_JSON_DEPTH`] is an `Error`, found before parsing (which
+/// recurses once per level), and the parser's own recursion limit is off.
 pub(crate) fn from_json<T: serde::de::DeserializeOwned>(what: &str, json: &[u8]) -> JsResult<T> {
+    let invalid = |e: &dyn std::fmt::Display| -> JsValue {
+        ThrownError::error(format!("composition-wasm: invalid {what} argument: {e}")).into()
+    };
+    if json_depth_exceeds(json, MAX_JSON_DEPTH) {
+        return Err(invalid(&format_args!("nested deeper than {MAX_JSON_DEPTH} levels")));
+    }
     // Checking the whole input once and parsing a `&str` is faster than `from_slice`, which
     // checks every string it reads (~5% of a large document's parse). Invalid UTF-8 (which
     // `TextEncoder` never produces) still goes through `from_slice`, which reports where it is.
     let parsed = match std::str::from_utf8(json) {
-        Ok(json) => serde_json::from_str(json),
-        Err(_) => serde_json::from_slice(json),
+        Ok(json) => deserialize(serde_json::Deserializer::from_str(json)),
+        Err(_) => deserialize(serde_json::Deserializer::from_slice(json)),
     };
-    parsed.map_err(|e| ThrownError::error(format!("composition-wasm: invalid {what} argument: {e}")).into())
+    parsed.map_err(|e| invalid(&e))
+}
+
+/// `serde_json::from_str` without its recursion limit ([`from_json`] has checked the depth).
+fn deserialize<'de, R: serde_json::de::Read<'de>, T: serde::de::DeserializeOwned>(
+    mut deserializer: serde_json::Deserializer<R>,
+) -> serde_json::Result<T> {
+    deserializer.disable_recursion_limit();
+    let value = T::deserialize(&mut deserializer)?;
+    deserializer.end()?;
+    Ok(value)
+}
+
+/// Whether arrays and objects nest deeper than `max_depth` in `json` (brackets in strings do not
+/// count). Malformed JSON is left for the parser to report.
+fn json_depth_exceeds(json: &[u8], max_depth: usize) -> bool {
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for &byte in json {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match byte {
+            b'"' => in_string = true,
+            b'[' | b'{' => {
+                depth += 1;
+                if depth > max_depth {
+                    return true;
+                }
+            }
+            b']' | b'}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Rejects a document nested deeper than the parser allows, as the library's public functions
+/// do (`graphql_rs::check_nesting_depth`), before the binding recurses into it. Within
+/// [`MAX_JSON_DEPTH`] a document can be up to that many levels deep.
+pub(crate) fn check_nesting_depth(document: &graphql_rs::Document) -> JsResult<()> {
+    graphql_rs::check_nesting_depth(document, graphql_rs::MAX_NESTING_DEPTH)
+        .map_err(|error| ThrownError::graphql(error).into())
 }
 
 /// Serializes a result for the shim.

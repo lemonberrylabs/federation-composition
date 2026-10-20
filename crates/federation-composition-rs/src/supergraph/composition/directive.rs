@@ -107,7 +107,7 @@ impl TypeBuilder<Directive, DirectiveState> for DirectiveBuilder {
         _graphs: &SubgraphStates,
         _helpers: ComposeHelpers<'_>,
     ) -> JsResult<Definition> {
-        Ok(Definition::DirectiveDefinition(create_directive_node(DirectiveAst {
+        create_directive_node(DirectiveAst {
             name: directive.name.clone(),
             locations: directive.locations.iter().cloned().collect(),
             repeatable: directive.repeatable,
@@ -127,7 +127,8 @@ impl TypeBuilder<Directive, DirectiveState> for DirectiveBuilder {
                 })
                 .collect(),
             ..Default::default()
-        })))
+        })
+        .map(Definition::DirectiveDefinition)
     }
 }
 

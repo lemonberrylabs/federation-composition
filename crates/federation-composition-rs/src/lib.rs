@@ -63,6 +63,7 @@ pub use compose::{
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn compose_services(services: &[ServiceDefinition]) -> Result<CompositionResult, Error> {
+    check_services(services)?;
     Ok(compose::compose_services(services, None)?)
 }
 
@@ -89,6 +90,7 @@ pub use validate::{ValidationResult, ValidationSuccess};
 ///
 /// `Err` where upstream throws, as for [`compose_services`].
 pub fn validate(subgraphs: &[ServiceDefinition]) -> Result<ValidationResult, Error> {
+    check_services(subgraphs)?;
     Ok(validate::validate(subgraphs, None)?)
 }
 
@@ -98,6 +100,7 @@ pub fn validate(subgraphs: &[ServiceDefinition]) -> Result<ValidationResult, Err
 ///
 /// `Err` where upstream throws.
 pub fn validate_subgraph(subgraph: &ServiceDefinition) -> Result<Vec<GraphQLError>, Error> {
+    check_nesting_depth(&subgraph.type_defs)?;
     Ok(validate::validate_subgraph(subgraph)?)
 }
 
@@ -131,6 +134,7 @@ pub use utils::link::{
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn extract_link_implementations(type_defs: &graphql_rs::Document) -> Result<LinkImplementations, Error> {
+    check_nesting_depth(type_defs)?;
     utils::link::extract_link_implementations(type_defs)
 }
 
@@ -139,6 +143,7 @@ pub fn extract_link_implementations(type_defs: &graphql_rs::Document) -> Result<
 ///
 /// `Err` where upstream throws (an invalid `@link` in the supergraph).
 pub fn transform_supergraph_to_public_schema(supergraph: &graphql_rs::Document) -> Result<graphql_rs::Document, Error> {
+    check_nesting_depth(supergraph)?;
     Ok(graphql::transform_supergraph_to_public_schema::transform_supergraph_to_public_schema(supergraph)?)
 }
 
@@ -150,6 +155,7 @@ pub use graphql::contains_supergraph_spec::contains_supergraph_spec;
 /// `Err` where upstream throws: a syntax error in the `fields` of a `@requires` or
 /// `@provides`.
 pub fn sort_sdl(doc: &graphql_rs::Document) -> Result<graphql_rs::Document, Error> {
+    check_nesting_depth(doc)?;
     Ok(graphql::sort_sdl::sort_sdl(doc)?)
 }
 
@@ -166,6 +172,7 @@ pub fn compose_schema_contract(
     tag_filter: &SchemaContractFilter,
     remove_unreachable_types: bool,
 ) -> Result<CompositionResult, Error> {
+    check_services(services)?;
     Ok(contracts::schema_contract::compose_schema_contract(
         services,
         tag_filter,
@@ -183,6 +190,7 @@ pub fn add_inaccessible_to_unreachable_types(
     resolve_name: &dyn Fn(&str, &str) -> String,
     composition_result: &CompositionSuccess,
 ) -> Result<CompositionSuccess, Error> {
+    check_nesting_depth(composition_result.supergraph_document_node())?;
     Ok(
         contracts::add_inaccessible_to_unreachable_types::add_inaccessible_to_unreachable_types(
             resolve_name,
@@ -199,9 +207,26 @@ pub fn apply_tag_filter_on_subgraphs(
     subgraphs: &[ServiceDefinition],
     filter: &SchemaContractFilter,
 ) -> Result<Vec<ServiceDefinition>, Error> {
+    check_services(subgraphs)?;
     Ok(contracts::tag_extraction::apply_tag_filter_on_subgraphs(
         subgraphs, filter,
     )?)
+}
+
+/// Not in upstream: the functions above that take documents reject one that nests deeper than
+/// the parser allows ([`graphql_rs::MAX_NESTING_DEPTH`]), which only a document built in code or
+/// deserialized can, before they recurse into it (see SECURITY.md, "Input limits"). The `Err` is
+/// a [`GraphQLError`] with the message `AST nesting depth exceeds 128.`
+pub(crate) fn check_nesting_depth(document: &graphql_rs::Document) -> Result<(), Error> {
+    graphql_rs::check_nesting_depth(document, graphql_rs::MAX_NESTING_DEPTH)
+        .map_err(|error| Error::from(utils::js::JsError::GraphQL(error)))
+}
+
+/// [`check_nesting_depth`] for each subgraph's type definitions.
+fn check_services(services: &[ServiceDefinition]) -> Result<(), Error> {
+    services
+        .iter()
+        .try_for_each(|service| check_nesting_depth(&service.type_defs))
 }
 
 /// Internals for this repository's test suite and WebAssembly bindings. **Not part of the

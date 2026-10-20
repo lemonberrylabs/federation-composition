@@ -1474,39 +1474,151 @@ impl<'s> Graph<'s> {
         Ok(false)
     }
 
+    /// `createNodesAndEdgesForType(typeName)`.
+    ///
+    /// NOTE(port): in the TS, creating the node of a type creates the nodes of its fields' output
+    /// types (and of union members and interface implementations) recursively, before adding the
+    /// edge to each, so long chains of types would overflow the stack. The `create*` functions
+    /// here run the same calls in the same order with an explicit stack ([`CreateFrame`]): each
+    /// function's code before its loop is `create_*_start`, one iteration of its loop is
+    /// [`Self::create_step`], and a recursive call is a new frame.
     fn create_nodes_and_edges_for_type(&mut self, type_name: &str) -> JsResult<NodeId> {
+        let started = self.create_start(type_name)?;
+        self.run_create(started)
+    }
+
+    /// `createNodesAndEdgesForType(typeName)` up to its first recursive call.
+    fn create_start(&mut self, type_name: &str) -> JsResult<CreateStarted<'s>> {
         // PERF: every branch below starts with `ensureNonOrSingleNode(typeName)` and returns the
         // existing node (or throws) when there is one, and a node only exists for a type of one
         // of these kinds, so checking first skips the type-state lookups for known types.
         if let Some(existing) = self.ensure_non_or_single_node(type_name)? {
-            return Ok(existing);
+            return Ok(CreateStarted::Done(existing));
         }
 
         let state = self.supergraph_state;
 
         if let Some(type_state) = state.object_types.get(type_name) {
-            return self.create_nodes_and_edges_for_object_type(type_state);
+            return self.create_object_type_start(type_state);
         }
 
         if is_specified_scalar_type(type_name) || state.scalar_types.contains_key(type_name) {
-            return self.create_node_for_scalar_type(type_name);
+            return self.create_node_for_scalar_type(type_name).map(CreateStarted::Done);
         }
 
         if let Some(type_state) = state.enum_types.get(type_name) {
-            return self.create_node_for_enum_type(type_state);
+            return self.create_node_for_enum_type(type_state).map(CreateStarted::Done);
         }
 
         if let Some(type_state) = state.union_types.get(type_name) {
-            return self.create_node_for_union_type(type_state);
+            return self.create_union_type_start(type_state);
         }
 
         if let Some(type_state) = state.interface_types.get(type_name) {
-            return self.create_node_for_interface_type(type_state);
+            return self.create_interface_type_start(type_state);
         }
 
         Err(JsError::error(format!(
             "Not implemented path: createNodesAndEdgesForType({type_name})"
         )))
+    }
+
+    /// Runs a started `create*` call and the calls it makes to completion: the node it returns.
+    fn run_create(&mut self, started: CreateStarted<'s>) -> JsResult<NodeId> {
+        let mut stack = match started {
+            CreateStarted::Done(node) => return Ok(node),
+            CreateStarted::Frame(frame) => vec![frame],
+        };
+        // The node the call that just finished returned, for the frame that made it.
+        let mut tail: Option<NodeId> = None;
+        while let Some(frame) = stack.last_mut() {
+            match self.create_step(frame, tail.take())? {
+                CreateStep::Create(type_name) => match self.create_start(&type_name)? {
+                    CreateStarted::Done(node) => tail = Some(node),
+                    CreateStarted::Frame(frame) => stack.push(frame),
+                },
+                CreateStep::Done(head) => {
+                    stack.pop();
+                    tail = Some(head);
+                }
+            }
+        }
+        Ok(tail.expect("the last frame to finish returned its node"))
+    }
+
+    /// Resumes `frame` with the node its pending call returned (`tail`), and runs its loop until
+    /// it needs another type's node or returns.
+    fn create_step(&mut self, frame: &mut CreateFrame<'s>, tail: Option<NodeId>) -> JsResult<CreateStep> {
+        let head = frame.head;
+        if let Some(pending) = frame.pending.take() {
+            let tail = tail.expect("a frame waiting for a node is resumed with it");
+            match pending {
+                PendingEdge::Abstract => {
+                    // TODO: if it's inaccessible and this.ignoreInaccessible is true, we should not add the edge
+                    self.add_edge(Edge::new(head, Move::Abstract(AbstractMove::new(None)), tail));
+                }
+                PendingEdge::ObjectField(field, output_type_name) => {
+                    self.end_edge_for_object_type_field(head, field, &output_type_name, tail)?;
+                }
+                PendingEdge::InterfaceField(field, output_type_name) => {
+                    self.end_edge_for_interface_type_field(head, field, &output_type_name, tail)?;
+                }
+            }
+        }
+        match &mut frame.kind {
+            CreateFrameKind::Object { type_state, next_field } => {
+                let type_state: &'s ObjectTypeState = type_state;
+                while let Some((_, field)) = type_state.fields.get_index(*next_field) {
+                    *next_field += 1;
+                    if self.true_or_if_subgraph_then(|| field.by_graph.contains_key(&self.id_str)) {
+                        if let Some(output_type_name) = self.begin_edge_for_object_type_field(field) {
+                            frame.pending = Some(PendingEdge::ObjectField(field, output_type_name.clone()));
+                            return Ok(CreateStep::Create(output_type_name));
+                        }
+                    }
+                }
+            }
+            CreateFrameKind::Union { members, next_member } => {
+                if let Some(member_type_name) = members.and_then(|members| members.get_index(*next_member)) {
+                    *next_member += 1;
+                    frame.pending = Some(PendingEdge::Abstract);
+                    return Ok(CreateStep::Create(member_type_name.clone()));
+                }
+            }
+            CreateFrameKind::Interface {
+                type_state,
+                implemented_by,
+                next_member,
+                next_field,
+            } => {
+                let type_state: &'s InterfaceTypeState = type_state;
+                if let Some(member_type_name) = implemented_by.and_then(|members| members.get_index(*next_member)) {
+                    *next_member += 1;
+                    frame.pending = Some(PendingEdge::Abstract);
+                    return Ok(CreateStep::Create(member_type_name.clone()));
+                }
+                while let Some((_, field)) = type_state.fields.get_index(*next_field) {
+                    *next_field += 1;
+                    let adds_field = if type_state.has_interface_object && self.is_subgraph {
+                        // We need to add fields of interface types with @interfaceObject
+                        // but only add fields that are owned by the subgraph.
+                        field.by_graph.contains_key(&self.id_str)
+                    } else if self.is_subgraph {
+                        // We're adding just leafs
+                        field.is_leaf && field.by_graph.contains_key(&self.id_str)
+                    } else {
+                        false
+                    };
+                    if adds_field {
+                        if let Some(output_type_name) = self.begin_edge_for_interface_type_field(field) {
+                            frame.pending = Some(PendingEdge::InterfaceField(field, output_type_name.clone()));
+                            return Ok(CreateStep::Create(output_type_name));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(CreateStep::Done(head))
     }
 
     fn ensure_non_or_single_node(&self, type_name: &str) -> JsResult<Option<NodeId>> {
@@ -1524,20 +1636,21 @@ impl<'s> Graph<'s> {
         Ok(Some(NodeId(indexes[0])))
     }
 
-    fn create_nodes_and_edges_for_object_type(&mut self, type_state: &'s ObjectTypeState) -> JsResult<NodeId> {
+    /// `createNodesAndEdgesForObjectType(typeState)` up to its loop over the fields.
+    fn create_object_type_start(&mut self, type_state: &'s ObjectTypeState) -> JsResult<CreateStarted<'s>> {
         if let Some(existing) = self.ensure_non_or_single_node(&type_state.name)? {
-            return Ok(existing);
+            return Ok(CreateStarted::Done(existing));
         }
 
         let head = self.create_type_node(&type_state.name, Some(NodeTypeState::Object(type_state)))?;
 
-        for field in type_state.fields.values() {
-            if self.true_or_if_subgraph_then(|| field.by_graph.contains_key(&self.id_str)) {
-                self.create_edge_for_object_type_field(head, field)?;
-            }
-        }
-
-        Ok(head)
+        Ok(CreateStarted::Frame(CreateFrame::new(
+            head,
+            CreateFrameKind::Object {
+                type_state,
+                next_field: 0,
+            },
+        )))
     }
 
     fn create_node_for_scalar_type(&mut self, type_name: &str) -> JsResult<NodeId> {
@@ -1558,8 +1671,14 @@ impl<'s> Graph<'s> {
     }
 
     fn create_node_for_union_type(&mut self, type_state: &'s UnionTypeState) -> JsResult<NodeId> {
+        let started = self.create_union_type_start(type_state)?;
+        self.run_create(started)
+    }
+
+    /// `createNodeForUnionType(typeState)` up to its loop over the members.
+    fn create_union_type_start(&mut self, type_state: &'s UnionTypeState) -> JsResult<CreateStarted<'s>> {
         if let Some(existing) = self.ensure_non_or_single_node(&type_state.name)? {
-            return Ok(existing);
+            return Ok(CreateStarted::Done(existing));
         }
 
         let head = self.create_type_node(&type_state.name, Some(NodeTypeState::Union(type_state)))?;
@@ -1570,20 +1689,24 @@ impl<'s> Graph<'s> {
             type_state.by_graph.get(&self.id_str).map(|g| &g.members)
         };
 
-        if let Some(members) = members {
-            for member_type_name in members {
-                let tail = self.create_nodes_and_edges_for_type(member_type_name)?;
-                // TODO: if it's inaccessible and this.ignoreInaccessible is true, we should not add the edge
-                self.add_edge(Edge::new(head, Move::Abstract(AbstractMove::new(None)), tail));
-            }
-        }
-
-        Ok(head)
+        Ok(CreateStarted::Frame(CreateFrame::new(
+            head,
+            CreateFrameKind::Union {
+                members,
+                next_member: 0,
+            },
+        )))
     }
 
     fn create_node_for_interface_type(&mut self, type_state: &'s InterfaceTypeState) -> JsResult<NodeId> {
+        let started = self.create_interface_type_start(type_state)?;
+        self.run_create(started)
+    }
+
+    /// `createNodeForInterfaceType(typeState)` up to its loop over the implementations.
+    fn create_interface_type_start(&mut self, type_state: &'s InterfaceTypeState) -> JsResult<CreateStarted<'s>> {
         if let Some(existing) = self.ensure_non_or_single_node(&type_state.name)? {
-            return Ok(existing);
+            return Ok(CreateStarted::Done(existing));
         }
 
         let head = self.create_type_node(&type_state.name, Some(NodeTypeState::Interface(type_state)))?;
@@ -1593,31 +1716,15 @@ impl<'s> Graph<'s> {
             type_state.by_graph.get(&self.id_str).map(|g| &g.implemented_by)
         };
 
-        if let Some(implemented_by) = implemented_by {
-            for member_type_name in implemented_by {
-                let tail = self.create_nodes_and_edges_for_type(member_type_name)?;
-                self.add_edge(Edge::new(head, Move::Abstract(AbstractMove::new(None)), tail));
-            }
-        }
-
-        if type_state.has_interface_object && self.is_subgraph {
-            // We need to add fields of interface types with @interfaceObject
-            // but only add fields that are owned by the subgraph.
-            for field in type_state.fields.values() {
-                if field.by_graph.contains_key(&self.id_str) {
-                    self.create_edge_for_interface_type_field(head, field)?;
-                }
-            }
-        } else if self.is_subgraph {
-            // We're adding just leafs
-            for field in type_state.fields.values() {
-                if field.is_leaf && field.by_graph.contains_key(&self.id_str) {
-                    self.create_edge_for_interface_type_field(head, field)?;
-                }
-            }
-        }
-
-        Ok(head)
+        Ok(CreateStarted::Frame(CreateFrame::new(
+            head,
+            CreateFrameKind::Interface {
+                type_state,
+                implemented_by,
+                next_member: 0,
+                next_field: 0,
+            },
+        )))
     }
 
     fn create_edge_for_interface_type_field(
@@ -1625,13 +1732,32 @@ impl<'s> Graph<'s> {
         head: NodeId,
         field: &'s InterfaceTypeFieldState,
     ) -> JsResult<()> {
-        if self.ignore_inaccessible && field.inaccessible {
+        let Some(output_type_name) = self.begin_edge_for_interface_type_field(field) else {
             return Ok(());
+        };
+        let tail = self.create_nodes_and_edges_for_type(&output_type_name)?;
+        self.end_edge_for_interface_type_field(head, field, &output_type_name, tail)
+    }
+
+    /// `createEdgeForInterfaceTypeField(head, field)` before it creates the node of the field's
+    /// output type: the name of that type, or `None` when the TS returns early.
+    fn begin_edge_for_interface_type_field(&self, field: &'s InterfaceTypeFieldState) -> Option<String> {
+        if self.ignore_inaccessible && field.inaccessible {
+            return None;
         }
 
-        let output_type_name = strip_type_modifiers(&field.r#type);
-        let tail = self.create_nodes_and_edges_for_type(&output_type_name)?;
+        Some(strip_type_modifiers(&field.r#type).into_owned())
+    }
 
+    /// `createEdgeForInterfaceTypeField(head, field)` after it created `tail`, the node of the
+    /// field's output type `output_type_name`.
+    fn end_edge_for_interface_type_field(
+        &mut self,
+        head: NodeId,
+        field: &'s InterfaceTypeFieldState,
+        output_type_name: &str,
+        tail: NodeId,
+    ) -> JsResult<()> {
         let head_type_name = self.node(head).type_name.clone();
         let field_state_in_graph = field.by_graph.get(&self.node(head).graph_id);
         let requires = field_state_in_graph.and_then(|f| f.requires.as_deref());
@@ -1643,7 +1769,7 @@ impl<'s> Graph<'s> {
         };
         let provides = match provides {
             Some(provides) if !provides.is_empty() => {
-                Some(self.selection_resolver.resolve(&output_type_name, provides)?)
+                Some(self.selection_resolver.resolve(output_type_name, provides)?)
             }
             _ => None,
         };
@@ -1689,9 +1815,11 @@ impl<'s> Graph<'s> {
         required_contexts
     }
 
-    fn create_edge_for_object_type_field(&mut self, head: NodeId, field: &'s ObjectTypeFieldState) -> JsResult<()> {
+    /// `createEdgeForObjectTypeField(head, field)` before it creates the node of the field's
+    /// output type: the name of that type, or `None` when the TS returns early.
+    fn begin_edge_for_object_type_field(&self, field: &'s ObjectTypeFieldState) -> Option<String> {
         if self.ignore_inaccessible && field.inaccessible {
-            return Ok(());
+            return None;
         }
 
         let state = self.supergraph_state;
@@ -1705,7 +1833,7 @@ impl<'s> Graph<'s> {
                     .is_some_and(|s| s.federation.version == FederationVersion::V1_0);
 
                 if is_external && is_federation_v1 {
-                    return Ok(());
+                    return None;
                 }
             }
         }
@@ -1718,8 +1846,18 @@ impl<'s> Graph<'s> {
             .unwrap_or(&field.r#type);
         let output_type_name = strip_type_modifiers(field_type);
 
-        let tail = self.create_nodes_and_edges_for_type(&output_type_name)?;
+        Some(output_type_name.into_owned())
+    }
 
+    /// `createEdgeForObjectTypeField(head, field)` after it created `tail`, the node of the
+    /// field's output type `output_type_name`.
+    fn end_edge_for_object_type_field(
+        &mut self,
+        head: NodeId,
+        field: &'s ObjectTypeFieldState,
+        output_type_name: &str,
+        tail: NodeId,
+    ) -> JsResult<()> {
         let head_type_name = self.node(head).type_name.clone();
 
         if self.is_supergraph() {
@@ -1765,7 +1903,7 @@ impl<'s> Graph<'s> {
         };
         let provides = match provides {
             Some(provides) if !provides.is_empty() => {
-                Some(self.selection_resolver.resolve(&output_type_name, provides)?)
+                Some(self.selection_resolver.resolve(output_type_name, provides)?)
             }
             _ => None,
         };
@@ -1945,6 +2083,70 @@ impl<'s> Graph<'s> {
     fn is_merged_graph(&self) -> bool {
         self.id == GraphId::MergedGraph
     }
+}
+
+/// What a `create*` call of [`Graph::create_nodes_and_edges_for_type`] gives before its loop: its
+/// node when it returns without looping, or the frame that runs its loop.
+enum CreateStarted<'s> {
+    Done(NodeId),
+    Frame(CreateFrame<'s>),
+}
+
+/// What [`Graph::create_step`] needs next: the node of a type (the recursive call the TS makes),
+/// or nothing more (the call returns `head`).
+enum CreateStep {
+    Create(String),
+    Done(NodeId),
+}
+
+/// A `create*` call of the explicit stack of [`Graph::create_nodes_and_edges_for_type`] that is
+/// running its loop: the node it created (`head`), where its loop is, and the edge it adds once the
+/// node it asked for exists.
+struct CreateFrame<'s> {
+    head: NodeId,
+    kind: CreateFrameKind<'s>,
+    pending: Option<PendingEdge<'s>>,
+}
+
+impl<'s> CreateFrame<'s> {
+    fn new(head: NodeId, kind: CreateFrameKind<'s>) -> Self {
+        CreateFrame {
+            head,
+            kind,
+            pending: None,
+        }
+    }
+}
+
+enum CreateFrameKind<'s> {
+    /// `createNodesAndEdgesForObjectType`: the loop over the fields.
+    Object {
+        type_state: &'s ObjectTypeState,
+        next_field: usize,
+    },
+    /// `createNodeForUnionType`: the loop over the members.
+    Union {
+        members: Option<&'s IndexSet<String>>,
+        next_member: usize,
+    },
+    /// `createNodeForInterfaceType`: the loop over the implementations, then the one over the
+    /// fields.
+    Interface {
+        type_state: &'s InterfaceTypeState,
+        implemented_by: Option<&'s IndexSet<String>>,
+        next_member: usize,
+        next_field: usize,
+    },
+}
+
+/// The edge a [`CreateFrame`] adds to the node it asked for.
+enum PendingEdge<'s> {
+    /// A union member or interface implementation.
+    Abstract,
+    /// `createEdgeForObjectTypeField`, with the field's output type name.
+    ObjectField(&'s ObjectTypeFieldState, String),
+    /// `createEdgeForInterfaceTypeField`, with the field's output type name.
+    InterfaceField(&'s InterfaceTypeFieldState, String),
 }
 
 #[cfg(test)]

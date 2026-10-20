@@ -418,26 +418,25 @@ impl TypeBuilder<InterfaceType, InterfaceTypeState> for InterfaceTypeBuilder {
             }
         }
 
-        Ok(Definition::InterfaceTypeDefinition(create_interface_type_node(
-            InterfaceTypeAst {
-                name: interface_type.name.clone(),
-                fields,
-                tags: interface_type.tags.iter().cloned().collect(),
-                inaccessible: interface_type.inaccessible,
-                authenticated: interface_type.authenticated,
-                policies: interface_type.policies.clone(),
-                scopes: interface_type.scopes.clone(),
-                contexts: interface_type.contexts.iter().cloned().collect(),
-                description: interface_type.description.clone(),
-                interfaces: interface_type.interfaces.iter().cloned().collect(),
-                ast: convert_to_const(&interface_type.ast.directives),
-                join: JoinAst {
-                    r#type: join_types,
-                    implements,
-                    ..Default::default()
-                },
+        create_interface_type_node(InterfaceTypeAst {
+            name: interface_type.name.clone(),
+            fields,
+            tags: interface_type.tags.iter().cloned().collect(),
+            inaccessible: interface_type.inaccessible,
+            authenticated: interface_type.authenticated,
+            policies: interface_type.policies.clone(),
+            scopes: interface_type.scopes.clone(),
+            contexts: interface_type.contexts.iter().cloned().collect(),
+            description: interface_type.description.clone(),
+            interfaces: interface_type.interfaces.iter().cloned().collect(),
+            ast: convert_to_const(&interface_type.ast.directives),
+            join: JoinAst {
+                r#type: join_types,
+                implements,
+                ..Default::default()
             },
-        )))
+        })
+        .map(Definition::InterfaceTypeDefinition)
     }
 }
 

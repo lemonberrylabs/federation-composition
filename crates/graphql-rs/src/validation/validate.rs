@@ -9,6 +9,9 @@ use super::specified_rules::specified_sdl_rules;
 use super::validation_context::SDLValidationContext;
 
 /// graphql-js `validateSDL(documentAST)` with the specified SDL rules.
+///
+/// Visits the document, so it recurses once per nesting level, as [`visit`](crate::visit) does;
+/// [`assert_valid_sdl`] checks the depth first.
 pub fn validate_sdl(document_ast: &Document) -> Vec<GraphQLError> {
     let mut context = SDLValidationContext::new(document_ast);
     let visitors = specified_sdl_rules(&mut context);
@@ -19,7 +22,12 @@ pub fn validate_sdl(document_ast: &Document) -> Vec<GraphQLError> {
 
 /// graphql-js `assertValidSDL(documentAST)`: throws an `Error` with the
 /// messages of all errors joined by blank lines.
+///
+/// Not in graphql-js: first returns the error of
+/// [`check_nesting_depth`](crate::check_nesting_depth) with
+/// [`MAX_NESTING_DEPTH`](crate::MAX_NESTING_DEPTH) for a document that nests deeper.
 pub fn assert_valid_sdl(document_ast: &Document) -> Result<(), GraphQLError> {
+    crate::nesting::check_nesting_depth(document_ast, crate::parser::MAX_NESTING_DEPTH)?;
     let errors = validate_sdl(document_ast);
     if !errors.is_empty() {
         let messages: Vec<&str> = errors.iter().map(|error| error.message.as_str()).collect();

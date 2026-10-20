@@ -93,7 +93,7 @@ assert!(errors.iter().any(|error| error.code() == Some("FIELD_TYPE_MISMATCH")));
 There are two kinds of errors, as in the TypeScript library:
 
 - **Composition errors** are the expected outcome of composing incompatible subgraphs. They are returned in a `CompositionFailure` (or a failed `ValidationResult`) as `GraphQLError`s, each with an `extensions.code` such as `FIELD_TYPE_MISMATCH` or `SATISFIABILITY_ERROR`.
-- **`Error`** is returned where the TypeScript library throws instead, for example for two subgraphs with the same name or an invalid `@link` URL. It implements `std::error::Error`, `Send` and `Sync`; `Error::code` and `Error::graphql_error` give the code and the GraphQL error when the thrown value is one.
+- **`Error`** is returned where the TypeScript library throws instead, for example for two subgraphs with the same name or an invalid `@link` URL, and for a document nested deeper than `graphql_rs::MAX_NESTING_DEPTH` levels, which only a document built in code can be ([SECURITY.md](https://github.com/Enrico2/federation-composition/blob/main/SECURITY.md#untrusted-input)). It implements `std::error::Error`, `Send` and `Sync`; `Error::code` and `Error::graphql_error` give the code and the GraphQL error when the thrown value is one.
 
 ### Schema contracts
 

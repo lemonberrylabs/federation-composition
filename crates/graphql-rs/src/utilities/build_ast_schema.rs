@@ -10,7 +10,8 @@
 
 use crate::ast::Document;
 use crate::error::GraphQLError;
-use crate::parser::parse;
+use crate::nesting::check_nesting_depth;
+use crate::parser::{parse, MAX_NESTING_DEPTH};
 use crate::r#type::directives::specified_directives;
 use crate::r#type::schema::GraphQLSchema;
 use crate::validation::validate::assert_valid_sdl;
@@ -18,7 +19,12 @@ use crate::validation::validate::assert_valid_sdl;
 use super::extend_schema::extend_schema_impl;
 
 /// graphql-js `buildASTSchema(documentAST)`.
+///
+/// Not in graphql-js: a document that nests deeper than [`MAX_NESTING_DEPTH`] (which only a
+/// document built in code or deserialized can, see [`check_nesting_depth`]) is an `Err` before
+/// anything recurses into it.
 pub fn build_ast_schema(document_ast: &Document) -> Result<GraphQLSchema, GraphQLError> {
+    check_nesting_depth(document_ast, MAX_NESTING_DEPTH)?;
     assert_valid_sdl(document_ast)?;
     let mut config = extend_schema_impl(document_ast)?;
     if config.ast_node.is_none() {

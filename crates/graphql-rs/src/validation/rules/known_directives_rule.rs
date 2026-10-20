@@ -27,11 +27,10 @@ impl KnownDirectivesRule {
                     def.name.value.clone(),
                     def.locations
                         .iter()
-                        .map(|name| {
-                            name.value
-                                .parse::<DirectiveLocation>()
-                                .expect("the parser accepts only directive locations")
-                        })
+                        // NOTE(port): graphql-js compares the names as strings. The parser
+                        // accepts only directive locations, but a document built in code (or
+                        // deserialized) can name anything, which no location matches.
+                        .filter_map(|name| name.value.parse::<DirectiveLocation>().ok())
                         .collect(),
                 );
             }

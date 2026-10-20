@@ -8,13 +8,44 @@ use crate::directive_location::DirectiveLocation;
 use crate::error::GraphQLError;
 use crate::lexer::{token_desc, token_kind_desc, Lexer, Token, TokenKind};
 
-/// The graphql-js `ParseOptions` that affect the produced AST or errors.
-#[derive(Clone, Debug, Default)]
+/// The default of [`ParseOptions::max_nesting_depth`]: how deeply list values, object values,
+/// selection sets and list types may nest in a parsed document.
+///
+/// graphql-js has no such limit: it throws a `RangeError` when it runs out of JavaScript stack,
+/// at a depth that depends on the engine. This crate's parser, printer, visitor and schema
+/// building, and the composition built on them, recurse once per nesting level, so the parser
+/// rejects deeper documents before they can overflow the Rust stack. 128 levels fit in the stack
+/// of a spawned thread (2 MiB) in a debug build and in WebAssembly's default 1 MiB stack, with
+/// room left for the caller; real schemas and operations nest far less.
+pub const MAX_NESTING_DEPTH: usize = 128;
+
+/// The graphql-js `ParseOptions` that affect the produced AST or errors, and the nesting limit
+/// this port adds.
+#[derive(Clone, Debug)]
 pub struct ParseOptions {
     /// graphql-js `maxTokens`.
     pub max_tokens: Option<usize>,
     /// graphql-js `experimentalFragmentArguments`.
     pub experimental_fragment_arguments: bool,
+    /// The deepest nesting the parser accepts (not in graphql-js; default
+    /// [`MAX_NESTING_DEPTH`]). Each list value (`[`), object value (`{` in a value), selection set
+    /// and list type (`[` in a type) is one level, counted together: `{ a: [1] }` is two levels.
+    /// A deeper document is a syntax error,
+    /// `Syntax Error: Document nesting depth exceeds {max_nesting_depth}. Parsing aborted.`
+    ///
+    /// Raising it is safe only with a larger stack: printing, visiting, building a schema from
+    /// and composing a document recurse once per level.
+    pub max_nesting_depth: usize,
+}
+
+impl Default for ParseOptions {
+    fn default() -> Self {
+        ParseOptions {
+            max_tokens: None,
+            experimental_fragment_arguments: false,
+            max_nesting_depth: MAX_NESTING_DEPTH,
+        }
+    }
 }
 
 type PResult<T> = Result<T, Box<GraphQLError>>;
@@ -53,6 +84,7 @@ pub fn parse_schema_coordinate(source: &str) -> Result<SchemaCoordinate, GraphQL
         lexer: Lexer::new_coordinate(source),
         options: ParseOptions::default(),
         token_counter: 0,
+        depth: 0,
     };
     parser.parse_whole(Parser::parse_schema_coordinate)
 }
@@ -62,6 +94,9 @@ pub(crate) struct Parser<'s> {
     lexer: Lexer<'s>,
     options: ParseOptions,
     token_counter: usize,
+    /// How many list values, object values, selection sets and list types enclose the current
+    /// token (see [`ParseOptions::max_nesting_depth`]).
+    depth: usize,
 }
 
 impl<'s> Parser<'s> {
@@ -70,6 +105,7 @@ impl<'s> Parser<'s> {
             lexer: Lexer::new(source),
             options,
             token_counter: 0,
+            depth: 0,
         }
     }
 
@@ -221,8 +257,10 @@ impl<'s> Parser<'s> {
     }
 
     fn parse_selection_set(&mut self) -> PResult<SelectionSet> {
-        Ok(SelectionSet {
-            selections: self.many(TokenKind::BraceL, Self::parse_selection, TokenKind::BraceR)?,
+        self.nested(|p| {
+            Ok(SelectionSet {
+                selections: p.many(TokenKind::BraceL, Self::parse_selection, TokenKind::BraceR)?,
+            })
         })
     }
 
@@ -406,21 +444,25 @@ impl<'s> Parser<'s> {
     }
 
     fn parse_list(&mut self, is_const: bool) -> PResult<Value> {
-        self.expect_token(TokenKind::BracketL)?;
-        let mut values = Vec::new();
-        while !self.expect_optional_token(TokenKind::BracketR)? {
-            values.push(self.parse_value_literal(is_const)?);
-        }
-        Ok(Value::List(ListValue { values }))
+        self.nested(|p| {
+            p.expect_token(TokenKind::BracketL)?;
+            let mut values = Vec::new();
+            while !p.expect_optional_token(TokenKind::BracketR)? {
+                values.push(p.parse_value_literal(is_const)?);
+            }
+            Ok(Value::List(ListValue { values }))
+        })
     }
 
     fn parse_object(&mut self, is_const: bool) -> PResult<Value> {
-        self.expect_token(TokenKind::BraceL)?;
-        let mut fields = Vec::new();
-        while !self.expect_optional_token(TokenKind::BraceR)? {
-            fields.push(self.parse_object_field(is_const)?);
-        }
-        Ok(Value::Object(ObjectValue { fields }))
+        self.nested(|p| {
+            p.expect_token(TokenKind::BraceL)?;
+            let mut fields = Vec::new();
+            while !p.expect_optional_token(TokenKind::BraceR)? {
+                fields.push(p.parse_object_field(is_const)?);
+            }
+            Ok(Value::Object(ObjectValue { fields }))
+        })
     }
 
     fn parse_object_field(&mut self, is_const: bool) -> PResult<ObjectField> {
@@ -453,12 +495,15 @@ impl<'s> Parser<'s> {
     }
 
     fn parse_type_reference(&mut self) -> PResult<Type> {
-        let ty = if self.expect_optional_token(TokenKind::BracketL)? {
-            let inner_type = self.parse_type_reference()?;
-            self.expect_token(TokenKind::BracketR)?;
-            Type::List(ListType {
-                ty: Box::new(inner_type),
-            })
+        let ty = if self.peek(TokenKind::BracketL) {
+            self.nested(|p| {
+                p.expect_token(TokenKind::BracketL)?;
+                let inner_type = p.parse_type_reference()?;
+                p.expect_token(TokenKind::BracketR)?;
+                Ok(Type::List(ListType {
+                    ty: Box::new(inner_type),
+                }))
+            })?
         } else {
             Type::Named(self.parse_named_type()?)
         };
@@ -1002,6 +1047,22 @@ impl<'s> Parser<'s> {
             }
         }
         Ok(nodes)
+    }
+
+    /// Parses one nesting level (a list or object value, a selection set or a list type) with
+    /// `production`, which starts at the level's opening token. Not in graphql-js: rejects the
+    /// level if it is deeper than [`ParseOptions::max_nesting_depth`], before recursing into it.
+    fn nested<T>(&mut self, production: impl FnOnce(&mut Self) -> PResult<T>) -> PResult<T> {
+        if self.depth >= self.options.max_nesting_depth {
+            return Err(GraphQLError::syntax(format!(
+                "Document nesting depth exceeds {}. Parsing aborted.",
+                self.options.max_nesting_depth
+            )));
+        }
+        self.depth += 1;
+        let result = production(self);
+        self.depth -= 1;
+        result
     }
 
     /// graphql-js `advanceLexer`; returns the token that was current.

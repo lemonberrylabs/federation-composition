@@ -73,6 +73,8 @@ pub struct SimpleValidationContext<'a> {
     reported_errors: Vec<GraphQLError>,
     directive_definition_map: IndexMap<String, &'a DirectiveDefinition>,
     type_definition_map: IndexMap<String, KnownTypeDefinition<'a>>,
+    /// The error a rule threw (see [`SimpleValidationContext::throw`]).
+    thrown: Option<JsError>,
 }
 
 /// `createSimpleValidationContext(typeDefs, typeNodeInfo)`.
@@ -102,10 +104,31 @@ pub fn create_simple_validation_context(type_defs: &Document) -> SimpleValidatio
         reported_errors: Vec::new(),
         directive_definition_map,
         type_definition_map,
+        thrown: None,
     }
 }
 
 impl<'a> SimpleValidationContext<'a> {
+    /// Port mechanism for a TS `throw` inside a rule's callback, which aborts the `visit` and
+    /// `validateSubgraph`: records the first error and returns `VisitAction::Break`. The visit of
+    /// the rules stops once an error is recorded, and `validate_subgraph` returns it.
+    pub fn throw(&mut self, error: JsError) -> graphql_rs::VisitAction {
+        if self.thrown.is_none() {
+            self.thrown = Some(error);
+        }
+        graphql_rs::VisitAction::Break
+    }
+
+    /// Whether a rule threw (see [`Self::throw`]).
+    pub fn has_thrown(&self) -> bool {
+        self.thrown.is_some()
+    }
+
+    /// Takes the error recorded by [`Self::throw`].
+    pub fn take_thrown(&mut self) -> Option<JsError> {
+        self.thrown.take()
+    }
+
     pub fn get_document(&self) -> &'a Document {
         self.type_defs
     }

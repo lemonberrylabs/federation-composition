@@ -91,4 +91,50 @@ describe("wasm bridge", () => {
     assert.ok(result.supergraphSdl.includes("join__Graph"));
     assert.ok(result.publicSdl.includes("type Query"));
   });
+
+  // The limits of crates/federation-composition-wasm/src/lib.rs (SECURITY.md, "Input limits").
+  const header =
+    'extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key"])\n';
+  /** A field whose type, argument default value and directive argument nest `n` levels. */
+  function nested(n) {
+    const list = (inner) => "[".repeat(n) + inner + "]".repeat(n);
+    const object = "{a: ".repeat(n - 1) + "{b: 1}" + "}".repeat(n - 1);
+    return `${header}input I { a: I b: Int }\ndirective @d(a: I) on FIELD_DEFINITION
+      type Query { f(a: ${list("Int")} = ${list("1")}): ${list("Int")} @d(a: ${object}) }`;
+  }
+
+  test("documents nested to the parser's limit compose, deeper ones throw", () => {
+    const result = composeServices([
+      { name: "a", typeDefs: parse(nested(128)) },
+    ]);
+    assert.equal(result.errors, undefined);
+    assert.ok(result.supergraphSdl.includes("[".repeat(128) + "1"));
+    assert.throws(
+      () => composeServices([{ name: "a", typeDefs: parse(nested(129)) }]),
+      (e) =>
+        e instanceof GraphQLError &&
+        e.message === "AST nesting depth exceeds 128.",
+    );
+  });
+
+  test("an argument nested deeper than the JSON limit throws, not a trap", () => {
+    const sdl = `${header}type Query { f: ${"[".repeat(500)}Int${"]".repeat(500)} }`;
+    assert.throws(
+      () => composeServices([{ name: "a", typeDefs: parse(sdl) }]),
+      {
+        message:
+          "composition-wasm: invalid services argument: nested deeper than 448 levels",
+      },
+    );
+  });
+
+  test("a long chain of types composes", () => {
+    let sdl = `${header}type Query { t: T0 }\n`;
+    for (let i = 0; i < 5000; i++)
+      sdl += `type T${i} { id: ID a: T${i + 1} }\n`;
+    sdl += "type T5000 { id: ID }\n";
+    const result = composeServices([{ name: "a", typeDefs: parse(sdl) }]);
+    assert.equal(result.errors, undefined);
+    assert.ok(result.supergraphSdl.includes("type T5000"));
+  });
 });

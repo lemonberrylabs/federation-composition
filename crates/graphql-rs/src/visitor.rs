@@ -205,6 +205,11 @@ impl<'a, C: ?Sized, V: Visitor<'a, C> + ?Sized> Visitor<'a, C> for Box<V> {
 
 /// graphql-js `visit` for visitors that do not edit. Returns `true` when a
 /// callback returned [`VisitAction::Break`].
+///
+/// Recurses once per nesting level of the AST. A document the parser produced is within
+/// [`MAX_NESTING_DEPTH`](crate::MAX_NESTING_DEPTH) levels, which fits any thread's stack; check
+/// one built in code or deserialized with [`check_nesting_depth`](crate::check_nesting_depth)
+/// first.
 pub fn visit<'a, C: ?Sized, V: Visitor<'a, C> + ?Sized>(
     root: impl Into<NodeRef<'a>>,
     visitor: &mut V,
@@ -495,9 +500,16 @@ impl EditResult {
 /// graphql-js `visit` with an editing visitor. The input is left untouched;
 /// nodes outside edited paths are cloned into the result.
 ///
-/// Panics when an edit cannot be represented in the typed AST: deleting a
+/// # Panics
+///
+/// When an edit cannot be represented in the typed AST: deleting a
 /// required field (e.g. a `Field`'s `name`) or replacing a node with a node
 /// of a kind its field cannot hold (e.g. a `Directive` with a `Name`).
+/// These are mistakes of the visitor, not of the document.
+///
+/// # Stack
+///
+/// Recurses once per nesting level of the AST (see [`visit`]).
 pub fn visit_edit<'a, V: EditVisitor + ?Sized>(root: impl Into<NodeRef<'a>>, visitor: &mut V) -> EditResult {
     let root = root.into();
     let mut walker = EditWalker {
@@ -553,39 +565,68 @@ impl<V: EditVisitor + ?Sized> EditWalker<'_, V> {
     ) -> Result<Vec<EditVal>, Break> {
         let node_id = self.next_id;
         self.next_id += 1;
-        let info = VisitInfo {
-            key,
-            parent,
-            path: &self.path,
-            ancestors: ancestors.as_slice(),
-            node_id,
-        };
-        match self.visitor.enter(node, &info) {
+        match self.enter(node, key, parent, ancestors, node_id) {
             EditAction::Break => Err(Break::Fresh(Vec::new())),
             EditAction::Skip => Ok(Vec::new()),
             EditAction::Delete => Ok(vec![EditVal::Null]),
             EditAction::Continue => self.walk_children_and_leave(node, key, parent, ancestors, node_id),
-            EditAction::Replace(replacement) => {
-                // The replacement lives only in this frame, so its subtree is
-                // walked with a copy of the ancestor list of shorter lifetime.
-                let mut inner: Vec<Ancestor<'_>> = ancestors.clone();
-                let result = self.walk_children_and_leave(replacement.as_ref(), key, parent, &mut inner, node_id);
-                match result {
-                    Ok(rest) => {
-                        drop(inner);
-                        let mut edits = vec![EditVal::Node(replacement)];
-                        edits.extend(rest);
-                        Ok(edits)
-                    }
-                    Err(Break::Fresh(rest)) => {
-                        drop(inner);
-                        let mut edits = vec![EditVal::Node(replacement)];
-                        edits.extend(rest);
-                        Err(Break::Fresh(edits))
-                    }
-                    Err(resolved) => Err(resolved),
-                }
+            EditAction::Replace(replacement) => self.walk_replacement(replacement, key, parent, ancestors, node_id),
+        }
+    }
+
+    // The traversal recurses once per level of the document, through `walk`,
+    // `walk_children_and_leave` and `walk_list`. The work that does not recurse is in
+    // separate functions that are never inlined, so that its temporaries (whole `Node`s) are not
+    // in the frames of every level (see `ParseOptions::max_nesting_depth`).
+
+    /// Calls the visitor's `enter`.
+    #[inline(never)]
+    fn enter<'b>(
+        &mut self,
+        node: NodeRef<'b>,
+        key: Option<PathKey>,
+        parent: Option<Ancestor<'b>>,
+        ancestors: &[Ancestor<'b>],
+        node_id: u64,
+    ) -> EditAction {
+        let info = VisitInfo {
+            key,
+            parent,
+            path: &self.path,
+            ancestors,
+            node_id,
+        };
+        self.visitor.enter(node, &info)
+    }
+
+    /// `walk` for a node the `enter` callback replaced.
+    #[inline(never)]
+    fn walk_replacement<'b>(
+        &mut self,
+        replacement: Node,
+        key: Option<PathKey>,
+        parent: Option<Ancestor<'b>>,
+        ancestors: &[Ancestor<'b>],
+        node_id: u64,
+    ) -> Result<Vec<EditVal>, Break> {
+        // The replacement lives only in this frame, so its subtree is
+        // walked with a copy of the ancestor list of shorter lifetime.
+        let mut inner: Vec<Ancestor<'_>> = ancestors.to_vec();
+        let result = self.walk_children_and_leave(replacement.as_ref(), key, parent, &mut inner, node_id);
+        match result {
+            Ok(rest) => {
+                drop(inner);
+                let mut edits = vec![EditVal::Node(replacement)];
+                edits.extend(rest);
+                Ok(edits)
             }
+            Err(Break::Fresh(rest)) => {
+                drop(inner);
+                let mut edits = vec![EditVal::Node(replacement)];
+                edits.extend(rest);
+                Err(Break::Fresh(edits))
+            }
+            Err(resolved) => Err(resolved),
         }
     }
 
@@ -621,25 +662,7 @@ impl<V: EditVisitor + ?Sized> EditWalker<'_, V> {
                 SlotRef::Many(list) => {
                     self.path.push(PathKey::Key(name));
                     ancestors.push(Ancestor::Node(node));
-                    let mut list_edits: Vec<(usize, EditVal)> = Vec::new();
-                    for i in 0..list.len() {
-                        self.path.push(PathKey::Index(i));
-                        let result = self.walk(
-                            list.get(i).unwrap(),
-                            Some(PathKey::Index(i)),
-                            Some(Ancestor::List(list)),
-                            ancestors,
-                        );
-                        self.path.pop();
-                        match result {
-                            Ok(item_edits) => list_edits.extend(item_edits.into_iter().map(|e| (i, e))),
-                            Err(Break::Fresh(item_edits)) => {
-                                list_edits.extend(item_edits.into_iter().map(|e| (i, e)));
-                                return Err(Break::Resolved(list_edits.pop().map(|(_, e)| Box::new(e))));
-                            }
-                            Err(resolved) => return Err(resolved),
-                        }
-                    }
+                    let list_edits = self.walk_list(list, ancestors)?;
                     ancestors.pop();
                     self.path.pop();
                     if !list_edits.is_empty() {
@@ -651,6 +674,44 @@ impl<V: EditVisitor + ?Sized> EditWalker<'_, V> {
         if parent.is_some() {
             ancestors.pop();
         }
+        self.leave(node, key, parent, ancestors, node_id, edits)
+    }
+
+    /// The items of a list field: the edits recorded for them, by index.
+    fn walk_list<'c>(
+        &mut self,
+        list: ListRef<'c>,
+        ancestors: &mut Vec<Ancestor<'c>>,
+    ) -> Result<Vec<(usize, EditVal)>, Break> {
+        let mut list_edits: Vec<(usize, EditVal)> = Vec::new();
+        for (i, item) in list.iter().enumerate() {
+            self.path.push(PathKey::Index(i));
+            let result = self.walk(item, Some(PathKey::Index(i)), Some(Ancestor::List(list)), ancestors);
+            self.path.pop();
+            match result {
+                Ok(item_edits) => list_edits.extend(item_edits.into_iter().map(|e| (i, e))),
+                Err(Break::Fresh(item_edits)) => {
+                    list_edits.extend(item_edits.into_iter().map(|e| (i, e)));
+                    return Err(Break::Resolved(list_edits.pop().map(|(_, e)| Box::new(e))));
+                }
+                Err(resolved) => return Err(resolved),
+            }
+        }
+        Ok(list_edits)
+    }
+
+    /// The end of `walk_children_and_leave`: rebuilds `node` with its children's `edits` and
+    /// calls `leave`.
+    #[inline(never)]
+    fn leave<'c>(
+        &mut self,
+        node: NodeRef<'c>,
+        key: Option<PathKey>,
+        parent: Option<Ancestor<'c>>,
+        ancestors: &[Ancestor<'c>],
+        node_id: u64,
+        edits: Vec<(usize, EditVal)>,
+    ) -> Result<Vec<EditVal>, Break> {
         let rebuilt = if edits.is_empty() {
             None
         } else {
@@ -667,7 +728,7 @@ impl<V: EditVisitor + ?Sized> EditWalker<'_, V> {
             key,
             parent,
             path: &self.path,
-            ancestors: ancestors.as_slice(),
+            ancestors,
             node_id: leave_id,
         };
         let leave_node = rebuilt.as_ref().map_or(node, |n| n.as_ref());

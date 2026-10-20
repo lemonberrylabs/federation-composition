@@ -5,6 +5,7 @@ use graphql_rs::{GraphQLError, Kind, NodeRef, VisitAction, VisitInfo, Visitor};
 use crate::graphql::printer::print;
 use crate::subgraph::helpers::named_type_from_type_node;
 use crate::subgraph::validation::validation_context::{SimpleRule, SimpleValidationContext};
+use crate::utils::js::{JsError, JsResult};
 use graphql_rs::{Type, Value};
 
 /// `ProvidedArgumentsOnDirectivesRule(context)`.
@@ -63,8 +64,14 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for ProvidedArgumentsOnDirecti
                     continue;
                 }
 
-                let printed_type = print_type_node(&arg_definition.ty, cx);
-                let printed_value = print_value_node(&arg.value);
+                let printed_type = match print_type_node(&arg_definition.ty, cx) {
+                    Ok(printed_type) => printed_type,
+                    Err(error) => return cx.throw(error),
+                };
+                let printed_value = match print_value_node(&arg.value) {
+                    Ok(printed_value) => printed_value,
+                    Err(error) => return cx.throw(error),
+                };
 
                 let Some(printed_type) = printed_type else {
                     continue; // Let KnownTypesRule handle this
@@ -109,12 +116,12 @@ impl<'a> Visitor<'a, SimpleValidationContext<'a>> for ProvidedArgumentsOnDirecti
     }
 }
 
-/// `printValueNode(valueNode)`. The TS throws for a variable, which const SDL values never are.
-fn print_value_node(value_node: &Value) -> String {
-    match value_node {
+/// `printValueNode(valueNode)`.
+fn print_value_node(value_node: &Value) -> JsResult<String> {
+    Ok(match value_node {
         Value::List(list) => match list.values.first() {
             None => "[]".to_string(),
-            Some(first) => print_value_node(first),
+            Some(first) => return print_value_node(first),
         },
         Value::Enum(_) => "Enum".to_string(),
         Value::Null(_) => "Null".to_string(),
@@ -123,24 +130,24 @@ fn print_value_node(value_node: &Value) -> String {
         Value::String(_) => "String".to_string(),
         Value::Boolean(_) => "Boolean".to_string(),
         Value::Object(_) => "Object".to_string(),
-        // NOTE(port): `throw new Error("Unknown value node kind: [object Object]")`; the SDL
-        // parser rejects variables in const values, so this cannot be reached.
-        Value::Variable(_) => unreachable!("Unknown value node kind: [object Object]"),
-    }
+        // NOTE(port): the parser rejects variables in the directives of type definitions, but a
+        // document built in code (or deserialized) can have one there.
+        Value::Variable(_) => return Err(JsError::error("Unknown value node kind: [object Object]")),
+    })
 }
 
 /// `printTypeNode(typeNode, context)`.
-fn print_type_node(type_node: &Type, context: &SimpleValidationContext<'_>) -> Option<String> {
+fn print_type_node(type_node: &Type, context: &SimpleValidationContext<'_>) -> JsResult<Option<String>> {
     let inner = match type_node {
         Type::Named(named) => {
             let Some(def) = context.get_known_type_definition(&named.name.value) else {
-                return graphql_rs::specified_scalar_types()
+                return Ok(graphql_rs::specified_scalar_types()
                     .iter()
                     .find(|s| s.name == named.name.value)
-                    .map(|s| s.name.to_string());
+                    .map(|s| s.name.to_string()));
             };
 
-            return match def.kind {
+            return Ok(match def.kind {
                 // Accept any value for scalars, we don't know what they are
                 Kind::ScalarTypeDefinition | Kind::ScalarTypeExtension => Some("Any".to_string()),
                 Kind::EnumTypeDefinition | Kind::EnumTypeExtension => Some("Enum".to_string()),
@@ -152,11 +159,15 @@ fn print_type_node(type_node: &Type, context: &SimpleValidationContext<'_>) -> O
                 | Kind::InterfaceTypeExtension
                 | Kind::UnionTypeDefinition
                 | Kind::UnionTypeExtension => Some("Object".to_string()),
-                // NOTE(port): another named kind (an operation or fragment) falls out of the TS
-                // `switch` into `printTypeNode(typeNode.type)`, which reads `undefined.kind`
-                // and throws a `TypeError`. Subgraph SDL has no such definitions.
-                _ => unreachable!("Cannot read properties of undefined (reading 'kind')"),
-            };
+                // NOTE(port): another named kind (an operation or fragment named like the type)
+                // falls out of the TS `switch` into `printTypeNode(typeNode.type)`, which reads
+                // `undefined.kind` and throws a `TypeError`.
+                _ => {
+                    return Err(JsError::type_error(
+                        "Cannot read properties of undefined (reading 'kind')",
+                    ))
+                }
+            });
         }
         Type::List(list) => &list.ty,
         Type::NonNull(non_null) => &non_null.ty,

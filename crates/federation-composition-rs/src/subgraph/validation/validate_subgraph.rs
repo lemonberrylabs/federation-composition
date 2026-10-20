@@ -241,7 +241,7 @@ pub fn validate_subgraph(
     full_definitions.extend(link_spec_document.into_iter().flatten().cloned());
 
     // validate built subgraph state
-    let subgraph_state_errors = validate_subgraph_state(&validation_context.state_builder.state, &validation_context);
+    let subgraph_state_errors = validate_subgraph_state(&validation_context.state_builder.state, &validation_context)?;
 
     // PERF: the TS runs the graphql rules over `fullTypeDefs` here, before marking fields as
     // shareable and collecting the context's errors. The rules only read `fullTypeDefs` and
@@ -300,10 +300,13 @@ pub fn validate_subgraph(
             graphql_rule::<ProvidedRequiredArgumentsOnDirectivesRule>(skip, cx),
             graphql_rule::<ProvidedArgumentsOnDirectivesRule>(skip, cx),
         ];
-        let mut visitor = graphql_rs::visit_in_parallel(graphql_rules);
+        let mut visitor = StopOnThrow(graphql_rs::visit_in_parallel(graphql_rules));
         graphql_rs::visit(&full_type_defs, &mut visitor, &mut simple_validation_context);
     }
 
+    if let Some(error) = simple_validation_context.take_thrown() {
+        return Err(error);
+    }
     errors.extend(simple_validation_context.collect_reported_errors());
     drop(simple_validation_context);
     let mut full_definitions = full_type_defs.definitions;
@@ -315,6 +318,45 @@ pub fn validate_subgraph(
         .into_iter()
         .map(|error| enrich_error_with_subgraph_name(error, subgraph.name))
         .collect())
+}
+
+/// The graphql rules' parallel visitor, stopped for every rule once one of them throws
+/// ([`SimpleValidationContext::throw`]): a JS exception ends the whole `visit`, while a `BREAK`
+/// from one visitor of `visitInParallel` ends only that visitor.
+struct StopOnThrow<V>(V);
+
+impl<'a, V: graphql_rs::Visitor<'a, SimpleValidationContext<'a>>> graphql_rs::Visitor<'a, SimpleValidationContext<'a>>
+    for StopOnThrow<V>
+{
+    fn kinds(&self) -> graphql_rs::VisitKinds {
+        self.0.kinds()
+    }
+
+    fn enter(
+        &mut self,
+        node: graphql_rs::NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        info: &graphql_rs::VisitInfo<'a, '_>,
+    ) -> graphql_rs::VisitAction {
+        let action = self.0.enter(node, cx, info);
+        if cx.has_thrown() {
+            return graphql_rs::VisitAction::Break;
+        }
+        action
+    }
+
+    fn leave(
+        &mut self,
+        node: graphql_rs::NodeRef<'a>,
+        cx: &mut SimpleValidationContext<'a>,
+        info: &graphql_rs::VisitInfo<'a, '_>,
+    ) -> graphql_rs::VisitAction {
+        let action = self.0.leave(node, cx, info);
+        if cx.has_thrown() {
+            return graphql_rs::VisitAction::Break;
+        }
+        action
+    }
 }
 
 /// The `linkSpecDefinitions` SDL parsed inside `validateSubgraph`.

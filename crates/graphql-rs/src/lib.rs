@@ -14,6 +14,7 @@ mod execution;
 mod js;
 mod jsutils;
 mod lexer;
+mod nesting;
 mod parser;
 mod predicates;
 mod printer;
@@ -26,8 +27,10 @@ mod visitor;
 pub use ast::*;
 pub use directive_location::DirectiveLocation;
 pub use error::GraphQLError;
+pub use nesting::check_nesting_depth;
 pub use parser::{
     parse, parse_const_value, parse_schema_coordinate, parse_type, parse_value, parse_with_options, ParseOptions,
+    MAX_NESTING_DEPTH,
 };
 pub use predicates::*;
 pub use printer::print;
