@@ -10,9 +10,6 @@ order) as the TypeScript library at the upstream release recorded in [`UPSTREAM`
 (v0.27.0). This is checked on every pull request and every week against upstream's own test suite
 (see [Correctness](#correctness) and [Staying in sync with upstream](#staying-in-sync-with-upstream)).
 
-The npm package is published. The crates are not on crates.io yet; the install instructions below
-show how to use them from this repository until then.
-
 ## Packages
 
 | Package                                                   | Language   | What it is                                                                                                                                                             |
@@ -27,9 +24,6 @@ show how to use them from this repository until then.
 [dependencies]
 federation-composition = "0.1"
 graphql-core = "0.1"
-# Until the crates are published:
-# federation-composition = { git = "https://github.com/lemonberrylabs/federation-composition" }
-# graphql-core = { git = "https://github.com/lemonberrylabs/federation-composition" }
 ```
 
 The subgraph schemas are parsed with `graphql-core` (re-exported as
@@ -69,8 +63,6 @@ one. The Rust examples in this README run as doctests of `federation-composition
 ```toml
 [dependencies]
 graphql-core = "0.1"
-# Until the crate is published:
-# graphql-core = { git = "https://github.com/lemonberrylabs/federation-composition" }
 ```
 
 Parsing, printing and schema validation behave like graphql-js, including its error messages:

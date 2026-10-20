@@ -144,7 +144,8 @@ token, and no registry token is stored in the repository. Both registries can ad
 publisher only to a package that already exists, so the first version of each package is
 published once by hand.
 
-To turn releases on, the owner:
+These steps were done for the 0.1.0 releases on 2026-10-20 and are needed again only for a new
+package. To turn releases on, the owner:
 
 1.  Publishes the first versions by hand, from a clean checkout of `main`:
     - the crates, in dependency order: `cargo publish -p graphql-core`, then
