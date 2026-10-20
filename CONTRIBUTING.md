@@ -137,16 +137,50 @@ How a release goes:
    (prerelease versions under the `next` dist-tag). It can also be run by hand for an existing
    tag.
 
-To turn it on, the owner adds, in the repository's settings:
+Publishing uses trusted publishing on both registries
+([crates.io](https://crates.io/docs/trusted-publishing),
+[npm](https://docs.npmjs.com/trusted-publishers)): the workflows authenticate with GitHub's OIDC
+token, and no registry token is stored in the repository. Both registries can add a trusted
+publisher only to a package that already exists, so the first version of each package is
+published once by hand.
+
+To turn releases on, the owner:
+
+1.  Publishes the first versions by hand, from a clean checkout of `main`:
+    - the crates, in dependency order: `cargo publish -p graphql-rs`, then
+      `cargo publish -p federation-composition-rs`;
+    - a placeholder `0.0.0` of the npm package, so that every real version is built and
+      published by CI with provenance. From an empty directory, with a `package.json` that has the
+      package's name, version `0.0.0`, its license and repository, and a README saying it is a
+      placeholder: `npm publish --access public`, then
+      `npm deprecate @lemonberrylabs/federation-composition-wasm@0.0.0 "Placeholder; use a later version."`.
+2.  Adds the trusted publishers:
+    - on crates.io, for each crate (Settings → Trusted Publishing): repository owner
+      `lemonberrylabs`, repository `federation-composition`, workflow `release-plz.yml`, no
+      environment;
+    - on npm (npm 11.15 or later, two-factor authentication on the account), or with the same
+      values under the package's Settings → Trusted publishing:
+
+      ```sh
+      npm trust github @lemonberrylabs/federation-composition-wasm --file npm-publish.yml \
+        --repository lemonberrylabs/federation-composition --env npm --allow-publish
+      ```
+
+      npm expires a trusted publisher that has not published within two days, so do this step
+      shortly before the first release.
+
+3.  Sets, in the repository's settings:
 
 | Setting                                                    | Kind                                     | For                                                                                                                                                                                                                                                                                    |
 | ---------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `RELEASE_ENABLED` = `true`                                 | Actions variable                         | Both release workflows run only when it is set.                                                                                                                                                                                                                                        |
-| `CARGO_REGISTRY_TOKEN`                                     | Actions secret                           | crates.io API token with the `publish-new` and `publish-update` scopes. (Once the crates exist, crates.io trusted publishing can replace it: add `id-token: write` to the release job and drop the secret.)                                                                            |
-| `NPM_TOKEN`                                                | secret of the `npm` environment          | npm granular access token allowed to publish `@lemonberrylabs/federation-composition-wasm`. (npm trusted publishing can replace it after the first publish.)                                                                                                                           |
+| `npm`                                                      | Environment                              | npm-publish.yml's job runs in it; the npm trusted publisher names it. Add required reviewers to it to approve each npm publish by hand.                                                                                                                                                |
 | `RELEASE_PLZ_TOKEN` (optional)                             | Actions secret                           | A fine-grained token with `contents: write` and `pull-requests: write`. Tags and pull requests made with the default `GITHUB_TOKEN` do not trigger other workflows, so without it CI does not run on the release pull request and npm-publish.yml must be run by hand after a release. |
 | "Allow GitHub Actions to create and approve pull requests" | Actions → General → Workflow permissions | release-plz's release pull request (when `RELEASE_PLZ_TOKEN` is not set).                                                                                                                                                                                                              |
 | Pages source: "GitHub Actions"                             | Pages                                    | pages.yml.                                                                                                                                                                                                                                                                             |
 
-The first release of each crate is a new crate on crates.io; release-plz publishes it like any
-other version when `CARGO_REGISTRY_TOKEN` is set.
+4. Optionally, once trusted publishing has worked, turns off token publishing: on npm, the
+   package's Settings → Publishing access → "Require two-factor authentication and disallow
+   tokens".
+
+npm-publish.yml does nothing for a version that is already on npm, so it can be rerun safely.

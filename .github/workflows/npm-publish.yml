@@ -3,8 +3,11 @@
 # or by hand for an existing tag. The npm version is the crate's version: the tag, Cargo.toml and
 # the published package.json agree, or the job fails. See CONTRIBUTING.md, "Releasing".
 #
+# Authenticates with npm trusted publishing (OIDC): no npm token. The package's trusted publisher
+# on npmjs.com names this repository, this file (npm-publish.yml) and the environment "npm".
+#
 # Off until the owner turns it on: runs only when the repository variable RELEASE_ENABLED is
-# "true", and needs the NPM_TOKEN secret.
+# "true".
 name: npm publish
 on:
   push:
@@ -29,7 +32,7 @@ jobs:
     environment: npm
     permissions:
       contents: read
-      id-token: write # npm provenance
+      id-token: write # npm trusted publishing (OIDC) and provenance
     steps:
       - name: resolve the tag
         id: tag
@@ -71,12 +74,18 @@ jobs:
           node-version-file: .node-version
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
+      - name: npm 11 (trusted publishing needs 11.5.1 or later)
+        run: npm install -g npm@11 && npm --version
       - name: publish
         working-directory: npm
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
+          # Rerunning for a version that is already on npm is not an error.
+          if npm view "$(node -p 'require("./package.json").name')@$VERSION" version > /dev/null 2>&1; then
+            echo "::notice::$VERSION is already published; nothing to do"
+            exit 0
+          fi
           # A prerelease version goes to the "next" dist-tag, not "latest".
           if [[ "$VERSION" == *-* ]]; then dist=next; else dist=latest; fi
           npm publish --provenance --access public --tag "$dist"

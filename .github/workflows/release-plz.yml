@@ -5,8 +5,12 @@
 # graphql-rs and federation-composition-rs to crates.io; the tag of federation-composition-wasm
 # triggers npm-publish.yml.
 #
+# Publishes with crates.io trusted publishing (OIDC): no registry token. release-plz exchanges
+# the job's OIDC token for a short-lived crates.io token. Each crate's trusted publisher on
+# crates.io names this repository and this file (release-plz.yml).
+#
 # Off until the owner turns it on: both jobs run only when the repository variable
-# RELEASE_ENABLED is "true", and publishing needs the CARGO_REGISTRY_TOKEN secret.
+# RELEASE_ENABLED is "true".
 name: Release-plz
 on:
   push:
@@ -21,6 +25,7 @@ jobs:
     permissions:
       contents: write # tags and GitHub releases
       pull-requests: read # finds the merged release pull request
+      id-token: write # crates.io trusted publishing
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -38,7 +43,6 @@ jobs:
           # would not run on it; RELEASE_PLZ_TOKEN (a fine-grained token with contents: write)
           # makes the tag push trigger it. Without it, run npm-publish.yml by hand.
           GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   release-pr:
     name: Release pull request
