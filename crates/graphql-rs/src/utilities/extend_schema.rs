@@ -387,7 +387,11 @@ fn build_directive(
         locations: node
             .locations
             .iter()
-            .map(|name| DirectiveLocation::from_str(&name.value).expect("the parser accepts only directive locations"))
+            .map(|name| {
+                name.value
+                    .parse::<DirectiveLocation>()
+                    .expect("the parser accepts only directive locations")
+            })
             .collect(),
         is_repeatable: node.repeatable,
         args,

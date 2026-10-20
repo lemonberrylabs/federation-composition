@@ -2,8 +2,8 @@
 
 use crate::shared::*;
 
-use federation_composition_rs::subgraph::state::ArgumentKind;
-use federation_composition_rs::supergraph::composition::ast::{
+use federation_composition_rs::__internal::subgraph::state::ArgumentKind;
+use federation_composition_rs::__internal::supergraph::composition::ast::{
     create_enum_type_node, create_input_object_type_node, create_interface_type_node, create_join_graph_enum_type_node,
     create_object_type_node, create_scalar_type_node, create_schema_node, create_union_type_node, strip_federation,
     EnumTypeAst, EnumValueAst, FieldArgumentAst, FieldAst, InputFieldAst, InputObjectTypeAst, InterfaceTypeAst,

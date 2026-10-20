@@ -140,6 +140,8 @@ pub type ShortestPaths = IndexMap<NodeId, IndexMap<ContextMask, OperationPath>>;
 
 /// `walk(method)`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// TS: the `walk(method)` argument; nothing in `src/` passes `"bfs"`.
+#[allow(dead_code)]
 pub enum WalkMethod {
     Bfs,
     Dfs,
@@ -185,6 +187,8 @@ impl<'s> Walker<'s> {
     }
 
     /// `walkTrail(operationType, steps)`: walks only the given steps.
+    // TS: used by `validateOperation` in `supergraph.ts`, which is defined here and never called in `src/` either.
+    #[allow(dead_code)]
     pub fn walk_trail(&self, operation_type: OperationType, steps: &[Step]) -> JsResult<WalkTracker<'s>> {
         if steps.is_empty() {
             return Err(JsError::error("Expected at least one step"));
@@ -335,8 +339,7 @@ impl<'s> Walker<'s> {
 
         let super_tail_node = supergraph.node(super_tail);
         if super_tail_node.is_graph_combo_visited(&graphs_leading_to_node, &state.label_values) {
-            self.logger
-                .log(|| format!("Node already visited: {}", super_tail_node.to_string()));
+            self.logger.log(|| format!("Node already visited: {}", super_tail_node));
             return Ok(());
         }
 

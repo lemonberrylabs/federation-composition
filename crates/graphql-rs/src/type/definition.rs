@@ -15,6 +15,10 @@
 //! [`crate::build_ast_schema`] resolves them in graphql-js order, so a thunk
 //! that throws makes the same call fail.
 
+// The type system is not part of the public API yet: outside the crate it is reachable only
+// through the unstable `__internal` module, for the differential tests.
+#![allow(missing_docs)]
+
 use std::fmt;
 use std::sync::{Arc, OnceLock};
 

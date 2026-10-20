@@ -28,7 +28,8 @@ impl KnownDirectivesRule {
                     def.locations
                         .iter()
                         .map(|name| {
-                            DirectiveLocation::from_str(&name.value)
+                            name.value
+                                .parse::<DirectiveLocation>()
                                 .expect("the parser accepts only directive locations")
                         })
                         .collect(),

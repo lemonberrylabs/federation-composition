@@ -64,6 +64,8 @@ pub fn specified_scalar_types() -> Vec<GraphQLScalarType> {
 }
 
 /// graphql-js `isSpecifiedScalarType` (by name, as graphql-js compares).
+// graphql-js: exported by `type/scalars`; the port calls the version in `specified`.
+#[allow(dead_code)]
 pub fn is_specified_scalar_type(name: &str) -> bool {
     SPECIFIED_SCALAR_TYPE_NAMES.contains(&name)
 }

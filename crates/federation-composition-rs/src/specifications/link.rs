@@ -12,6 +12,7 @@ use crate::utils::link::link_url::whatwg_url;
 /// `LinkImport`: one entry of `@link(import:)`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LinkImport {
+    /// Whether the import is a directive or a type.
     pub kind: LinkImportKind,
     /// `@`-prefixed for directives.
     pub name: String,
@@ -22,11 +23,14 @@ pub struct LinkImport {
 /// `"directive" | "type"`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum LinkImportKind {
+    /// `"directive"`.
     Directive,
+    /// `"type"`.
     Type,
 }
 
 impl LinkImportKind {
+    /// `"directive"` or `"type"`.
     pub fn as_str(self) -> &'static str {
         match self {
             LinkImportKind::Directive => "directive",
@@ -38,19 +42,25 @@ impl LinkImportKind {
 /// `Link = ReturnType<typeof parseLink>`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Link {
+    /// The spec's name, e.g. `federation`.
     pub name: Option<String>,
     /// NOTE(port): `mergeLinks` produces `""` (not `null`) when no version was seen; that is
     /// `Some("")` here. Both are falsy where the TS tests them.
     pub version: Option<String>,
+    /// The spec's identity, e.g. `https://specs.apollo.dev/federation`.
     pub identity: String,
+    /// The imported names.
     pub imports: Vec<LinkImport>,
 }
 
 /// The result of `parseLinkUrl`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LinkUrl {
+    /// The spec's name, e.g. `federation`.
     pub name: Option<String>,
+    /// The version, e.g. `v2.3`.
     pub version: Option<String>,
+    /// The spec's identity, e.g. `https://specs.apollo.dev/federation`.
     pub identity: String,
 }
 
@@ -456,6 +466,7 @@ fn is_import_argument(arg: &ConstArgument) -> bool {
     arg.name.value == "import" && matches!(arg.value, graphql_rs::Value::List(_))
 }
 
+/// `sdl`: the definitions of the link spec (`@link`, `link__Import`, `link__Purpose`).
 pub const SDL: &str = r#"
   directive @link(
     url: String

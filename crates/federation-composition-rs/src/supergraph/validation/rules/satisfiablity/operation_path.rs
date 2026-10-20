@@ -18,9 +18,6 @@ pub enum Step {
     Abstract { type_name: String },
 }
 
-/// `@override(label:)` cannot start with a space, so a space marks an empty label.
-pub const EMPTY_OVERRIDE_LABEL: &str = " ";
-
 /// `OperationPath`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OperationPath {
@@ -126,6 +123,8 @@ impl OperationPath {
         self.tail(graph).unwrap_or(self.root_node)
     }
 
+    // TS: the `rootNode()` getter; the ported callers do not need it.
+    #[allow(dead_code)]
     pub fn root_node(&self) -> NodeId {
         self.root_node
     }
@@ -139,7 +138,7 @@ impl OperationPath {
         let mut str = graph.node(self.root_node).to_string();
         for &edge in &self.previous_edges {
             let e = graph.edge(edge);
-            str += &format!(" -({})-> {}", e.r#move.to_string(), graph.node(e.tail).to_string());
+            str += &format!(" -({})-> {}", e.r#move, graph.node(e.tail));
         }
         str
     }

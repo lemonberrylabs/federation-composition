@@ -1,5 +1,6 @@
 //! Port of `src/supergraph/validation/rules/satisfiablity/errors.ts`.
 
+use std::fmt;
 use std::rc::Rc;
 
 use super::helpers::Lazy;
@@ -129,6 +130,8 @@ impl SatisfiabilityError {
         }
     }
 
+    // TS: only commented-out code in `move-validator.ts` calls it.
+    #[allow(dead_code)]
     pub fn is_matching_field(&self, type_name: &str, field_name: &str) -> bool {
         if self.type_name != type_name {
             return false;
@@ -138,10 +141,12 @@ impl SatisfiabilityError {
             _ => true,
         }
     }
+}
 
+impl fmt::Display for SatisfiabilityError {
     /// `toString()`: the message.
-    pub fn to_string(&self) -> String {
-        self.message.clone()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
     }
 }
 
@@ -190,6 +195,8 @@ impl<'a, T: Clone> LazyErrors<'a, T> {
         self
     }
 
+    // TS: used by `errors.ts` itself; the ported callers do not need it.
+    #[allow(dead_code)]
     pub fn get_lazy_errors(&self) -> &[LazyError<'a, T>] {
         &self.lazy_error
     }

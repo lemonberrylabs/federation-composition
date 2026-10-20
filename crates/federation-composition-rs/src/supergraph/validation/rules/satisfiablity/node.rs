@@ -5,6 +5,7 @@
 //! Fields mutated while walking (after the graph is built) use interior mutability.
 
 use std::cell::RefCell;
+use std::fmt;
 
 use super::graph::Graph;
 
@@ -148,6 +149,8 @@ impl GraphComboIds {
 
 /// `typeState` of a node (non-null): a reference into the supergraph state.
 #[derive(Clone, Copy, Debug)]
+// TS: the type state each node holds; nothing reads it beyond its kind.
+#[allow(dead_code)]
 pub enum NodeTypeState<'s> {
     Object(&'s ObjectTypeState),
     Interface(&'s InterfaceTypeState),
@@ -257,6 +260,8 @@ impl<'s> Node<'s> {
         Self::push_to_children_index(&mut self.entity_children_index, type_name, edge_at);
     }
 
+    // TS: used by `canReachTypeFromType` in `graph.ts`, which is defined here and never called in `src/` either.
+    #[allow(dead_code)]
     pub fn get_entity_edge_indexes(&self, type_name: &str) -> Option<&Vec<usize>> {
         self.entity_children_index.get(type_name)
     }
@@ -306,9 +311,11 @@ impl<'s> Node<'s> {
     pub fn set_graph_combo_as_visited(&self, graph_names: Vec<GraphComboId>) {
         self.visited_graph_combos.borrow_mut().push(graph_names);
     }
+}
 
+impl fmt::Display for Node<'_> {
     /// `toString()`: `${typeName}/${graphName}${debugPostFix}` (lazy in TS; logging only).
-    pub fn to_string(&self) -> String {
-        format!("{}/{}{}", self.type_name, self.graph_name, self.debug_post_fix)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}/{}{}", self.type_name, self.graph_name, self.debug_post_fix)
     }
 }

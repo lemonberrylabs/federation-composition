@@ -1,8 +1,12 @@
 //! Port of `src/utils/link/link-url.ts`.
 
-use crate::utils::js::JsResult;
+use std::fmt;
+
+use crate::Error;
 
 /// `VERSION_MATCH = /v(\d{1,3})\.(\d{1,4})/i` (unanchored).
+// TS: the regex; the port matches it by hand (`version_match`).
+#[allow(dead_code)]
 pub const VERSION_MATCH: &str = r"(?i)v(\d{1,3})\.(\d{1,4})";
 
 /// `VERSION_MATCH.exec(text)`: the major and minor digit groups of the leftmost match.
@@ -48,7 +52,8 @@ fn parse_version(version: Option<&str>) -> (i64, i64) {
     (-1, -1)
 }
 
-/// The argument of the overloaded `supports(...)`.
+/// The argument of the overloaded `supports(...)` of [`FederatedLinkUrl::supports`] and
+/// [`FederatedLink::supports`](crate::FederatedLink::supports).
 #[derive(Clone, Copy, Debug)]
 pub enum SupportsVersion<'a> {
     /// `supports(version: string)`.
@@ -61,18 +66,22 @@ pub enum SupportsVersion<'a> {
     Null,
 }
 
-/// `FederatedLinkUrl`: the parsed `@link(url:)`.
+/// The parsed `url` of a `@link`: upstream's `FederatedLinkUrl`.
+///
+/// For `https://specs.apollo.dev/federation/v2.3` the identity is
+/// `https://specs.apollo.dev/federation`, the name `federation` and the version `v2.3`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FederatedLinkUrl {
-    pub identity: String,
-    pub name: Option<String>,
-    pub version: Option<String>,
+    pub(crate) identity: String,
+    pub(crate) name: Option<String>,
+    pub(crate) version: Option<String>,
     /// -1 if no version is set.
     major: i64,
     minor: i64,
 }
 
 impl FederatedLinkUrl {
+    /// `new FederatedLinkUrl(identity, name, version)`.
     pub fn new(identity: String, name: Option<String>, version: Option<String>) -> Self {
         let (major, minor) = parse_version(version.as_deref());
         FederatedLinkUrl {
@@ -84,18 +93,24 @@ impl FederatedLinkUrl {
         }
     }
 
-    /// `toString()`.
-    #[allow(clippy::inherent_to_string_shadow_display)]
-    pub fn to_string(&self) -> String {
-        match &self.version {
-            Some(v) if !v.is_empty() => format!("{}/{}", self.identity, v),
-            _ => self.identity.clone(),
-        }
+    /// The spec's identity (`identity`): the URL without the version.
+    pub fn identity(&self) -> &str {
+        &self.identity
     }
 
-    /// `FederatedLinkUrl.fromUrl(urlSource)`. Throws `TypeError: Invalid URL` (WHATWG URL
-    /// parsing, as `new URL`) for inputs such as `"spec.example.com"`.
-    pub fn from_url(url_source: &str) -> JsResult<FederatedLinkUrl> {
+    /// The spec's name (`name`), the last path segment before the version.
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    /// The version (`version`), e.g. `v2.3`.
+    pub fn version(&self) -> Option<&str> {
+        self.version.as_deref()
+    }
+
+    /// `FederatedLinkUrl.fromUrl(urlSource)`. `Err` (upstream throws `TypeError: Invalid URL`,
+    /// from WHATWG URL parsing as `new URL` does) for inputs such as `"spec.example.com"`.
+    pub fn from_url(url_source: &str) -> Result<FederatedLinkUrl, Error> {
         let url = whatwg_url::Url::parse(url_source)?;
         let parts: Vec<&str> = url.pathname.split('/').filter(|p| !p.is_empty()).collect();
         let version_or_name = parts.last().copied();
@@ -156,6 +171,16 @@ impl FederatedLinkUrl {
             return self.minor >= minor;
         }
         false
+    }
+}
+
+impl fmt::Display for FederatedLinkUrl {
+    /// `toString()`: the identity, followed by `/` and the version when there is one.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.version {
+            Some(v) if !v.is_empty() => write!(f, "{}/{}", self.identity, v),
+            _ => f.write_str(&self.identity),
+        }
     }
 }
 
@@ -797,7 +822,9 @@ pub(crate) mod whatwg_url {
         /// Expected values generated with Node 24 (`new URL(input)`).
         #[test]
         fn matches_node() {
-            let cases: &[(&str, Option<(&str, &str, &str)>)] = &[
+            /// `(protocol, origin, pathname)`, or `None` when `new URL` throws.
+            type Parsed<'a> = Option<(&'a str, &'a str, &'a str)>;
+            let cases: &[(&str, Parsed)] = &[
                 (
                     "https://a.com/a^b|c\"d<e>f`g{h}i j~k%41/é",
                     Some((

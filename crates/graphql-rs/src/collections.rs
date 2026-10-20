@@ -10,5 +10,7 @@
 
 /// FxHash: a few multiply/rotate operations per word, no random seed (no `getrandom` on wasm32).
 pub type FxBuildHasher = rustc_hash::FxBuildHasher;
+/// An insertion-ordered map (`indexmap::IndexMap`) with [`FxBuildHasher`].
 pub type IndexMap<K, V> = indexmap::IndexMap<K, V, FxBuildHasher>;
+/// An insertion-ordered set (`indexmap::IndexSet`) with [`FxBuildHasher`].
 pub type IndexSet<T> = indexmap::IndexSet<T, FxBuildHasher>;

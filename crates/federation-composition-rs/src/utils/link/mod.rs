@@ -1,5 +1,7 @@
 //! Port of `src/utils/link/index.ts`: a simple API for Federation v2 `@link` directives.
 
+// TS: `src/utils/link/link.ts` is in `src/utils/link/`, so the module has its parent's name.
+#[allow(clippy::module_inception)]
 pub mod link;
 pub mod link_import;
 pub mod link_url;
@@ -12,27 +14,36 @@ pub use link_url::FederatedLinkUrl;
 
 use crate::utils::collections::IndexMap;
 
-use crate::utils::js::JsResult;
+use crate::Error;
 use link_url::SupportsVersion;
 
-/// The version argument of `matchesImplementation`: TS `LinkVersion`
-/// (`string | { major, minor } | null | typeof FEDERATION_V1`).
+/// The version argument of [`LinkImplementations::matches_implementation`]: upstream's
+/// `LinkVersion` (`string | { major, minor } | null | typeof FEDERATION_V1`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LinkVersion {
+    /// A version string such as `"v2.3"`.
     Str(String),
+    /// A major and minor version.
     MajorMinor {
+        /// The major version.
         major: i64,
+        /// The minor version.
         minor: i64,
     },
+    /// No version (`null`): matches a link without a version.
     Null,
-    /// The `FEDERATION_V1` symbol.
+    /// The `FEDERATION_V1` symbol: matches when the schema has no `@link` or `@core`.
     FederationV1,
 }
 
-/// The object returned by `extractLinkImplementations`; its two closures are methods.
+/// Upstream's `FEDERATION_V1` symbol, for [`LinkImplementations::matches_implementation`].
+pub const FEDERATION_V1: LinkVersion = LinkVersion::FederationV1;
+
+/// The `@link`s of a schema, from [`extract_link_implementations`](crate::extract_link_implementations):
+/// the object upstream's `extractLinkImplementations` returns, whose two closures are methods.
 #[derive(Clone, Debug)]
 pub struct LinkImplementations {
-    pub links: Vec<FederatedLink>,
+    links: Vec<FederatedLink>,
     /// `Object.fromEntries(links.map((l) => [l.identity, l]))`: the last link per identity wins,
     /// at the position of the first.
     /// NOTE(port): plain object; identities are URLs, never integer-like.
@@ -41,7 +52,19 @@ pub struct LinkImplementations {
 }
 
 impl LinkImplementations {
-    /// `resolveImportName(identity, name)`.
+    /// The schema's links (`links`), in document order.
+    pub fn links(&self) -> &[FederatedLink] {
+        &self.links
+    }
+
+    /// The schema's links, owned.
+    pub fn into_links(self) -> Vec<FederatedLink> {
+        self.links
+    }
+
+    /// `resolveImportName(identity, name)`: the name `name` (`@key`, `FieldSet`) of the spec
+    /// `identity` (`https://specs.apollo.dev/federation`) has in the schema, without the `@` of
+    /// a directive. For a spec the schema does not link, `name` without its `@`.
     pub fn resolve_import_name(&self, identity: &str, name: &str) -> String {
         match self.link_by_identity.get(identity) {
             None => name.strip_prefix('@').unwrap_or(name).to_string(),
@@ -49,7 +72,8 @@ impl LinkImplementations {
         }
     }
 
-    /// `matchesImplementation(identity, version)`.
+    /// `matchesImplementation(identity, version)`: whether the schema links the spec
+    /// `identity` at a version that supports `version`.
     pub fn matches_implementation(&self, identity: &str, version: &LinkVersion) -> bool {
         // Assume Federation 1 means there is no link or identity and so it
         // always matches _if_ the typedefs dont use link or core.
@@ -71,13 +95,15 @@ impl LinkImplementations {
 }
 
 /// `extractLinkImplementations(typeDefs)`.
-pub fn extract_link_implementations(type_defs: &Document) -> JsResult<LinkImplementations> {
+pub fn extract_link_implementations(type_defs: &Document) -> Result<LinkImplementations, Error> {
     let links = FederatedLink::from_typedefs(type_defs)?;
     Ok(LinkImplementations::from_links(links))
 }
 
 impl LinkImplementations {
     /// The rest of `extractLinkImplementations`, given `FederatedLink.fromTypedefs(typeDefs)`.
+    /// Not part of the stable API.
+    #[doc(hidden)]
     pub fn from_links(links: Vec<FederatedLink>) -> LinkImplementations {
         let mut link_by_identity: IndexMap<String, FederatedLink> = IndexMap::default();
         for l in &links {
@@ -116,7 +142,7 @@ mod tests {
         )
         .unwrap();
         let li = extract_link_implementations(&doc).unwrap();
-        assert_eq!(li.links.len(), 3);
+        assert_eq!(li.links().len(), 3);
         assert_eq!(
             li.resolve_import_name("https://specs.graphql-hive.com/metadata", "@meta"),
             "meta"

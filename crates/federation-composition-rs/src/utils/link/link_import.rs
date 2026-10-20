@@ -1,33 +1,30 @@
 //! Port of `src/utils/link/link-import.ts`.
 
+use std::fmt;
+
 use graphql_rs::ConstValue;
 
-use crate::utils::js::{JsError, JsResult};
+use crate::utils::js::JsError;
+use crate::Error;
 
-/// `FederatedLinkImport`.
+/// One element of a `@link`'s `import` list: upstream's `FederatedLinkImport`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FederatedLinkImport {
+    /// The imported name, e.g. `@key` or `FieldSet`.
     pub name: String,
-    /// TS `as`.
+    /// The local name it is imported as (TS `as`), e.g. `@myKey`.
     pub as_: Option<String>,
 }
 
 impl FederatedLinkImport {
+    /// `new FederatedLinkImport(name, as)`.
     pub fn new(name: String, as_: Option<String>) -> Self {
         FederatedLinkImport { name, as_ }
     }
 
-    /// `toString()`: `{ name: "N", as: "A" }` or `"N"`.
-    /// NOTE(port): `this.as ? ..` is falsy for `""`.
-    pub fn to_string(&self) -> String {
-        match &self.as_ {
-            Some(as_) if !as_.is_empty() => format!("{{ name: \"{}\", as: \"{}\" }}", self.name, as_),
-            _ => format!("\"{}\"", self.name),
-        }
-    }
-
-    /// `FederatedLinkImport.fromTypedefs(node)`. Throws on unexpected value kinds.
-    pub fn from_typedefs(node: &ConstValue) -> JsResult<Vec<FederatedLinkImport>> {
+    /// `FederatedLinkImport.fromTypedefs(node)`: the imports of a `@link`'s `import` argument.
+    /// `Err` (upstream throws) on unexpected value kinds.
+    pub fn from_typedefs(node: &ConstValue) -> Result<Vec<FederatedLinkImport>, Error> {
         if let ConstValue::List(list) = node {
             let mut imports = Vec::with_capacity(list.values.len());
             for v in &list.values {
@@ -44,20 +41,20 @@ impl FederatedLinkImport {
                             match &f.value {
                                 ConstValue::String(s) => name = s.value.clone(),
                                 other => {
-                                    return Err(JsError::error(format!(
+                                    return Err(Error::from(JsError::error(format!(
                                         "Expected string value for @link \"name\" field but got \"{}\"",
                                         other.kind().as_str()
-                                    )))
+                                    ))))
                                 }
                             }
                         } else if f.name.value == "as" {
                             match &f.value {
                                 ConstValue::String(s) => as_ = Some(s.value.clone()),
                                 other => {
-                                    return Err(JsError::error(format!(
+                                    return Err(Error::from(JsError::error(format!(
                                         "Expected string value for @link \"as\" field but got \"{}\"",
                                         other.kind().as_str()
-                                    )))
+                                    ))))
                                 }
                             }
                         }
@@ -68,13 +65,26 @@ impl FederatedLinkImport {
                 return Err(JsError::error(format!(
                     "Unexpected value kind \"{}\" in @link import declaration",
                     v.kind().as_str()
-                )));
+                ))
+                .into());
             }
             return Ok(imports);
         }
         Err(JsError::error(format!(
             "Expected a list of @link imports but got \"{}\"",
             node.kind().as_str()
-        )))
+        ))
+        .into())
+    }
+}
+
+impl fmt::Display for FederatedLinkImport {
+    /// `toString()`: `{ name: "N", as: "A" }` or `"N"`.
+    /// NOTE(port): `this.as ? ..` is falsy for `""`.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.as_ {
+            Some(as_) if !as_.is_empty() => write!(f, "{{ name: \"{}\", as: \"{}\" }}", self.name, as_),
+            _ => write!(f, "\"{}\"", self.name),
+        }
     }
 }

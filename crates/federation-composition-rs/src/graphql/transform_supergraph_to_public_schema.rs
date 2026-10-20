@@ -254,7 +254,7 @@ pub fn transform_supergraph_to_public_schema(document_node: &Document) -> JsResu
     let inaccessible_directive_name = get_inaccessible_directive_name(document_node);
 
     let spec_links: Vec<_> = extract_link_implementations(document_node)?
-        .links
+        .into_links()
         .into_iter()
         .filter(|link| link.identity().contains("//specs.apollo.dev/"))
         .collect();

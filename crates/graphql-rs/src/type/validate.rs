@@ -42,14 +42,13 @@ pub fn validate_schema(schema: &GraphQLSchema) -> Result<Vec<GraphQLError>, Grap
     Ok(schema.validation_errors.get_or_init(|| errors).clone())
 }
 
-/// graphql-js `assertValidSchema(schema)`: throws an `Error` with the
-/// messages of all errors joined by blank lines (or the error
-/// `validateSchema` throws).
-pub fn assert_valid_schema(schema: &GraphQLSchema) -> Result<(), String> {
-    let errors = validate_schema(schema).map_err(|error| error.message)?;
+/// graphql-js `assertValidSchema(schema)`: `Err` (graphql-js throws) with the messages of all
+/// validation errors joined by blank lines, or the error [`validate_schema`] returns.
+pub fn assert_valid_schema(schema: &GraphQLSchema) -> Result<(), GraphQLError> {
+    let errors = validate_schema(schema)?;
     if !errors.is_empty() {
         let messages: Vec<&str> = errors.iter().map(|error| error.message.as_str()).collect();
-        return Err(messages.join("\n\n"));
+        return Err(GraphQLError::new(messages.join("\n\n")));
     }
     Ok(())
 }

@@ -85,6 +85,7 @@ pub struct SubgraphInput<'a> {
 /// `__internal?: { disableValidationRules?: string[] }`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct InternalOptions {
+    /// `disableValidationRules`: the names of validation rules to skip.
     pub disable_validation_rules: Option<Vec<String>>,
 }
 
@@ -97,6 +98,8 @@ pub struct ExtractedLinks {
 }
 
 /// `assertUniqueSubgraphNames(subgraphs)`: throws `A subgraph named X already exists`.
+// TS: defined here and never called in `src/` either.
+#[allow(dead_code)]
 pub fn assert_unique_subgraph_names<'n>(subgraphs: impl IntoIterator<Item = &'n str>) -> JsResult<()> {
     let mut names: IndexSet<&str> = IndexSet::default();
 

@@ -44,10 +44,12 @@ impl TransformTagDirectives {
         create_transform_tag_directives(tag_directive_name, inaccessible_directive_name)
     }
 
+    /// The name of the `@tag` directive in the subgraph.
     pub fn tag_directive_name(&self) -> &str {
         &self.tag_directive_name
     }
 
+    /// The name of the `@inaccessible` directive in the subgraph.
     pub fn inaccessible_directive_name(&self) -> &str {
         &self.inaccessible_directive_name
     }
@@ -346,9 +348,11 @@ fn difference<T: std::hash::Hash + Eq + Clone>(set1: &IndexSet<T>, set2: &IndexS
 /// The result of `applyTagFilterToInaccessibleTransformOnSubgraphSchema`.
 #[derive(Clone, Debug)]
 pub struct TagFilterTransformResult {
+    /// The transformed subgraph (`typeDefs`).
     pub type_defs: Document,
     /// Types within this subgraph where all fields are inaccessible.
     pub types_with_all_fields_inaccessible: IndexMap<String, bool>,
+    /// `transformTagDirectives` for the subgraph's directive names.
     pub transform_tag_directives: TransformTagDirectives,
     /// Types in this subgraph that have the inaccessible directive applied.
     pub types_with_inaccessible_applied: IndexSet<String>,
@@ -837,11 +841,41 @@ pub fn create_tag_directive_name_extraction_strategy(directive_name: &str) -> Ta
     })
 }
 
-/// `SchemaContractFilter`.
+/// The tag filter of a schema contract: upstream's `SchemaContractFilter`
+/// (`{ include: Set<string>, exclude: Set<string> }`).
+///
+/// With a non-empty `include`, only elements tagged (`@tag(name:)`) with one of its tags stay
+/// accessible; elements tagged with one of `exclude`'s tags become `@inaccessible`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SchemaContractFilter {
-    pub include: IndexSet<String>,
-    pub exclude: IndexSet<String>,
+    pub(crate) include: IndexSet<String>,
+    pub(crate) exclude: IndexSet<String>,
+}
+
+impl SchemaContractFilter {
+    /// A filter with these `include` and `exclude` tags. Repeated tags are kept once.
+    pub fn new<I, E>(include: I, exclude: E) -> Self
+    where
+        I: IntoIterator,
+        I::Item: Into<String>,
+        E: IntoIterator,
+        E::Item: Into<String>,
+    {
+        SchemaContractFilter {
+            include: include.into_iter().map(Into::into).collect(),
+            exclude: exclude.into_iter().map(Into::into).collect(),
+        }
+    }
+
+    /// The `include` tags, in the order given.
+    pub fn include(&self) -> impl ExactSizeIterator<Item = &str> {
+        self.include.iter().map(String::as_str)
+    }
+
+    /// The `exclude` tags, in the order given.
+    pub fn exclude(&self) -> impl ExactSizeIterator<Item = &str> {
+        self.exclude.iter().map(String::as_str)
+    }
 }
 
 #[cfg(test)]

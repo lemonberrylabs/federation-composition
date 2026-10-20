@@ -184,9 +184,10 @@ port it in `crates/federation-composition-rs`, do not substitute graphql-js `pri
   argument, a parse error); `validate_schema(&schema)` returns
   `Result<Vec<GraphQLError>, GraphQLError>` (`Err` when resolving an enum's values
   throws, which graphql-js does lazily, during validation) and caches the errors like
-  `__validationErrors`; `assert_valid_schema(&schema)` returns `Result<(), String>` with
-  graphql-js's message. The type system is in `graphql_rs::r#type` (`definition`,
-  `directives`, `scalars`, `introspection`, `schema`, `validate`); named types are
+  `__validationErrors`; `assert_valid_schema(&schema)` returns `Result<(), GraphQLError>` with
+  graphql-js's message. The type system is in the crate-private `r#type` module (`definition`,
+  `directives`, `scalars`, `introspection`, `schema`, `validate`; the differential tests reach
+  `definition` through `graphql_rs::__internal`); named types are
   referenced by name (`GraphQLType::Named(String)`), `schema.get_type(name)` resolves
   them, and the `fields`/`interfaces`/`types`/`values` thunks are `Lazy` values that
   `GraphQLSchema` construction resolves in graphql-js order. Only the paths these
@@ -222,9 +223,26 @@ sites (a mechanical edit in another file is fine), and say so in the commit mess
 whose TS can throw (directly, via `ensureValue`, `parseFields`, the `getOrCreate*` kind checks,
 `graphIdToName`, ...) returns `JsResult<T>`; a `catch` maps to matching on the `Err`.
 `to_js_string()` is `String(error)` (`"Error: msg"`), `into_graphql_error()` is
-`error instanceof GraphQLError ? error : new GraphQLError(String(error))`. The public functions
-(`compose_services`, `validate`, ...) return `JsResult` too. Also in `utils::js`: `parse_int`,
-`parse_float` (JS semantics), next to `locale_compare` and `number_to_string`.
+`error instanceof GraphQLError ? error : new GraphQLError(String(error))`. The ported functions
+(`compose::compose_services`, `validate::validate`, ...) return `JsResult` too. Also in
+`utils::js`: `parse_int`, `parse_float` (JS semantics), next to `locale_compare` and
+`number_to_string`.
+
+**Public API.** The modules are private. `lib.rs` re-exports `src/index.ts`'s export list at the
+crate root with Rust naming: functions that can throw are wrappers returning
+`Result<_, federation_composition_rs::Error>` (`error.rs`, a newtype over `JsError` that
+converts both ways without loss, so the bindings rethrow the same JS error), and their
+`__internal` options are dropped. Methods of public types return `Error` too
+(`CompositionSuccess::public_sdl`, `FederatedLinkUrl::from_url`); inside the crate `?` converts
+it back to `JsError`. Everything else the tests and the WebAssembly bindings use is re-exported,
+item by item, from `#[doc(hidden)] pub mod __internal`, whose submodules mirror the `src/` paths
+(`__internal::compose::compose_services` takes the `InternalOptions`). `#![warn(missing_docs)]`
+covers both, so an item added to `__internal` needs a doc comment (or, for a module of plain
+parameter objects such as `supergraph/composition/ast.rs`, a module-level allow with its
+reason). `graphql-rs` has the same shape: private modules, the graphql-js API at the root, and
+`__internal` for the differential tests. Making the modules private makes the dead-code lint
+see code nothing calls; a port of a TS function nothing in `src/` calls either keeps a
+`#[allow(dead_code)]` with a `// TS: ...` reason, a Rust-only helper nothing calls is removed.
 
 **Numbers.** JS `number` values (cost weights, list sizes) are `f64`, printed with
 `number_to_string`; `number | null` is `Option<f64>`.
@@ -306,7 +324,7 @@ lazily through a `RefCell` and is shared as `Rc<Contexts>`. The TS `Symbol` grap
 the no-op logger; compute them on demand.
 
 **Results.** `CompositionResult` is an enum; `CompositionSuccess` caches `supergraphSdl`,
-`publicDocumentNode`, `publicSdl` in `OnceCell`s (the getters that can throw return `JsResult`).
+`publicDocumentNode`, `publicSdl` in `OnceCell`s (the getters that can throw return `Result<_, Error>`).
 `apply_tag_filter_on_subgraphs` works on `ServiceDefinition`s; the extra properties the TS
 spreads onto the returned objects come from `apply_tag_filter_on_subgraph_type_defs`, which the
 bindings use.
@@ -398,7 +416,7 @@ the library, never the expectation, and say so in the commit message.
 | `assertCompositionSuccess(r)` / `(r, msg)` | `assert_composition_success(&r)` / `assert_composition_success_with_message(&r, Some(msg))`, return `&CompositionSuccess` |
 | `assertCompositionFailure(r)` | `assert_composition_failure(&r)`, returns `&CompositionFailure` |
 | `ensureCompositionSuccess(r)` | `ensure_composition_success(r)` |
-| `result.errors` / `result.supergraphSdl` / `result.publicSdl` | `result.errors()` / `.supergraph_sdl()` / `.public_sdl()` (`CompositionResultExt`, `None` is `undefined`) |
+| `result.errors` / `result.supergraphSdl` / `result.publicSdl` | `result.errors()` / `.supergraph_sdl()` (`CompositionResult` methods) / `.public_sdl()` (`CompositionResultExt`, panics on a throw); `None` is `undefined` |
 | `expect(x).toEqualGraphQL(y)` / `.toContainGraphQL(y)` / `.not.toContainGraphQL(y)` | `to_equal_graphql(x, y)` / `to_contain_graphql(x, y)` / `not_to_contain_graphql(x, y)` (strings, `Document`s, `Definition`s, `Option`s of them) |
 | `expect.objectContaining({ message, extensions: expect.objectContaining({ code }) })` | `ErrorMatcher::new().message(m).code(c)`; `.message_containing(s)` for `expect.stringContaining`; `.extensions_exactly_code(c)` for `extensions: { code }` |
 | `expect(r.errors).toContainEqual(m)`, `expect(r).toEqual(expect.objectContaining({ errors: expect.arrayContaining([..]) }))` | `assert_errors_contain(r.errors(), &[m])`, `assert_errors_contain(&r, &[..])` |

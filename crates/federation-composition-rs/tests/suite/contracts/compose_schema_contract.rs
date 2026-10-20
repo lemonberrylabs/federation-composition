@@ -4,6 +4,8 @@ use crate::shared::*;
 
 use federation_composition_rs::compose_schema_contract;
 
+// TS: the spec file's top-level `describe` block has the file's name.
+#[allow(clippy::module_inception)]
 mod compose_schema_contract {
     use super::*;
 

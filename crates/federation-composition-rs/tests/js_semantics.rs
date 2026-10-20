@@ -1,6 +1,6 @@
 //! Checks `utils::js` against values recorded from Node in `fixtures/js-semantics.json`.
 
-use federation_composition_rs::utils::js::{locale_compare, number_to_string};
+use federation_composition_rs::__internal::utils::js::{locale_compare, number_to_string};
 use serde_json::Value;
 use std::cmp::Ordering;
 

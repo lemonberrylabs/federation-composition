@@ -61,6 +61,8 @@ impl<T: Clone, F: ?Sized + Fn() -> T> LazyCell<T, F> {
         v
     }
 
+    // TS: invalidates the `toString` caches, which the port computes on demand.
+    #[allow(dead_code)]
     pub fn invalidate(&self) {
         *self.value.borrow_mut() = None;
     }

@@ -5,6 +5,9 @@
 //! integer-like node names come first in numeric order. `object_keys` reproduces that order
 //! where the TS iterates the keys (`overallOrder`, `entryNodes`).
 
+// TS: nothing in `src/` imports `dependency-graph.ts`.
+#![allow(dead_code)]
+
 use crate::utils::collections::IndexMap;
 
 use crate::utils::js::{JsError, JsResult};

@@ -50,6 +50,8 @@ static LINK_SPEC_TYPES: LazyLock<Vec<TypeDefinition>> = LazyLock::new(|| {
 #[derive(Clone, Copy, Debug)]
 pub struct SubgraphRef<'a> {
     pub name: &'a str,
+    // TS: the subgraph's `id`; only `getSubgraphId` reads it.
+    #[allow(dead_code)]
     pub id: &'a str,
     pub type_defs: &'a Document,
 }
@@ -57,6 +59,8 @@ pub struct SubgraphRef<'a> {
 /// An entry of `typeDefinitionMap`: `Pick<TypeDefinitionNode | TypeExtensionNode, "name" | "kind">`.
 #[derive(Clone, Copy, Debug)]
 pub struct KnownTypeDefinition<'a> {
+    // TS: part of `Pick<TypeDefinitionNode, "name" | "kind">`; nothing in `src/` reads the name.
+    #[allow(dead_code)]
     pub name: &'a Name,
     pub kind: Kind,
 }
@@ -156,6 +160,8 @@ pub enum MarkAsUsedReason {
     /// `"@extends"`.
     Extends,
     /// `"references @shareable"`.
+    // TS: a member of the `reason` union that nothing in `src/` produces.
+    #[allow(dead_code)]
     ReferencesShareable,
 }
 
@@ -175,6 +181,8 @@ pub struct SubgraphValidationContext<'a> {
     /// `stateBuilder`.
     pub state_builder: &'a mut SubgraphStateBuilder,
     /// `federationImports`.
+    // TS: the context's `federationImports`; nothing in `src/` reads it.
+    #[allow(dead_code)]
     pub federation_imports: Vec<LinkImport>,
     /// `typeNodeInfo`.
     pub type_node_info: TypeNodeInfo<'a>,
@@ -589,6 +597,8 @@ impl<'a> SubgraphValidationContext<'a> {
         self.subgraph.name
     }
 
+    // TS: defined here and never called in `src/` either.
+    #[allow(dead_code)]
     pub fn get_subgraph_id(&self) -> &'a str {
         self.subgraph.id
     }

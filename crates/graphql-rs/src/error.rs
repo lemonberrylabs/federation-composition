@@ -7,8 +7,13 @@ use crate::collections::IndexMap;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize, Serializer};
 
+/// graphql-js `GraphQLError`: what parsing, validation and the composition library report.
+///
+/// Only the message and the extensions are kept (no source locations, nodes or path). Errors
+/// produced by composition have an `extensions.code`, read with [`code`](GraphQLError::code).
 #[derive(Clone, Debug, PartialEq, Default, Deserialize)]
 pub struct GraphQLError {
+    /// The message, exactly as graphql-js (or upstream) words it.
     pub message: String,
     /// Insertion-ordered, like the JS object graphql-js keeps.
     #[serde(default)]
@@ -16,6 +21,7 @@ pub struct GraphQLError {
 }
 
 impl GraphQLError {
+    /// An error without extensions.
     pub fn new(message: impl Into<String>) -> Self {
         GraphQLError {
             message: message.into(),
@@ -23,6 +29,7 @@ impl GraphQLError {
         }
     }
 
+    /// An error with the given `extensions`.
     pub fn with_extensions(message: impl Into<String>, extensions: IndexMap<String, serde_json::Value>) -> Self {
         GraphQLError {
             message: message.into(),

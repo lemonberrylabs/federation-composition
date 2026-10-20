@@ -1,29 +1,27 @@
-//! A port of the language layer of graphql-js 17.0.2: AST, lexer, parser,
-//! printer, visitor, `stripIgnoredCharacters`, `concatAST` and the specified
-//! scalars/directives; and of schema building and validation: `buildSchema`
-//! / `buildASTSchema` (with the SDL validation rules) and `validateSchema` /
-//! `assertValidSchema`, with the type system they construct (`type`).
-//! Behavior, including error messages and printed output, matches
-//! graphql-js byte for byte; `tests/` checks this against graphql-js itself.
-//! graphql-js is by the GraphQL Contributors, under the MIT license.
+#![doc = include_str!("../README.md")]
+#![warn(missing_docs)]
 
-pub mod ast;
-pub mod block_string;
+// A port of graphql-js 17.0.2 by the GraphQL Contributors, under the MIT license. The module
+// tree mirrors graphql-js's files; the modules are private and the public API is re-exported
+// below. What the rest of this repository needs beyond it is in `__internal`.
+
+mod ast;
+mod block_string;
 pub mod collections;
-pub mod directive_location;
-pub mod error;
-pub mod execution;
+mod directive_location;
+mod error;
+mod execution;
 mod js;
-pub mod jsutils;
-pub mod lexer;
-pub mod parser;
-pub mod predicates;
-pub mod printer;
-pub mod specified;
-pub mod r#type;
-pub mod utilities;
-pub mod validation;
-pub mod visitor;
+mod jsutils;
+mod lexer;
+mod parser;
+mod predicates;
+mod printer;
+mod specified;
+mod r#type;
+mod utilities;
+mod validation;
+mod visitor;
 
 pub use ast::*;
 pub use directive_location::DirectiveLocation;
@@ -37,12 +35,31 @@ pub use r#type::schema::GraphQLSchema;
 pub use r#type::validate::{assert_valid_schema, validate_schema};
 pub use specified::{
     is_introspection_type, is_specified_directive, is_specified_scalar_type, specified_directives,
-    specified_scalar_types, INTROSPECTION_TYPE_NAMES, VERSION_INFO,
+    specified_scalar_type, specified_scalar_types, CoercedLiteral, SpecifiedScalarType, VersionInfo,
+    DEFAULT_DEPRECATION_REASON, GRAPHQL_MAX_INT, GRAPHQL_MIN_INT, INTROSPECTION_TYPE_NAMES, VERSION, VERSION_INFO,
 };
 pub use utilities::build_ast_schema::{build_ast_schema, build_schema};
 pub use utilities::{concat_ast, strip_ignored_characters};
 pub use validation::validate::{assert_valid_sdl, validate_sdl};
 pub use visitor::{
     visit, visit_edit, visit_in_parallel, visit_in_parallel_edit, Ancestor, EditAction, EditResult, EditVisitor,
-    KindSet, PathKey, VisitAction, VisitInfo, VisitKinds, Visitor,
+    KindSet, ParallelEditVisitor, ParallelVisitor, PathKey, VisitAction, VisitInfo, VisitKinds, Visitor,
 };
+
+/// Internals for this repository's differential tests. **Not part of the public API**:
+/// anything here can change or disappear in any release.
+#[doc(hidden)]
+pub mod __internal {
+    /// graphql-js `jsutils`.
+    pub mod jsutils {
+        pub use crate::jsutils::JsValue;
+    }
+
+    /// graphql-js `type`: the type system of a [`GraphQLSchema`](crate::GraphQLSchema).
+    pub mod r#type {
+        /// graphql-js `type/definition`.
+        pub mod definition {
+            pub use crate::r#type::definition::*;
+        }
+    }
+}

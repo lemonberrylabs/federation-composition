@@ -211,6 +211,7 @@ fn add_directive_if_not_exists(directive_name: &str, directives: &[ConstDirectiv
 /// The argument of `addDirectiveOnTypes`.
 #[derive(Clone, Copy, Debug)]
 pub struct AddDirectiveOnTypesArgs<'a> {
+    /// `documentNode`: the supergraph.
     pub document_node: &'a Document,
     /// A set of excluded types, e.g. from `get_reachable_types`.
     pub excluded_type_names: &'a IndexSet<String>,
@@ -1388,8 +1389,8 @@ impl LexicalDistance {
                 row.resize(b_length + 1, 0);
             }
         }
-        for j in 0..=b_length {
-            rows[0][j] = j;
+        for (j, cell) in rows[0].iter_mut().enumerate().take(b_length + 1) {
+            *cell = j;
         }
 
         for i in 1..=a_length {

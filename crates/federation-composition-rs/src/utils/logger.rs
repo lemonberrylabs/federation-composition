@@ -14,12 +14,18 @@ impl LoggerContext {
         LoggerContext::default()
     }
 
+    // TS: the logger's timing state, used only when logging is enabled.
+    #[allow(dead_code)]
     pub fn down(&mut self, _time: f64) {}
 
+    // TS: the logger's timing state, used only when logging is enabled.
+    #[allow(dead_code)]
     pub fn up(&mut self, _time: f64) -> Option<f64> {
         None
     }
 
+    // TS: the logger's timing state, used only when logging is enabled.
+    #[allow(dead_code)]
     pub fn get_time(&mut self) -> f64 {
         0.0
     }
@@ -27,6 +33,8 @@ impl LoggerContext {
 
 /// A message: a string, or a closure building it lazily (`string | (() => string)`).
 pub trait LogMessage {
+    // TS: a message is built only when logging is enabled, which it never is in the port.
+    #[allow(dead_code)]
     fn into_message(self) -> String;
 }
 

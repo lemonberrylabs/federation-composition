@@ -304,20 +304,52 @@ pub fn validate_subgraph(subgraph: &SubgraphInputDefinition) -> JsResult<Vec<Gra
     }
 }
 
-/// The success value of `validate`.
+/// The subgraphs passed validation: upstream's `validate` result with `success: true`.
 #[derive(Clone, Debug)]
 pub struct ValidationSuccess {
-    pub supergraph: Vec<Definition>,
-    pub links: Vec<Link>,
-    pub specs: SupergraphSpecs,
-    pub federation_version: FederationVersion,
+    pub(crate) supergraph: Vec<Definition>,
+    pub(crate) links: Vec<Link>,
+    pub(crate) specs: SupergraphSpecs,
+    pub(crate) federation_version: FederationVersion,
 }
 
-/// The result of `validate`: `{ success: true, ... }` or `{ success: false, errors }`.
+impl ValidationSuccess {
+    /// The supergraph's type and directive definitions (`supergraph`), without the schema
+    /// definition and the federation specifications' definitions that
+    /// [`compose_services`](crate::compose_services) adds.
+    pub fn supergraph(&self) -> &[Definition] {
+        &self.supergraph
+    }
+
+    /// The highest Federation version the subgraphs use (`federationVersion`), e.g. `"v2.3"`.
+    pub fn federation_version(&self) -> &'static str {
+        self.federation_version.as_str()
+    }
+
+    /// `links`. Not part of the stable API.
+    #[doc(hidden)]
+    pub fn links(&self) -> &[Link] {
+        &self.links
+    }
+
+    /// `specs`. Not part of the stable API.
+    #[doc(hidden)]
+    pub fn specs(&self) -> &SupergraphSpecs {
+        &self.specs
+    }
+}
+
+/// The result of [`validate`](crate::validate): upstream's `{ success: true, ... }` or
+/// `{ success: false, errors }`.
 #[derive(Clone, Debug)]
 pub enum ValidationResult {
+    /// The subgraphs are valid and compose.
     Success(ValidationSuccess),
-    Failure { errors: Vec<GraphQLError> },
+    /// The subgraphs are invalid or do not compose.
+    Failure {
+        /// The validation errors, each with an `extensions.code`.
+        errors: Vec<GraphQLError>,
+    },
 }
 
 /// `validate(subgraphs, __internal?)`.

@@ -1,6 +1,6 @@
 //! Port of `__tests__/subgraph/context-reference.spec.ts`.
 
-use federation_composition_rs::subgraph::context::{parse_context_reference, ContextReference};
+use federation_composition_rs::__internal::subgraph::context::{parse_context_reference, ContextReference};
 
 mod parse_context_reference {
     use super::*;

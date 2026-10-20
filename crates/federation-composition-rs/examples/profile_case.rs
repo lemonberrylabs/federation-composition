@@ -7,9 +7,9 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use federation_composition_rs::compose::compose_services;
-use federation_composition_rs::subgraph::validation::validate_subgraph::InternalOptions;
-use federation_composition_rs::types::ServiceDefinition;
+use federation_composition_rs::__internal::compose::compose_services;
+use federation_composition_rs::__internal::subgraph::validation::validate_subgraph::InternalOptions;
+use federation_composition_rs::ServiceDefinition;
 use graphql_rs::Document;
 use serde_json::Value;
 use std::time::{Duration, Instant};

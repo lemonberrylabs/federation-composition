@@ -1,15 +1,15 @@
 //! Port of `__tests__/composition.spec.ts`.
 
 use crate::shared::*;
-use federation_composition_rs::specifications::federation::FederationVersion;
-use federation_composition_rs::specifications::tag::DIRECTIVE as TAG_DIRECTIVE;
-use federation_composition_rs::specifications::{join, link};
+use federation_composition_rs::__internal::specifications::federation::FederationVersion;
+use federation_composition_rs::__internal::specifications::tag::DIRECTIVE as TAG_DIRECTIVE;
+use federation_composition_rs::__internal::specifications::{join, link};
 use graphql_rs::Definition;
 
 /// `JSON.stringify(result.errors)` in a failure message: `undefined` when there are no
 /// errors, otherwise each error's `message` and `extensions.code` (`GraphQLError.toJSON`
 /// can add `locations` and other extensions; this only changes the text of a failing test).
-fn json_stringify_errors(errors: Option<&Vec<GraphQLError>>) -> String {
+fn json_stringify_errors(errors: Option<&[GraphQLError]>) -> String {
     match errors {
         None => "undefined".to_string(),
         Some(errors) => serde_json::Value::Array(
@@ -6453,7 +6453,7 @@ mod federation_directives_and_types {
 
             assert_composition_success(&result);
 
-            let definitions = parse(link::SDL).unwrap().definitions.into_iter().chain(parse(&join::sdl(FederationVersion::from_str(version).unwrap()))
+            let definitions = parse(link::SDL).unwrap().definitions.into_iter().chain(parse(&join::sdl(version.parse::<FederationVersion>().unwrap()))
                 .unwrap()
                 .definitions);
             for def in definitions {
@@ -6485,7 +6485,7 @@ mod federation_directives_and_types {
 
             assert_composition_success(&result);
 
-            let definitions = parse(link::SDL).unwrap().definitions.into_iter().chain(parse(&join::sdl(FederationVersion::from_str("v1.0").unwrap()))
+            let definitions = parse(link::SDL).unwrap().definitions.into_iter().chain(parse(&join::sdl("v1.0".parse::<FederationVersion>().unwrap()))
                 .unwrap()
                 .definitions);
             for def in definitions {

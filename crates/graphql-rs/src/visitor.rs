@@ -24,17 +24,21 @@ use crate::ast::{AsNodeRef, FromNode, Kind, ListRef, Node, NodeRef, SlotRef};
 pub enum PathKey {
     /// A graphql-js field name, e.g. `"selectionSet"`.
     Key(&'static str),
+    /// A list index.
     Index(usize),
 }
 
 /// One entry of graphql-js `ancestors` (or the `parent`): a node or a list.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Ancestor<'a> {
+    /// A node.
     Node(NodeRef<'a>),
+    /// A list of nodes.
     List(ListRef<'a>),
 }
 
 impl<'a> Ancestor<'a> {
+    /// The node, `None` for a list.
     pub fn as_node(self) -> Option<NodeRef<'a>> {
         match self {
             Ancestor::Node(n) => Some(n),
@@ -42,6 +46,7 @@ impl<'a> Ancestor<'a> {
         }
     }
 
+    /// The list, `None` for a node.
     pub fn as_list(self) -> Option<ListRef<'a>> {
         match self {
             Ancestor::List(l) => Some(l),
@@ -94,7 +99,9 @@ pub struct KindSet(u64);
 const _: () = assert!(Kind::ALL.len() <= 64, "KindSet holds at most 64 kinds");
 
 impl KindSet {
+    /// Every kind.
     pub const ALL: KindSet = KindSet(u64::MAX);
+    /// No kind.
     pub const NONE: KindSet = KindSet(0);
 
     /// The set of `kinds`.
@@ -108,6 +115,7 @@ impl KindSet {
         KindSet(bits)
     }
 
+    /// Whether `kind` is in the set.
     pub const fn contains(self, kind: Kind) -> bool {
         self.0 & (1 << kind as u32) != 0
     }
@@ -116,7 +124,9 @@ impl KindSet {
 /// The node kinds a visitor's `enter` and `leave` act on (see [`Visitor::kinds`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VisitKinds {
+    /// The kinds `enter` acts on.
     pub enter: KindSet,
+    /// The kinds `leave` acts on.
     pub leave: KindSet,
 }
 
@@ -155,11 +165,14 @@ pub trait Visitor<'a, C: ?Sized = ()> {
         VisitKinds::ALL
     }
 
+    /// Called when the traversal reaches `node`, before its children. The default does
+    /// nothing.
     fn enter(&mut self, node: NodeRef<'a>, cx: &mut C, info: &VisitInfo<'a, '_>) -> VisitAction {
         let _ = (node, cx, info);
         VisitAction::Continue
     }
 
+    /// Called after `node`'s children. The default does nothing.
     fn leave(&mut self, node: NodeRef<'a>, cx: &mut C, info: &VisitInfo<'a, '_>) -> VisitAction {
         let _ = (node, cx, info);
         VisitAction::Continue
@@ -286,7 +299,8 @@ enum SkipState {
     Broken,
 }
 
-/// graphql-js `visitInParallel` for read-only visitors.
+/// The visitor [`visit_in_parallel`] returns: graphql-js `visitInParallel` for read-only
+/// visitors.
 pub struct ParallelVisitor<'a, 'v, C: ?Sized> {
     visitors: Vec<Box<dyn Visitor<'a, C> + 'v>>,
     skipping: Vec<SkipState>,
@@ -410,11 +424,14 @@ pub enum EditAction {
 /// duration of the call because they may be replacements made during the
 /// visit.
 pub trait EditVisitor {
+    /// Called when the traversal reaches `node`, before its children. The default does
+    /// nothing.
     fn enter(&mut self, node: NodeRef<'_>, info: &VisitInfo<'_, '_>) -> EditAction {
         let _ = (node, info);
         EditAction::Continue
     }
 
+    /// Called after `node`'s children. The default does nothing.
     fn leave(&mut self, node: NodeRef<'_>, info: &VisitInfo<'_, '_>) -> EditAction {
         let _ = (node, info);
         EditAction::Continue
@@ -723,7 +740,8 @@ pub(crate) fn edit_list<T: FromNode>(v: EditVal, kind: &str, key: &str) -> Vec<T
     }
 }
 
-/// graphql-js `visitInParallel` for editing visitors.
+/// The visitor [`visit_in_parallel_edit`] returns: graphql-js `visitInParallel` for editing
+/// visitors.
 pub struct ParallelEditVisitor<'v> {
     visitors: Vec<Box<dyn EditVisitor + 'v>>,
     skipping: Vec<SkipState>,

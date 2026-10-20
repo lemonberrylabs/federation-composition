@@ -2,7 +2,7 @@
 
 use crate::shared::*;
 
-use federation_composition_rs::contracts::reachable_type_filter::{
+use federation_composition_rs::__internal::contracts::reachable_type_filter::{
     add_directive_on_types, get_reachable_types, AddDirectiveOnTypesArgs,
 };
 

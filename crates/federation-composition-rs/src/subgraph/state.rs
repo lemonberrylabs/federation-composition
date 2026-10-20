@@ -82,30 +82,20 @@ pub enum TypeKind {
     Directive,
 }
 
-impl TypeKind {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            TypeKind::Object => "OBJECT",
-            TypeKind::Interface => "INTERFACE",
-            TypeKind::Enum => "ENUM",
-            TypeKind::Union => "UNION",
-            TypeKind::Scalar => "SCALAR",
-            TypeKind::InputObject => "INPUT_OBJECT",
-            TypeKind::Directive => "DIRECTIVE",
-        }
-    }
-}
-
 /// `ArgumentKind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub enum ArgumentKind {
+    /// `"SCALAR"`.
     #[default]
     Scalar,
+    /// `"OBJECT"`.
     Object,
+    /// `"ENUM"`.
     Enum,
 }
 
 impl ArgumentKind {
+    /// `"SCALAR"`, `"OBJECT"` or `"ENUM"`.
     pub fn as_str(self) -> &'static str {
         match self {
             ArgumentKind::Scalar => "SCALAR",
@@ -347,13 +337,16 @@ pub struct Key {
 /// `Description`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Description {
+    /// The description text.
     pub value: String,
+    /// Whether it was a block string (`"""`).
     pub block: bool,
 }
 
 /// `Deprecated` (`{ reason?, deprecated: true }`; `deprecated` is always true and implied).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Deprecated {
+    /// The `reason` argument of `@deprecated`.
     pub reason: Option<String>,
 }
 
@@ -386,6 +379,8 @@ pub struct GraphInput {
 }
 
 /// A key of `SubgraphState["schema"]`.
+// TS: the keys are `queryType`, `mutationType` and `subscriptionType`.
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RootTypeKind {
     QueryType,
@@ -481,6 +476,8 @@ pub enum SpecName {
     Tag,
     Context,
     Inaccessible,
+    // TS: `markSpecAsUsed("link")` is valid but nothing in `src/` calls it.
+    #[allow(dead_code)]
     Link,
     Policy,
     RequiresScopes,
@@ -1691,6 +1688,8 @@ impl<'s> ObjectTypeBuilder<'s> {
         get_or_create_object_type(self.state, self.roots, type_name)?.description = Some(description);
         Ok(())
     }
+    // TS: the object type builder's `setExternal`; nothing in `src/` calls it.
+    #[allow(dead_code)]
     pub fn set_external(self, type_name: &str) -> JsResult<()> {
         if self.is_interface_object(type_name) {
             return Ok(());
@@ -2463,6 +2462,8 @@ impl<'s> InputObjectTypeBuilder<'s> {
         get_or_create_input_object_type(self.state, type_name)?.is_definition = true;
         Ok(())
     }
+    // TS: the input object type builder's `setExtension`; nothing in `src/` calls it.
+    #[allow(dead_code)]
     pub fn set_extension(self, type_name: &str) -> JsResult<()> {
         get_or_create_input_object_type(self.state, type_name)?.extension = true;
         Ok(())

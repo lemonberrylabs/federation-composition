@@ -192,6 +192,8 @@ pub fn specified_directives() -> Vec<GraphQLDirective> {
 }
 
 /// graphql-js `isSpecifiedDirective` (by name, as graphql-js compares).
+// graphql-js: exported by `type/directives`; the port calls the by-name version in `specified`.
+#[allow(dead_code)]
 pub fn is_specified_directive(directive: &GraphQLDirective) -> bool {
     crate::specified::is_specified_directive(&directive.name)
 }

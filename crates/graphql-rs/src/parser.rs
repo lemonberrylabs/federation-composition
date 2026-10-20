@@ -864,7 +864,7 @@ impl<'s> Parser<'s> {
 
     fn parse_directive_location(&mut self) -> PResult<Name> {
         let name = self.parse_name()?;
-        if DirectiveLocation::from_str(&name.value).is_some() {
+        if name.value.parse::<DirectiveLocation>().is_ok() {
             return Ok(name);
         }
         Err(unexpected_desc(TokenKind::Name, Some(&name.value)))

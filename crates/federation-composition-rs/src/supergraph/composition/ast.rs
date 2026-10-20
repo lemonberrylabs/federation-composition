@@ -5,6 +5,10 @@
 //! treats `undefined` and `[]` alike there), optional flags are `bool` (falsy when missing),
 //! and other optional values are `Option`.
 
+// The `*Ast` structs copy upstream's parameter objects field for field, and outside the crate
+// they are reachable only through the unstable `__internal` module.
+#![allow(missing_docs)]
+
 use std::sync::LazyLock;
 
 use crate::utils::collections::IndexSet;

@@ -6,13 +6,12 @@
 //! Its GraphQL-validity part is kept, using the graphql-js port (see [`try_compose_services`]);
 //! the federation-specific part and the `console.warn` about unported error codes are dropped.
 
-use federation_composition_rs::compose::{
-    compose_services as library_compose_services, CompositionFailure, CompositionResult, CompositionSuccess,
+use federation_composition_rs::__internal::compose::compose_services as library_compose_services;
+use federation_composition_rs::__internal::subgraph::validation::validate_subgraph::InternalOptions;
+use federation_composition_rs::__internal::utils::js::{parse_float, JsError, JsResult};
+use federation_composition_rs::{
+    CompositionFailure, CompositionResult, CompositionSuccess, SchemaContractFilter, ServiceDefinition,
 };
-use federation_composition_rs::contracts::tag_extraction::SchemaContractFilter;
-use federation_composition_rs::subgraph::validation::validate_subgraph::InternalOptions;
-use federation_composition_rs::types::ServiceDefinition;
-use federation_composition_rs::utils::js::{parse_float, JsError, JsResult};
 use graphql_rs::{assert_valid_schema, build_schema, Document, GraphQLError};
 
 /// `versions`.
@@ -100,7 +99,7 @@ pub fn try_compose_services(
     if let CompositionResult::Success(success) = &result {
         let validation = build_schema(success.supergraph_sdl())
             .map_err(|error| error.message)
-            .and_then(|schema| assert_valid_schema(&schema));
+            .and_then(|schema| assert_valid_schema(&schema).map_err(|error| error.message));
         if let Err(message) = validation {
             return Err(JsError::error(format!(
                 "The schema is not a valid GraphQL schema.. Caused by:\n{message}"
@@ -145,29 +144,11 @@ impl Api {
 /// Property reads on a `CompositionResult` as the TS does them, with `undefined` as `None`:
 /// `result.errors`, `result.supergraphSdl`, `result.publicSdl`.
 pub trait CompositionResultExt {
-    /// `result.errors`.
-    fn errors(&self) -> Option<&Vec<GraphQLError>>;
-    /// `result.supergraphSdl`.
-    fn supergraph_sdl(&self) -> Option<&str>;
     /// `result.publicSdl`. The getter can throw; that panics, as the TS expression would throw.
     fn public_sdl(&self) -> Option<&str>;
 }
 
 impl CompositionResultExt for CompositionResult {
-    fn errors(&self) -> Option<&Vec<GraphQLError>> {
-        match self {
-            CompositionResult::Failure(failure) => Some(&failure.errors),
-            CompositionResult::Success(_) => None,
-        }
-    }
-
-    fn supergraph_sdl(&self) -> Option<&str> {
-        match self {
-            CompositionResult::Success(success) => Some(success.supergraph_sdl()),
-            CompositionResult::Failure(_) => None,
-        }
-    }
-
     fn public_sdl(&self) -> Option<&str> {
         match self {
             CompositionResult::Success(success) => Some(public_sdl(success)),
@@ -180,7 +161,7 @@ impl CompositionResultExt for CompositionResult {
 fn public_sdl(success: &CompositionSuccess) -> &str {
     match success.public_sdl() {
         Ok(sdl) => sdl,
-        Err(error) => panic!("publicSdl threw: {}", error.to_js_string()),
+        Err(error) => panic!("publicSdl threw: {}", JsError::from(error).to_js_string()),
     }
 }
 
@@ -200,8 +181,8 @@ pub fn assert_valid_sdl(sdl: &str) {
         Ok(schema) => schema,
         Err(error) => panic!("buildSchema threw: {}", error.message),
     };
-    if let Err(message) = assert_valid_schema(&schema) {
-        panic!("assertValidSchema threw: {message}");
+    if let Err(error) = assert_valid_schema(&schema) {
+        panic!("assertValidSchema threw: {}", error.message);
     }
 }
 
@@ -231,7 +212,7 @@ pub fn assert_composition_success_with_message<'r>(
         CompositionResult::Failure(failure) => panic!(
             "{}\n{}",
             message.filter(|m| !m.is_empty()).unwrap_or("Unexpected test failure"),
-            describe_errors(&failure.errors)
+            describe_errors(failure.errors())
         ),
     };
     assert_valid_sdl(success.supergraph_sdl());
@@ -363,7 +344,7 @@ pub trait ErrorsSource {
 impl ErrorsSource for CompositionResult {
     fn errors_or_none(&self) -> Option<&[GraphQLError]> {
         match self {
-            CompositionResult::Failure(failure) => Some(&failure.errors),
+            CompositionResult::Failure(failure) => Some(failure.errors()),
             CompositionResult::Success(_) => None,
         }
     }
@@ -371,7 +352,7 @@ impl ErrorsSource for CompositionResult {
 
 impl ErrorsSource for CompositionFailure {
     fn errors_or_none(&self) -> Option<&[GraphQLError]> {
-        Some(&self.errors)
+        Some(self.errors())
     }
 }
 
@@ -501,8 +482,5 @@ pub fn assert_no_error_matches(errors: impl ErrorsSource, matcher: &ErrorMatcher
 
 /// `{ include: new Set(include), exclude: new Set(exclude) }`, a `SchemaContractFilter`.
 pub fn contract_filter(include: &[&str], exclude: &[&str]) -> SchemaContractFilter {
-    SchemaContractFilter {
-        include: include.iter().map(|tag| tag.to_string()).collect(),
-        exclude: exclude.iter().map(|tag| tag.to_string()).collect(),
-    }
+    SchemaContractFilter::new(include.iter().copied(), exclude.iter().copied())
 }
