@@ -1,6 +1,6 @@
 // Records every guild composeServices() call made by the test suite so the
 // same inputs can be replayed by bench/run-corpus.ts against each implementation,
-// together with the TypeScript output, which crates/composition/tests/corpus.rs compares against.
+// together with the TypeScript output, which crates/federation-composition-rs/tests/corpus.rs compares against.
 import { appendFileSync } from "node:fs";
 import { vi } from "vitest";
 

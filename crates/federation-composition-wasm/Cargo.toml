@@ -1,0 +1,24 @@
+[package]
+name = "federation-composition-wasm"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+description = "wasm-bindgen bindings of federation_composition_rs, used by the JS shim in wasm/"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+graphql-rs = { path = "../graphql-rs" }
+federation-composition-rs = { path = "../federation-composition-rs" }
+# wasm-bindgen must match the wasm-bindgen-cli version exactly (wasm/build.mjs checks).
+wasm-bindgen = "=0.2.129"
+js-sys = "=0.3.106"
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# The global allocator of the WebAssembly build (see src/lib.rs).
+[target.'cfg(target_family = "wasm")'.dependencies]
+talc = "5.1.1"

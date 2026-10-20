@@ -1,15 +1,15 @@
 // Loads the WebAssembly build (wasm/pkg, built by `pnpm wasm:build`) and
 // converts between JS values and the JSON the Rust exports take and return.
-// The conventions are described in crates/composition-wasm/src/lib.rs.
+// The conventions are described in crates/federation-composition-wasm/src/lib.rs.
 import { GraphQLError, Location, type DocumentNode } from "graphql";
 import { createRequire } from "node:module";
 
-type Bindings = typeof import("./pkg/composition_wasm.js");
+type Bindings = typeof import("./pkg/federation_composition_wasm.js");
 
 const require = createRequire(import.meta.url);
 let gluePath: string;
 try {
-  gluePath = require.resolve("./pkg/composition_wasm.js");
+  gluePath = require.resolve("./pkg/federation_composition_wasm.js");
 } catch {
   throw new Error(
     "wasm/pkg is missing: build the WebAssembly bindings with `pnpm wasm:build`",

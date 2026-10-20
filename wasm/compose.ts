@@ -20,7 +20,7 @@ export type { CompositionFailure, CompositionResult, CompositionSuccess };
 
 /**
  * What the Rust exports returning a composition give back (`composition_out` in
- * crates/composition-wasm/src/exports.rs): the errors' JSON on failure, the
+ * crates/federation-composition-wasm/src/exports.rs): the errors' JSON on failure, the
  * supergraph document's JSON as UTF-8 bytes on success.
  */
 export type CompositionOut = string | Uint8Array;

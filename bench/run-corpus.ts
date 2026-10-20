@@ -4,7 +4,7 @@
 // Usage: tsx --expose-gc bench/run-corpus.ts <implementation> <out.json>
 // where <implementation> is "guild-ts" (src/) or "guild-wasm" (the WebAssembly build
 // through the wasm/ shim, so AST conversion across the boundary is included).
-// Native Rust uses the same protocol: crates/composition/examples/corpus_bench.rs.
+// Native Rust uses the same protocol: crates/federation-composition-rs/examples/corpus_bench.rs.
 import { readFileSync, writeFileSync } from "node:fs";
 import { DocumentNode, print } from "graphql";
 

@@ -1,4 +1,4 @@
-// Builds crates/composition-wasm into wasm/pkg (gitignored): cargo (release,
+// Builds crates/federation-composition-wasm into wasm/pkg (gitignored): cargo (release,
 // wasm32-unknown-unknown) with the rustup toolchain, then wasm-bindgen
 // --target nodejs, then wasm-opt if it is installed.
 //
@@ -48,7 +48,7 @@ function run(cmd, args) {
 run("cargo", [
   "build",
   "-p",
-  "composition_wasm",
+  "federation-composition-wasm",
   "--target",
   "wasm32-unknown-unknown",
   ...(dev ? [] : ["--release"]),
@@ -81,7 +81,7 @@ const wasmFile = path.join(
   repo,
   "target/wasm32-unknown-unknown",
   profile,
-  "composition_wasm.wasm",
+  "federation_composition_wasm.wasm",
 );
 run("wasm-bindgen", ["--target", "nodejs", "--out-dir", out, wasmFile]);
 
@@ -92,7 +92,7 @@ fs.writeFileSync(
 );
 
 const wasmOpt = spawnSync("wasm-opt", ["--version"], { env });
-const bindgenWasm = path.join(out, "composition_wasm_bg.wasm");
+const bindgenWasm = path.join(out, "federation_composition_wasm_bg.wasm");
 if (!dev && wasmOpt.status === 0) {
   run("wasm-opt", [
     "-O3",
