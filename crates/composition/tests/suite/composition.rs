@@ -8313,11 +8313,6 @@ mod guild_composition_one_of {
             }
         }
 
-        // The TS `composeServices` throws here only because the harness runs Apollo's
-        // `ApolloSupergraph.buildForTests(supergraphSdl)` on every Guild supergraph
-        // ("The schema is not a valid GraphQL schema." comes from `@apollo/federation-internals`).
-        // The library itself returns a success; the Rust testkit drops that Apollo check.
-        #[ignore = "the expected throw comes from the Apollo gateway check in the TS harness, which Rust does not run"]
         fn throws_during_composition_when_a_manual_one_of_definition_adds_a_conflicting_required_argument(api) {
             assert_throws(
                 api.try_compose_services(&[

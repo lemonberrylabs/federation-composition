@@ -1,9 +1,10 @@
 //! Port of `__tests__/shared/testkit.ts`, guild side only.
 //!
 //! The TS harness runs most tests for "apollo" (`@apollo/composition`) and "guild" (this
-//! library); only the guild side is ported. The harness's check that Apollo's gateway accepts
-//! every Guild supergraph (`ApolloSupergraph.buildForTests(..).subgraphs().validate()`) and
-//! its `console.warn` about unported error codes are dropped.
+//! library); only the guild side is ported. The harness also checks that Apollo's gateway
+//! accepts every Guild supergraph (`ApolloSupergraph.buildForTests(..).subgraphs().validate()`).
+//! Its GraphQL-validity part is kept, using the graphql-js port (see [`try_compose_services`]);
+//! the federation-specific part and the `console.warn` about unported error codes are dropped.
 
 use federation_composition::contracts::tag_extraction::SchemaContractFilter;
 use federation_composition::compose::{
@@ -74,8 +75,22 @@ pub fn compose_services(services: &[ServiceDefinition], internal: Option<Interna
 }
 
 /// `() => composeServices(services, __internal)`, for `toThrow` assertions.
+///
+/// Like the TS harness, a successful composition's supergraph must build as a valid GraphQL
+/// schema, or this throws with the message `ApolloSupergraph.buildForTests` throws for it:
+/// `@apollo/federation-internals` wraps the validation errors as
+/// `"The schema is not a valid GraphQL schema.. Caused by:\n"` followed by the messages.
 pub fn try_compose_services(services: &[ServiceDefinition], internal: Option<InternalOptions>) -> JsResult<CompositionResult> {
-    library_compose_services(services, internal.as_ref())
+    let result = library_compose_services(services, internal.as_ref())?;
+    if let CompositionResult::Success(success) = &result {
+        let validation = build_schema(success.supergraph_sdl())
+            .map_err(|error| error.message)
+            .and_then(|schema| assert_valid_schema(&schema));
+        if let Err(message) = validation {
+            return Err(JsError::error(format!("The schema is not a valid GraphQL schema.. Caused by:\n{message}")));
+        }
+    }
+    Ok(result)
 }
 
 /// The guild entry of the harness's `both` list: what `api` is inside `testVersions` and

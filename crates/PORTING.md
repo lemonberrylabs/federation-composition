@@ -319,7 +319,7 @@ Rust (`crates/composition/tests/suite`, see "Rust test suite" below), guild side
 |---|---|---|
 | Build, no warnings | `cargo build --workspace` and `cargo build --release --target wasm32-unknown-unknown --workspace` | 0 warnings |
 | Rust unit and differential tests | `cargo test --workspace` | all pass; includes `crates/graphql`'s differential tests against graphql-js (regenerate `crates/graphql/tests/corpus.json` with `node crates/graphql/tests/gen-corpus.mjs`, and `crates/graphql/tests/schema-corpus.json` with `node crates/graphql/tests/gen-schema-corpus.mjs [bench/corpus.jsonl]`, which needs `pnpm bench:capture` first; 1,966 schemas identical to graphql-js on 2026-10-19) |
-| The ported test suite | `cargo test -p federation_composition --test suite` (plus the `src/specifications/link.rs` unit tests) | 3,791 passed, 18 ignored on 2026-10-19 (per-file counts under "Rust test suite") |
+| The ported test suite | `cargo test -p federation_composition --test suite` (plus the `src/specifications/link.rs` unit tests) | 3,792 passed, 17 ignored on 2026-10-19 (per-file counts under "Rust test suite") |
 | Rust vs TS on every composition the test suite runs | `pnpm bench:capture`, then `cargo test -p federation_composition --release --test corpus -- --ignored` | every captured composition matches (3567/3567 on 2026-10-19). Without `DYLD_FALLBACK_LIBRARY_PATH` (see Toolchain), a release test build prints a `rust-objcopy` "Library not loaded: libLLVM.dylib" warning; it comes from the toolchain, not the code |
 | The TS test suite against the WebAssembly build | `pnpm wasm:build && pnpm test:wasm --run` | 7,350 passed (the 7,343 TS tests plus 7 bridge checks in `wasm/runtime.spec.ts`), 25 skipped, 8 todo |
 | The TS test suite itself | `pnpm test --run` | 7,343 passed, 25 skipped, 8 todo |
@@ -341,7 +341,10 @@ is `mod r#override`). `src/specifications/link.spec.ts` is ported by the unit te
 side. Take the guild branch of every `api.library` conditional, keep `injectIf("guild", s)` text
 and drop `injectIf("apollo", s)` text, keep `runIf("guild", fn)` bodies and drop
 `runIf("apollo", fn)` bodies; `test.skipIf(api.library === "guild")` is a skipped test. The
-harness's Apollo-gateway check of every Guild supergraph cannot run in Rust and is dropped.
+harness's Apollo-gateway check of every Guild supergraph is kept only for its GraphQL-validity
+part: the testkit's `try_compose_services` builds and validates the supergraph with the
+graphql-js port and throws Apollo's message ("The schema is not a valid GraphQL schema.. Caused
+by:\n...") if it is invalid. Its federation-specific part cannot run in Rust and is dropped.
 Tests outside `testVersions`/`testImplementations` are ported as they are.
 
 **Counting.** One `#[test]` per TS test case per federation version, so the Rust counts equal
@@ -402,15 +405,12 @@ the TS `assertCompositionSuccess` does. Anything else (`toBe`,
 `toHaveLength`, `toBeDefined`) is a plain `assert!`/`assert_eq!` on the same value.
 
 **Counts.** For each of the 93 TS spec files, the Rust module's passing count equals the TS
-guild-side passed count and its ignored count equals skipped + todo, with one exception:
-`composition::guild_composition_one_of::throws_during_composition_when_a_manual_one_of_definition_adds_a_conflicting_required_argument`
-is ignored (1,017 passing against 1,018 in TS). Its expected throw ("The schema is not a valid
-GraphQL schema.. Caused by: ...") comes from `@apollo/federation-internals`, raised by the
-harness's dropped Apollo-gateway check; the library itself succeeds. `supergraph/join.spec.ts`
+guild-side passed count and its ignored count equals skipped + todo. `supergraph/join.spec.ts`
 (11) and `override-with-label.spec.ts` (178) are wrapped in an outer `describe`, so a count that
 takes the library from the first path segment counts both libraries for them (22 and 356);
-`vitest list` shows 11 and 178 `'guild'` cases. Totals: 3,791 passing and 18 ignored
-(TS guild side: 3,792 passed, 17 skipped + todo).
+classify by the `'apollo'`/`'guild'` ancestor title instead. Totals: 3,792 passing (3,774 in the
+suite plus 18 `parse_link_*` unit tests in `specifications/link.rs`) and 17 ignored, equal to
+the TS guild side.
 
 **Mutation check** (2026-10-19, each change reverted): changing the `ENUM_VALUE_MISMATCH`
 message ("is used as both input type" to "is used as input type") fails 10 tests; dropping the
