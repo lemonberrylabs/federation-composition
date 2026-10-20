@@ -35,7 +35,9 @@ query without variables or directives in shorthand, `{ … }`. After a type, int
 enum definition or extension without a body, or a schema extension without operation types,
 that `{` reads back as the previous definition's body, so the printed document means something
 else. graphql-rs prints `query { … }` in that position only. Composition never prints
-operations, so its output is unaffected.
+operations, so its output is unaffected. Reported upstream as
+[graphql/graphql-js#4901](https://github.com/graphql/graphql-js/issues/4901); when a graphql-js
+release fixes it, port that fix instead.
 
 The long-term product is the pure Rust library. The WebAssembly build exists so current
 JS users can migrate and so upstream's TypeScript tests can verify the port unchanged.
