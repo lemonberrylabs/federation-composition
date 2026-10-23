@@ -86,7 +86,9 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
           SECONDS_PER_TARGET: ${{ inputs.seconds || '120' }}
-        run: cargo +nightly fuzz run "$TARGET" -- -max_total_time="$SECONDS_PER_TARGET" -dict=fuzz/graphql.dict
+        # The cargo-fuzz binary that install-action fetches (through cargo-binstall) is the musl
+        # build, and cargo-fuzz defaults --target to its own triple; ASan needs the glibc target.
+        run: cargo +nightly fuzz run --target x86_64-unknown-linux-gnu "$TARGET" ---max_total_time="$SECONDS_PER_TARGET" -dict=fuzz/graphql.dict
       - name: upload crashes
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
