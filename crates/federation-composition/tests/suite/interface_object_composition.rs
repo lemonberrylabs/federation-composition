@@ -7,6 +7,87 @@ use crate::shared::*;
 mod interface_object_composition {
     use super::*;
 
+    /// The body of `test.each([...])("preserves @external on an @interfaceObject field ($description)", ({ priceField, requires }) => { ... })`.
+    fn preserves_external_on_an_interface_object_field(api: Api, price_field: &str, requires: &str) {
+        // TS: `JSON.stringify(requires)`.
+        let requires_json = serde_json::to_string(requires).unwrap();
+        let result = api.compose_services(&[
+            service(
+                "shop",
+                parse(&format!(
+                    r#"
+              extend schema
+                @link(
+                  url: "https://specs.apollo.dev/federation/v2.3"
+                  import: ["@key", "@shareable"]
+                )
+
+              type Query {{
+                things: [Node!]!
+              }}
+
+              interface Node @key(fields: "id") {{
+                id: ID!
+                {price_field}
+              }}
+
+              type Cat implements Node @key(fields: "id") {{
+                id: ID!
+                {price_field} @shareable
+                meow: String!
+              }}
+
+              type Dog implements Node @key(fields: "id") {{
+                id: ID!
+                {price_field} @shareable
+                bark: String!
+              }}
+            "#
+                ))
+                .unwrap(),
+            ),
+            service(
+                "pricing",
+                parse(&format!(
+                    r#"
+              extend schema
+                @link(
+                  url: "https://specs.apollo.dev/federation/v2.3"
+                  import: ["@key", "@external", "@requires", "@interfaceObject"]
+                )
+
+              type Node @key(fields: "id") @interfaceObject {{
+                id: ID!
+                {price_field} @external
+                eur: Int! @requires(fields: {requires_json})
+              }}
+            "#
+                ))
+                .unwrap(),
+            ),
+        ]);
+
+        federation_composition::__internal::compose::assert_composition_success(&result, None).unwrap();
+
+        to_contain_graphql(
+            result.supergraph_sdl(),
+            format!(
+                r#"
+          interface Node
+            @join__type(graph: PRICING, key: "id", isInterfaceObject: true)
+            @join__type(graph: SHOP, key: "id") {{
+            id: ID!
+            {price_field}
+              @join__field(graph: PRICING, external: true)
+              @join__field(graph: SHOP)
+            eur: Int!
+              @join__field(graph: PRICING, requires: {requires_json})
+          }}
+        "#
+            ),
+        );
+    }
+
     test_implementations! {
         fn if_link_directive_is_not_present_on_all_subgraphs_composition_should_fail(api) {
             let result = api.compose_services(&[
@@ -173,6 +254,200 @@ mod interface_object_composition {
             @join__field(graph: B)
         }
       "#);
+        }
+
+        fn preserves_external_on_an_interface_object_field_a_field_with_arguments(api) {
+            preserves_external_on_an_interface_object_field(api, "price(currency: String!): Int!", r#"price(currency: "EUR")"#);
+        }
+
+        fn preserves_external_on_an_interface_object_field_a_field_without_arguments(api) {
+            preserves_external_on_an_interface_object_field(api, "price: Int!", "price");
+        }
+
+        fn preserves_requires_on_a_shared_interface_object_field(api) {
+            let result = api.compose_services(&[
+                service("shop", parse(r#"
+            extend schema
+              @link(
+                url: "https://specs.apollo.dev/federation/v2.3"
+                import: ["@key", "@shareable"]
+              )
+
+            type Query {
+              things: [Node!]!
+            }
+
+            interface Node @key(fields: "id") {
+              id: ID!
+              factor: Int!
+              price: Int!
+            }
+
+            type Cat implements Node @key(fields: "id") {
+              id: ID!
+              factor: Int!
+              price: Int! @shareable
+              meow: String!
+            }
+          "#).unwrap()),
+                service("pricing", parse(r#"
+            extend schema
+              @link(
+                url: "https://specs.apollo.dev/federation/v2.3"
+                import: [
+                  "@key"
+                  "@external"
+                  "@requires"
+                  "@interfaceObject"
+                  "@shareable"
+                ]
+              )
+
+            type Node @key(fields: "id") @interfaceObject {
+              id: ID!
+              factor: Int! @external
+              price: Int! @shareable @requires(fields: "factor")
+            }
+          "#).unwrap()),
+            ]);
+
+            federation_composition::__internal::compose::assert_composition_success(&result, None).unwrap();
+
+            to_contain_graphql(result.supergraph_sdl(), r#"
+        interface Node
+          @join__type(graph: PRICING, key: "id", isInterfaceObject: true)
+          @join__type(graph: SHOP, key: "id") {
+          id: ID!
+          factor: Int!
+            @join__field(graph: PRICING, external: true)
+            @join__field(graph: SHOP)
+          price: Int!
+            @join__field(graph: PRICING, requires: "factor")
+            @join__field(graph: SHOP)
+        }
+      "#);
+        }
+
+        fn preserves_provides_on_an_interface_object_field(api) {
+            let result = api.compose_services(&[
+                service("shop", parse(r#"
+            extend schema
+              @link(
+                url: "https://specs.apollo.dev/federation/v2.3"
+                import: ["@key"]
+              )
+
+            type Query {
+              things: [Node!]!
+            }
+
+            interface Node @key(fields: "id") {
+              id: ID!
+            }
+
+            type Cat implements Node @key(fields: "id") {
+              id: ID!
+            }
+          "#).unwrap()),
+                service("pricing", parse(r#"
+            extend schema
+              @link(
+                url: "https://specs.apollo.dev/federation/v2.3"
+                import: [
+                  "@key"
+                  "@interfaceObject"
+                  "@provides"
+                  "@external"
+                ]
+              )
+
+            type Node @key(fields: "id") @interfaceObject {
+              id: ID!
+              review: Review! @provides(fields: "score")
+            }
+
+            type Review {
+              score: Int! @external
+            }
+          "#).unwrap()),
+                service("reviews", parse(r#"
+            extend schema
+              @link(
+                url: "https://specs.apollo.dev/federation/v2.3"
+                import: ["@shareable"]
+              )
+
+            type Query {
+              review: Review
+            }
+
+            type Review {
+              score: Int! @shareable
+            }
+          "#).unwrap()),
+            ]);
+
+            federation_composition::__internal::compose::assert_composition_success(&result, None).unwrap();
+
+            to_contain_graphql(result.supergraph_sdl(), r#"
+        interface Node
+          @join__type(graph: PRICING, key: "id", isInterfaceObject: true)
+          @join__type(graph: SHOP, key: "id") {
+          id: ID!
+          review: Review! @join__field(graph: PRICING, provides: "score")
+        }
+      "#);
+        }
+
+        fn preserves_external_on_a_concrete_entity_field(api) {
+            // TS: `JSON.stringify('price(currency: "EUR")')`.
+            let price_requirement = r#""price(currency: \"EUR\")""#;
+            let result = api.compose_services(&[
+                service("shop", parse(r#"
+            extend schema
+              @link(
+                url: "https://specs.apollo.dev/federation/v2.3"
+                import: ["@key"]
+              )
+
+            type Query {
+              cat: Cat
+            }
+
+            type Cat @key(fields: "id") {
+              id: ID!
+              price(currency: String!): Int!
+            }
+          "#).unwrap()),
+                service("pricing", parse(&format!(r#"
+            extend schema
+              @link(
+                url: "https://specs.apollo.dev/federation/v2.3"
+                import: ["@key", "@external", "@requires"]
+              )
+
+            type Cat @key(fields: "id") {{
+              id: ID!
+              price(currency: String!): Int! @external
+              eur: Int! @requires(fields: {price_requirement})
+            }}
+          "#)).unwrap()),
+            ]);
+
+            federation_composition::__internal::compose::assert_composition_success(&result, None).unwrap();
+
+            to_contain_graphql(result.supergraph_sdl(), format!(r#"
+        type Cat
+          @join__type(graph: PRICING, key: "id")
+          @join__type(graph: SHOP, key: "id") {{
+          id: ID!
+          price(currency: String!): Int!
+            @join__field(graph: PRICING, external: true)
+            @join__field(graph: SHOP)
+          eur: Int!
+            @join__field(graph: PRICING, requires: {price_requirement})
+        }}
+      "#));
         }
 
         fn link_directive_does_not_have_to_import_interface_object_in_all_subgraphs(api) {

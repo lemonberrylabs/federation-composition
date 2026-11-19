@@ -1585,7 +1585,7 @@ mod apply_tag_filter_to_inaccessible_transform_on_subgraph_schema {
         }
 
         type Query {
-          field1(arg1: String!, arg2: String @federation__inaccessible): String!
+          field1(arg1: String!, arg2: String): String!
         }"
       "#,
             );

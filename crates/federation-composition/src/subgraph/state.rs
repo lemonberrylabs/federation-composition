@@ -39,7 +39,8 @@ pub enum SubgraphType {
     Union(UnionType),
     Enum(EnumType),
     Scalar(ScalarType),
-    Directive(Directive),
+    // NOTE(port): the TS union still lists `Directive`, but directives live in
+    // `SubgraphState::directives` (their own namespace), never in `types`.
 }
 
 impl SubgraphType {
@@ -52,7 +53,6 @@ impl SubgraphType {
             SubgraphType::Union(_) => TypeKind::Union,
             SubgraphType::Enum(_) => TypeKind::Enum,
             SubgraphType::Scalar(_) => TypeKind::Scalar,
-            SubgraphType::Directive(_) => TypeKind::Directive,
         }
     }
 
@@ -65,7 +65,6 @@ impl SubgraphType {
             SubgraphType::Union(t) => &t.name,
             SubgraphType::Enum(t) => &t.name,
             SubgraphType::Scalar(t) => &t.name,
-            SubgraphType::Directive(t) => &t.name,
         }
     }
 }
@@ -79,7 +78,8 @@ pub enum TypeKind {
     Union,
     Scalar,
     InputObject,
-    Directive,
+    // NOTE(port): TS's `DIRECTIVE` is never a subgraph type's kind any more (directives have
+    // their own map), so it has no variant here.
 }
 
 /// `ArgumentKind`.
@@ -497,6 +497,11 @@ pub struct SubgraphState {
     pub graph: SubgraphGraph,
     /// `[typeName, Type]`.
     pub types: IndexMap<String, SubgraphType>,
+    /// `[directiveName, Directive]`.
+    ///
+    /// Directives live in a namespace of their own in GraphQL,
+    /// so a directive and a type may share a name.
+    pub directives: IndexMap<String, Directive>,
     /// If an operation type is defined, the subgraph provides that type.
     pub schema: SubgraphSchema,
     pub links: Vec<Link>,
@@ -582,6 +587,7 @@ pub fn create_subgraph_state_builder(
             url: graph.url.clone(),
         },
         types: IndexMap::default(),
+        directives: IndexMap::default(),
         schema: SubgraphSchema::default(),
         links: links_with_directive,
         specs: SubgraphSpecs {
@@ -1583,8 +1589,7 @@ pub fn clean_subgraph_state_from_federation_spec(mut state: SubgraphState) -> Su
 pub fn clean_subgraph_state_from_link_spec(mut state: SubgraphState) -> SubgraphState {
     state.types.shift_remove("link__Import");
     state.types.shift_remove("link__Purpose");
-    state.types.shift_remove("link__Import");
-    state.types.shift_remove("link");
+    state.directives.shift_remove("link");
     state
 }
 
@@ -1978,7 +1983,7 @@ impl<'s> ObjectTypeFieldBuilder<'s> {
     }
     pub fn set_provides(self, type_name: &str, field_name: &str, provides: &str) -> JsResult<()> {
         if self.is_interface_object(type_name) {
-            return Ok(());
+            return self.interface_field().set_provides(type_name, field_name, provides);
         }
 
         self.field(type_name, field_name)?.provides = Some(provides.to_string());
@@ -2330,6 +2335,10 @@ impl<'s> InterfaceTypeFieldBuilder<'s> {
         self.field(type_name, field_name)?.requires = Some(requires.to_string());
         Ok(())
     }
+    pub fn set_provides(self, type_name: &str, field_name: &str, provides: &str) -> JsResult<()> {
+        self.field(type_name, field_name)?.provides = Some(provides.to_string());
+        Ok(())
+    }
     pub fn set_shareable(self, type_name: &str, field_name: &str) -> JsResult<()> {
         self.field(type_name, field_name)?.shareable = true;
         Ok(())
@@ -2497,10 +2506,10 @@ impl<'s> InputObjectTypeBuilder<'s> {
     pub fn set_one_of(self, type_name: &str) -> JsResult<()> {
         let input_object = DirectiveLocation::InputObject.as_str();
 
-        match self.state.types.get_mut("oneOf") {
+        match self.state.directives.get_mut("oneOf") {
             // if definition matches the built-in, flag the type as isOneOf
             // and ensure the directive is composed
-            Some(SubgraphType::Directive(existing_one_of))
+            Some(existing_one_of)
                 if existing_one_of.locations.len() == 1
                     && existing_one_of.locations.contains(input_object)
                     && !existing_one_of.repeatable
@@ -2780,24 +2789,16 @@ fn get_or_insert_with<'m, V>(map: &'m mut IndexMap<String, V>, key: &str, create
 }
 
 fn get_or_create_directive<'s>(state: &'s mut SubgraphState, directive_name: &str) -> JsResult<&'s mut Directive> {
-    get_or_create_type(
-        state,
-        directive_name,
-        || {
-            SubgraphType::Directive(Directive {
-                name: directive_name.to_string(),
-                locations: IndexSet::default(),
-                repeatable: false,
-                composed: false,
-                args: IndexMap::default(),
-            })
-        },
-        |existing| match existing {
-            SubgraphType::Directive(d) => Some(d),
-            _ => None,
-        },
-        || format!("Expected {directive_name} to be a directive"),
-    )
+    Ok(state
+        .directives
+        .entry(directive_name.to_string())
+        .or_insert_with(|| Directive {
+            name: directive_name.to_string(),
+            locations: IndexSet::default(),
+            repeatable: false,
+            composed: false,
+            args: IndexMap::default(),
+        }))
 }
 
 /// A new `Argument` (field and directive arguments share the defaults).
@@ -3304,7 +3305,6 @@ mod tests {
                 b.object_type().set_definition("Foo"),
                 "Expected Foo to be an object type",
             ),
-            (b.directive().set_repeatable("Foo"), "Expected Foo to be a directive"),
         ];
         for (result, message) in cases {
             assert_eq!(result, Err(JsError::error(message)));
@@ -3315,6 +3315,10 @@ mod tests {
             Err(JsError::error("Expected Bar to be a scalar type"))
         );
         // A failed lookup does not create or replace anything.
+        assert_eq!(b.state.types.len(), 2);
+        // Directives have their own namespace: no clash with the scalar.
+        b.directive().set_repeatable("Foo").unwrap();
+        assert!(b.state.directives["Foo"].repeatable);
         assert_eq!(b.state.types.len(), 2);
     }
 
@@ -3388,8 +3392,7 @@ mod tests {
         let id = &foo.fields["id"];
         assert_eq!(id.r#type, "ID!");
         assert!(id.shareable);
-        // setProvides is ignored for interface objects.
-        assert_eq!(id.provides, None);
+        assert_eq!(id.provides.as_deref(), Some("x"));
         assert!(id.args["arg"].tags.contains("t"));
         assert_eq!(
             foo.keys,
@@ -3461,10 +3464,7 @@ mod tests {
     }
 
     fn one_of(b: &SubgraphStateBuilder) -> Option<&Directive> {
-        match b.state.types.get("oneOf") {
-            Some(SubgraphType::Directive(d)) => Some(d),
-            _ => None,
-        }
+        b.state.directives.get("oneOf")
     }
 
     fn is_one_of(b: &SubgraphStateBuilder, name: &str) -> Option<Option<bool>> {
@@ -3516,12 +3516,16 @@ mod tests {
         b.directive().arg().set_type("oneOf", "x", "Int").unwrap();
         b.input_object_type().set_one_of("I").unwrap();
         assert!(!one_of(&b).unwrap().composed);
+    }
 
-        // A type named oneOf.
+    #[test]
+    fn set_one_of_ignores_a_type_named_one_of() {
+        // Directives and types have separate namespaces.
         let mut b = builder("type Query { a: String }");
         b.scalar_type().set_definition("oneOf").unwrap();
         b.input_object_type().set_one_of("I").unwrap();
-        assert_eq!(is_one_of(&b, "I"), None);
+        assert!(one_of(&b).unwrap().composed);
+        assert_eq!(is_one_of(&b, "I"), Some(Some(true)));
     }
 
     #[test]
@@ -3573,10 +3577,7 @@ mod tests {
     fn directive_is_executable_by_location() {
         let mut b = builder("type Query { a: String }");
         b.directive().set_location("d", "OBJECT").unwrap();
-        let exec = |b: &SubgraphStateBuilder| match b.state.types.get("d") {
-            Some(SubgraphType::Directive(d)) => d.is_executable(),
-            _ => panic!("d missing"),
-        };
+        let exec = |b: &SubgraphStateBuilder| b.state.directives["d"].is_executable();
         assert!(!exec(&b));
         b.directive().set_location("d", "FIELD").unwrap();
         assert!(exec(&b));
@@ -3592,8 +3593,11 @@ mod tests {
         for name in ["A", "_FieldSet", "link__Import", "B", "federation__Scope", "link", "C"] {
             b.scalar_type().set_definition(name).unwrap();
         }
+        b.directive().set_location("link", "SCHEMA").unwrap();
         let state = clean_subgraph_state_from_link_spec(clean_subgraph_state_from_federation_spec(b.into_state()));
-        assert_eq!(state.types.keys().collect::<Vec<_>>(), vec!["A", "B", "C"]);
+        // Only the `link` directive is removed; a type named `link` is not the spec's.
+        assert_eq!(state.types.keys().collect::<Vec<_>>(), vec!["A", "B", "link", "C"]);
+        assert!(state.directives.is_empty());
     }
 
     #[test]

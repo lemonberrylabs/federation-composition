@@ -201,7 +201,14 @@ pub fn validate_subgraph(
     let link_spec_definitions_to_include: Vec<&'static Definition> = link_spec_definitions
         .iter()
         .filter(|def| match def.name() {
-            Some(name) => !validation_context.state_builder.state.types.contains_key(&name.value),
+            Some(name) => {
+                let state = &validation_context.state_builder.state;
+                if matches!(def, Definition::DirectiveDefinition(_)) {
+                    !state.directives.contains_key(&name.value)
+                } else {
+                    !state.types.contains_key(&name.value)
+                }
+            }
             None => true,
         })
         .collect();

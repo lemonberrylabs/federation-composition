@@ -835,4 +835,184 @@ mod compose_schema_contract {
             Some(r#"scalar Brr @join__type(graph: FOO_GRAPHQL) @join__type(graph: FOO2_GRAPHQL)"#),
         );
     }
+    #[test]
+    fn contract_required_arguments_of_an_included_field_are_included() {
+        let result = compose_schema_contract(
+            &[service(
+                "a",
+                parse(
+                    r#"
+            extend schema
+              @link(
+                url: "https://specs.apollo.dev/federation/v2.3"
+                import: ["@tag"]
+              )
+
+            type Query {
+              user(id: ID!): String @tag(name: "public")
+            }
+          "#,
+                )
+                .unwrap(),
+            )],
+            &contract_filter(&["public"], &[]),
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(result.errors(), None);
+        to_match_inline_snapshot(
+            result.public_sdl(),
+            r#"
+      "type Query {
+        user(id: ID!): String
+      }"
+    "#,
+        );
+    }
+
+    #[test]
+    fn contract_optional_arguments_of_an_included_field_are_included() {
+        let result = compose_schema_contract(
+            &[service(
+                "a",
+                parse(
+                    r#"
+            extend schema
+              @link(
+                url: "https://specs.apollo.dev/federation/v2.3"
+                import: ["@tag"]
+              )
+
+            type Query {
+              users(first: Int): [String] @tag(name: "public")
+            }
+          "#,
+                )
+                .unwrap(),
+            )],
+            &contract_filter(&["public"], &[]),
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(result.errors(), None);
+        to_match_inline_snapshot(
+            result.public_sdl(),
+            r#"
+      "type Query {
+        users(first: Int): [String]
+      }"
+    "#,
+        );
+    }
+
+    #[test]
+    fn contract_optional_argument_with_its_own_tag_that_is_not_included_is_hidden() {
+        let result = compose_schema_contract(
+            &[service(
+                "a",
+                parse(
+                    r#"
+            extend schema
+              @link(
+                url: "https://specs.apollo.dev/federation/v2.3"
+                import: ["@tag"]
+              )
+
+            type Query {
+              users(first: Int @tag(name: "internal"), after: String): [String]
+                @tag(name: "public")
+            }
+          "#,
+                )
+                .unwrap(),
+            )],
+            &contract_filter(&["public"], &[]),
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(result.errors(), None);
+        to_match_inline_snapshot(
+            result.public_sdl(),
+            r#"
+      "type Query {
+        users(after: String): [String]
+      }"
+    "#,
+        );
+    }
+
+    #[test]
+    fn contract_untagged_argument_inherits_excluded_tag_of_its_field() {
+        let result = compose_schema_contract(
+            &[service(
+                "a",
+                parse(
+                    r#"
+            extend schema
+              @link(
+                url: "https://specs.apollo.dev/federation/v2.3"
+                import: ["@tag"]
+              )
+
+            type Query {
+              users(first: Int): [String] @tag(name: "internal")
+              other: String
+            }
+          "#,
+                )
+                .unwrap(),
+            )],
+            &contract_filter(&[], &["internal"]),
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(result.errors(), None);
+        to_match_inline_snapshot(
+            result.public_sdl(),
+            r#"
+      "type Query {
+        other: String
+      }"
+    "#,
+        );
+    }
+
+    #[test]
+    fn contract_required_argument_with_a_tag_that_differs_from_the_field_tag_fails_composition() {
+        let result = compose_schema_contract(
+            &[service(
+                "a",
+                parse(
+                    r#"
+            extend schema
+              @link(
+                url: "https://specs.apollo.dev/federation/v2.3"
+                import: ["@tag"]
+              )
+
+            type Query {
+              user(id: ID! @tag(name: "internal")): String @tag(name: "public")
+            }
+          "#,
+                )
+                .unwrap(),
+            )],
+            &contract_filter(&["public"], &[]),
+            true,
+        )
+        .unwrap();
+
+        to_match_inline_snapshot(
+            result.errors(),
+            r#"
+      [
+        [GraphQLError: Argument "Query.user(id:)" is @inaccessible but is a required argument of its field.],
+      ]
+    "#,
+        );
+    }
 }

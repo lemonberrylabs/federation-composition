@@ -608,6 +608,7 @@ mod tests {
                     url: None,
                 },
                 types: IndexMap::default(),
+                directives: IndexMap::default(),
                 schema: SubgraphSchema::default(),
                 links: vec![],
                 specs: SubgraphSpecs::default(),
