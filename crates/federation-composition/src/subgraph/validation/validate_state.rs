@@ -127,11 +127,7 @@ fn validate_directives(
     report_error: ReportErrorFn<'_>,
     context: &SubgraphValidationContext<'_>,
 ) {
-    for directive in state.types.values() {
-        let SubgraphType::Directive(directive) = directive else {
-            continue;
-        };
-
+    for directive in state.directives.values() {
         if context.is_link_spec_directive(&directive.name) {
             continue;
         }
@@ -961,12 +957,6 @@ pub fn is_interface_type(ty: &SubgraphType) -> bool {
 
 pub fn is_union_type(ty: &SubgraphType) -> bool {
     ty.kind() == TypeKind::Union
-}
-
-// TS: used by `validate-state.ts`; the ported callers do not need it.
-#[allow(dead_code)]
-pub fn is_directive(ty: &SubgraphType) -> bool {
-    ty.kind() == TypeKind::Directive
 }
 
 #[cfg(test)]

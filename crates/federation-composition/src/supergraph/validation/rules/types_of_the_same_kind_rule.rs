@@ -100,7 +100,6 @@ fn map_ir_kind_to_string(kind: TypeKind) -> &'static str {
         TypeKind::Enum => "Enum",
         TypeKind::InputObject => "InputObject",
         TypeKind::Scalar => "Scalar",
-        TypeKind::Directive => "Directive",
     }
 }
 

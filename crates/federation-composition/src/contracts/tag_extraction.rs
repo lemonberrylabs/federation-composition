@@ -472,7 +472,20 @@ pub fn apply_tag_filter_to_inaccessible_transform_on_subgraph_schema(
                 object_like_name, field_like_name, node.name.value
             ));
 
-            if is_excluded_by_filter(filter, tags_on_node) {
+            // For the include filter, an argument without its own `@tag` (in any subgraph)
+            // inherits the tags of its field. Otherwise, including a field would hide all of its
+            // untagged arguments (failing composition with REQUIRED_INACCESSIBLE for required ones).
+            // This matches the behavior of Apollo contracts.
+            // For the exclude filter no inheritance is needed, as an excluded field is already hidden.
+            let tags_for_include = if !tags_on_node.is_empty() {
+                tags_on_node
+            } else {
+                get_tags_for_schema_coordinate(&format!("{}.{}", object_like_name, field_like_name))
+            };
+
+            if (!filter.include.is_empty() && !has_intersection(tags_for_include, &filter.include))
+                || (!filter.exclude.is_empty() && has_intersection(tags_on_node, &filter.exclude))
+            {
                 return InputValueDefinition {
                     directives: transform_tag_directives.call(&node.directives, true),
                     ..node.clone()

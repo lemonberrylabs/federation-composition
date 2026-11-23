@@ -363,7 +363,7 @@ Everything is ported: `src/` in `crates/federation-composition` (no `todo!()` le
 language layer and `buildSchema`/`assertValidSchema` in `crates/graphql-core`, and the WebAssembly
 bindings in `crates/federation-composition-wasm` with the shim in `npm/src`. The TS test suite is ported to
 Rust (`crates/federation-composition/tests/suite`, see "Rust test suite" below), guild side only.
-The port matches the upstream release in `UPSTREAM` (v0.27.0).
+The port matches the upstream release in `UPSTREAM` (v0.27.2).
 
 ## Verification
 
@@ -371,10 +371,10 @@ The port matches the upstream release in `UPSTREAM` (v0.27.0).
 |---|---|---|
 | Build, no warnings | `cargo build --workspace` and `cargo build --release --target wasm32-unknown-unknown --workspace` | 0 warnings |
 | Format and lints | `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings` | clean |
-| Rust unit and differential tests | `cargo test --workspace` | all pass; includes the robustness tests (`tests/robustness.rs` in both crates: the nesting limits, long chains of types, and inputs that once panicked) and `crates/graphql-core`'s differential tests against graphql-js. Their expected values are generated from the upstream checkout (graphql-js 17.0.2 and upstream's test documents), so run `pnpm conformance` first, then `node crates/graphql-core/tests/gen-corpus.mjs` (`crates/graphql-core/tests/corpus.json`) and `node crates/graphql-core/tests/gen-schema-corpus.mjs [corpus.jsonl]` (`crates/graphql-core/tests/schema-corpus.json`, from the conformance corpus by default); 1,966 schemas identical to graphql-js on 2026-10-19 |
-| The ported test suite | `cargo test -p federation-composition --test suite` (plus the `src/specifications/link.rs` unit tests) | 3,792 passed, 17 ignored on 2026-10-19 (per-file counts under "Rust test suite") |
-| Upstream's TS test suite against the WebAssembly build | `pnpm conformance` (its `wasm` step; `--only=wasm`) | 7,343 passed, 25 skipped, 8 todo, the same as upstream's suite on its own TypeScript (its `capture` step) |
-| Rust vs TS on every composition upstream's test suite runs | `pnpm conformance` (its `capture` and `native` steps: `tests/corpus.rs`) | every captured composition identical (3567/3567 on 2026-10-19). Without `DYLD_FALLBACK_LIBRARY_PATH` (see Toolchain), a release test build prints a `rust-objcopy` "Library not loaded: libLLVM.dylib" warning; it comes from the toolchain, not the code; `pnpm conformance` sets it |
+| Rust unit and differential tests | `cargo test --workspace` | all pass; includes the robustness tests (`tests/robustness.rs` in both crates: the nesting limits, long chains of types, and inputs that once panicked) and `crates/graphql-core`'s differential tests against graphql-js. Their expected values are generated from the upstream checkout (graphql-js 17.0.2 and upstream's test documents), so run `pnpm conformance` first, then `node crates/graphql-core/tests/gen-corpus.mjs` (`crates/graphql-core/tests/corpus.json`) and `node crates/graphql-core/tests/gen-schema-corpus.mjs [corpus.jsonl]` (`crates/graphql-core/tests/schema-corpus.json`, from the conformance corpus by default); 1,992 schemas identical to graphql-js on 2026-11-19 |
+| The ported test suite | `cargo test -p federation-composition --test suite` (plus the `src/specifications/link.rs` unit tests) | 3,806 passed, 17 ignored on 2026-11-19 (per-file counts under "Rust test suite") |
+| Upstream's TS test suite against the WebAssembly build | `pnpm conformance` (its `wasm` step; `--only=wasm`) | 7,366 passed, 25 skipped, 8 todo, the same as upstream's suite on its own TypeScript (its `capture` step) |
+| Rust vs TS on every composition upstream's test suite runs | `pnpm conformance` (its `capture` and `native` steps: `tests/corpus.rs`) | every captured composition identical (3581/3581 on 2026-11-19). Without `DYLD_FALLBACK_LIBRARY_PATH` (see Toolchain), a release test build prints a `rust-objcopy` "Library not loaded: libLLVM.dylib" warning; it comes from the toolchain, not the code; `pnpm conformance` sets it |
 | The npm package | `pnpm wasm:build && pnpm test:npm` | 15 passed: the 10 checks of the JS <-> Rust bridge (`npm/test/runtime.test.mjs`: 7 formerly counted in `pnpm test:wasm`'s 7,350, and 3 of the input limits) and a smoke test of the package as users import it |
 
 ## Rust test suite
@@ -462,7 +462,7 @@ the TS `assertCompositionSuccess` does. Anything else (`toBe`,
 guild-side passed count and its ignored count equals skipped + todo. `supergraph/join.spec.ts`
 (11) and `override-with-label.spec.ts` (178) are wrapped in an outer `describe`, so a count that
 takes the library from the first path segment counts both libraries for them (22 and 356);
-classify by the `'apollo'`/`'guild'` ancestor title instead. Totals: 3,792 passing (3,774 in the
+classify by the `'apollo'`/`'guild'` ancestor title instead. Totals: 3,806 passing (3,788 in the
 suite plus 18 `parse_link_*` unit tests in `specifications/link.rs`) and 17 ignored, equal to
 the TS guild side.
 

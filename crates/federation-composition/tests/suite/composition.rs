@@ -23,6 +23,171 @@ fn json_stringify_errors(errors: Option<&[GraphQLError]>) -> String {
 }
 
 test_implementations! {
+    fn directive_sharing_a_name_with_a_type(api) {
+        // Directives and types live in separate namespaces in GraphQL,
+        // so a directive may share its name with a type.
+        let result = api.compose_services(&[
+            service("a", graphql!(r#"
+          extend schema
+            @link(
+              url: "https://specs.apollo.dev/federation/v2.0"
+              import: ["@key"]
+            )
+
+          directive @TaskStatus(value: String!) on ENUM_VALUE
+
+          enum TaskStatus {
+            CREATED @TaskStatus(value: "created")
+            DONE @TaskStatus(value: "done")
+          }
+
+          type Task @key(fields: "id") {
+            id: ID!
+            status: TaskStatus
+          }
+
+          type Query {
+            task: Task
+          }
+        "#)),
+        ]);
+
+        assert_composition_success(&result);
+    }
+
+    fn composed_directive_sharing_a_name_with_a_type(api) {
+        let result = api.compose_services(&[
+            service("a", graphql!(r#"
+          extend schema
+            @link(
+              url: "https://specs.apollo.dev/federation/v2.3"
+              import: ["@key", "@composeDirective"]
+            )
+            @link(
+              url: "https://myspecs.dev/tasks/v1.0"
+              import: ["@TaskStatus"]
+            )
+            @composeDirective(name: "@TaskStatus")
+
+          directive @TaskStatus(value: String!) on ENUM_VALUE | FIELD_DEFINITION
+
+          enum TaskStatus {
+            CREATED @TaskStatus(value: "created")
+            DONE @TaskStatus(value: "done")
+          }
+
+          type Task @key(fields: "id") {
+            id: ID!
+            status: TaskStatus @TaskStatus(value: "field")
+          }
+
+          type Query {
+            task: Task
+          }
+        "#)),
+            service("b", graphql!(r#"
+          extend schema
+            @link(
+              url: "https://specs.apollo.dev/federation/v2.3"
+              import: ["@key"]
+            )
+
+          type Task @key(fields: "id") {
+            id: ID!
+            label: String
+          }
+        "#)),
+        ]);
+
+        assert_composition_success(&result);
+
+        // the directive definition and the enum both survive into the supergraph
+        let supergraph_sdl = result.supergraph_sdl().unwrap();
+        assert!(supergraph_sdl.contains(
+            "directive @TaskStatus(value: String!) on ENUM_VALUE | FIELD_DEFINITION",
+        ));
+        // TS: `toMatch(/enum TaskStatus/)`.
+        assert!(supergraph_sdl.contains("enum TaskStatus"));
+        assert!(supergraph_sdl.contains(r#"@TaskStatus(value: "created")"#));
+        assert!(supergraph_sdl.contains(r#"@TaskStatus(value: "field")"#));
+    }
+
+    fn composed_directive_sharing_a_name_with_an_imported_federation_type(api) {
+        let result = api.compose_services(&[
+            service("a", graphql!(r#"
+          extend schema
+            @link(
+              url: "https://specs.apollo.dev/federation/v2.3"
+              import: ["@key", "FieldSet", "@composeDirective"]
+            )
+            @link(url: "https://myspecs.dev/tasks/v1.0", import: ["@FieldSet"])
+            @composeDirective(name: "@FieldSet")
+
+          directive @FieldSet(value: String!) on FIELD_DEFINITION
+
+          type Order @key(fields: "id") {
+            id: ID!
+            label: String @FieldSet(value: "label")
+          }
+
+          type Query {
+            order: Order
+          }
+        "#)),
+        ]);
+
+        assert_composition_success(&result);
+
+        // importing the `FieldSet` type must not drop the directive of the same name
+        let supergraph_sdl = result.supergraph_sdl().unwrap();
+        assert!(supergraph_sdl.contains(
+            "directive @FieldSet(value: String!) on FIELD_DEFINITION",
+        ));
+        assert!(supergraph_sdl.contains(r#"@FieldSet(value: "label")"#));
+    }
+
+    fn directive_and_a_type_of_the_same_name_across_subgraphs(api) {
+        let result = api.compose_services(&[
+            service("a", graphql!(r#"
+          extend schema
+            @link(
+              url: "https://specs.apollo.dev/federation/v2.3"
+              import: ["@key"]
+            )
+
+          directive @TaskStatus(value: String!) on FIELD_DEFINITION
+
+          type Task @key(fields: "id") {
+            id: ID!
+            label: String @TaskStatus(value: "field")
+          }
+
+          type Query {
+            task: Task
+          }
+        "#)),
+            service("b", graphql!(r#"
+          extend schema
+            @link(
+              url: "https://specs.apollo.dev/federation/v2.3"
+              import: ["@key"]
+            )
+
+          enum TaskStatus {
+            CREATED
+            DONE
+          }
+
+          type Task @key(fields: "id") {
+            id: ID!
+            status: TaskStatus
+          }
+        "#)),
+        ]);
+
+        assert_composition_success(&result);
+    }
+
     fn enum_value_as_string_as_default_value(api) {
         let result = api.compose_services(&[
             service("a", graphql!(r#"

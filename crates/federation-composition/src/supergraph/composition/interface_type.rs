@@ -274,20 +274,17 @@ impl TypeBuilder<InterfaceType, InterfaceTypeState> for InterfaceTypeBuilder {
 
         let mut fields: Vec<FieldAst> = Vec::with_capacity(interface_type.fields.len());
         for field in interface_type.fields.values() {
-            let mut non_empty_join_field = false;
             let mut join_fields: Vec<JoinFieldAst> = Vec::new();
+            let has_join_field_metadata = field.by_graph.values().any(|meta| {
+                meta.r#type != field.r#type
+                    || truthy(&meta.r#override)
+                    || truthy(&meta.provides)
+                    || truthy(&meta.requires)
+                    || meta.external
+            });
 
-            if field.by_graph.len() != interface_type.by_graph.len() {
+            if field.by_graph.len() != interface_type.by_graph.len() || has_join_field_metadata {
                 for (graph_id, meta) in &field.by_graph {
-                    if meta.r#type != field.r#type
-                        || truthy(&meta.r#override)
-                        || truthy(&meta.provides)
-                        || truthy(&meta.requires)
-                        || meta.external
-                    {
-                        non_empty_join_field = true;
-                    }
-
                     join_fields.push(JoinFieldAst {
                         graph: Some(graph_id.clone()),
                         r#type: if meta.r#type == field.r#type {
@@ -303,8 +300,6 @@ impl TypeBuilder<InterfaceType, InterfaceTypeState> for InterfaceTypeBuilder {
                     });
                 }
             }
-            // NOTE(port): `nonEmptyJoinField` is computed but never read in the TS.
-            let _ = non_empty_join_field;
 
             // The object literal's properties are evaluated in order: `cost`, `listSize`, then
             // `arguments` (each `ensureValue` can throw).

@@ -23,7 +23,7 @@ use super::composition::object_type::{object_type_builder, ObjectTypeBuilder, Ob
 use super::composition::scalar_type::{scalar_type_builder, ScalarTypeBuilder, ScalarTypeState};
 use super::composition::union_type::{union_type_builder, UnionTypeBuilder, UnionTypeState};
 use crate::graphql::printer::print;
-use crate::specifications::link::Link;
+use crate::specifications::link::{Link, LinkImportKind};
 use crate::subgraph::helpers::parse_fields;
 use crate::subgraph::state::{is_executable_directive_location, CostSpec, CostSpecNames, SubgraphState, SubgraphType};
 use crate::utils::js::{JsError, JsResult};
@@ -223,18 +223,31 @@ impl SupergraphStateBuilder {
             }
         }
 
-        let all_federation_imports: IndexSet<&str> = subgraph_state
-            .federation
-            .imports
-            .iter()
-            .map(|i| i.alias.as_deref().unwrap_or(&i.name))
-            .collect();
+        // Directives and types have separate namespaces,
+        // so an imported directive must not shadow a type of the same name (or the other way around).
+        let mut federation_imports_directive: IndexSet<&str> = IndexSet::default();
+        let mut federation_imports_type: IndexSet<&str> = IndexSet::default();
+
+        for imported in &subgraph_state.federation.imports {
+            let imported_name = imported.alias.as_deref().unwrap_or(&imported.name);
+
+            match imported.kind {
+                LinkImportKind::Directive => {
+                    federation_imports_directive.insert(imported_name.strip_prefix('@').unwrap_or(imported_name));
+                }
+                LinkImportKind::Type => {
+                    federation_imports_type.insert(imported_name);
+                }
+            }
+        }
 
         let graph = &subgraph_state.graph;
+        // TS: `for (const [typeName, type] of [...subgraphState.types, ...subgraphState.directives])`.
+        // The directives are visited after every type, by the second loop below.
         for (type_name, ty) in &subgraph_state.types {
             // Federation Types that are imported, but also declared within th subgraph (most-likely for IDE support)
             // should not be added to the supergraph.
-            if all_federation_imports.contains(type_name.as_str()) {
+            if federation_imports_type.contains(type_name.as_str()) {
                 continue;
             }
 
@@ -263,15 +276,19 @@ impl SupergraphStateBuilder {
                         ty,
                     );
                 }
-                SubgraphType::Directive(ty) => {
-                    self.directive
-                        .visit_subgraph_state(graph, &mut self.state.directives, type_name, ty);
-                }
                 SubgraphType::Scalar(ty) => {
                     self.scalar_type
                         .visit_subgraph_state(graph, &mut self.state.scalar_types, type_name, ty);
                 }
             }
+        }
+        for (directive_name, directive) in &subgraph_state.directives {
+            if federation_imports_directive.contains(directive_name.as_str()) {
+                continue;
+            }
+
+            self.directive
+                .visit_subgraph_state(graph, &mut self.state.directives, directive_name, directive);
         }
     }
 
@@ -705,7 +722,7 @@ fn merge_key_fields_collection(fields_collection: &[String]) -> JsResult<IndexSe
 mod tests {
     use super::*;
     use crate::specifications::federation::FederationVersion;
-    use crate::specifications::link::{LinkImport, LinkImportKind};
+    use crate::specifications::link::LinkImport;
     use crate::subgraph::state::{
         Argument, ArgumentKind, Ast, Directive, SubgraphFederation, SubgraphGraph, SubgraphSchema, SubgraphSpecs,
         UnionType,
@@ -728,6 +745,7 @@ mod tests {
                 url: None,
             },
             types: types.into_iter().map(|t| (t.name().to_string(), t)).collect(),
+            directives: IndexMap::default(),
             schema: SubgraphSchema::default(),
             links: vec![],
             specs: SubgraphSpecs::default(),
@@ -738,31 +756,34 @@ mod tests {
         }
     }
 
-    fn directive(name: &str, locations: &[&str], arg_type: &str) -> SubgraphType {
-        SubgraphType::Directive(Directive {
-            name: name.into(),
-            composed: false,
-            repeatable: false,
-            locations: locations.iter().map(|l| l.to_string()).collect(),
-            args: [(
-                "a".to_string(),
-                Argument {
-                    name: "a".into(),
-                    r#type: arg_type.into(),
-                    kind: ArgumentKind::Scalar,
-                    inaccessible: false,
-                    tags: IndexSet::default(),
-                    cost: None,
-                    default_value: None,
-                    from_context: None,
-                    description: None,
-                    deprecated: None,
-                    ast: Ast::default(),
-                },
-            )]
-            .into_iter()
-            .collect(),
-        })
+    fn directive(name: &str, locations: &[&str], arg_type: &str) -> (String, Directive) {
+        (
+            name.to_string(),
+            Directive {
+                name: name.into(),
+                composed: false,
+                repeatable: false,
+                locations: locations.iter().map(|l| l.to_string()).collect(),
+                args: [(
+                    "a".to_string(),
+                    Argument {
+                        name: "a".into(),
+                        r#type: arg_type.into(),
+                        kind: ArgumentKind::Scalar,
+                        inaccessible: false,
+                        tags: IndexSet::default(),
+                        cost: None,
+                        default_value: None,
+                        from_context: None,
+                        description: None,
+                        deprecated: None,
+                        ast: Ast::default(),
+                    },
+                )]
+                .into_iter()
+                .collect(),
+            },
+        )
     }
 
     #[test]
@@ -815,21 +836,21 @@ mod tests {
         let mut a = subgraph(
             "A",
             "a",
-            vec![
-                directive("exec", &["FIELD", "OBJECT"], "Int"),
-                directive("schemaOnly", &["OBJECT"], "Int"),
-                SubgraphType::Union(UnionType {
-                    name: "_Entity".into(),
-                    members: IndexSet::default(),
-                    contexts: IndexSet::default(),
-                    tags: IndexSet::default(),
-                    inaccessible: false,
-                    is_definition: true,
-                    description: None,
-                    ast: Ast::default(),
-                }),
-            ],
+            vec![SubgraphType::Union(UnionType {
+                name: "_Entity".into(),
+                members: IndexSet::default(),
+                contexts: IndexSet::default(),
+                tags: IndexSet::default(),
+                inaccessible: false,
+                is_definition: true,
+                description: None,
+                ast: Ast::default(),
+            })],
         );
+        a.directives.extend([
+            directive("exec", &["FIELD", "OBJECT"], "Int"),
+            directive("schemaOnly", &["OBJECT"], "Int"),
+        ]);
         a.specs.tag = true;
         a.specs.cost.used = true;
         a.specs.cost.names.cost = Some("".into());
