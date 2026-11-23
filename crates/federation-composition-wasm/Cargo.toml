@@ -1,6 +1,6 @@
 [package]
 name = "federation-composition-wasm"
-version = "0.1.1"
+version = "0.1.2"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -17,7 +17,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 graphql-core = { version = "0.1.0", path = "../graphql-core" }
-federation-composition = { version = "0.1.0", path = "../federation-composition" }
+federation-composition = { version = "0.1.1", path = "../federation-composition" }
 # wasm-bindgen must match the wasm-bindgen-cli version exactly (npm/build.mjs checks).
 wasm-bindgen = "=0.2.129"
 js-sys = "=0.3.106"
