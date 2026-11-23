@@ -1427,11 +1427,7 @@ fn is_used_overridden_in_graph(
         .filter(|o| !o.is_empty())
         .is_some_and(|o| helpers.graph_name_to_id(o).as_deref() == Some(graph_id));
 
-    if is_overridden && (is_used_as_non_external_key || is_interface_field_in_graph) {
-        return true;
-    }
-
-    false
+    is_overridden && (is_used_as_non_external_key || is_interface_field_in_graph)
 }
 
 fn to_field_coordinate(type_name: &str, field_name: &str) -> String {

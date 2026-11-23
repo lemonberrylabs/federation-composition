@@ -117,7 +117,11 @@ if (options["dry-run"]) {
     );
   }
 } else if (options.issue) {
-  await openOrUpdateIssue(targetRepo(), title, body);
+  // Retried as a whole: each attempt looks the issue up again first, so a POST whose response
+  // was lost cannot open a second issue for the release.
+  await withRetries("writing the issue", () =>
+    openOrUpdateIssue(targetRepo(), title, body),
+  );
 }
 console.log(`conformance against ${latest} exited with ${status}`);
 
@@ -346,17 +350,23 @@ function githubToken() {
 /** A GitHub REST API call; returns the parsed response, or null for a 404 when `allow404`. */
 async function github(method, route, body, { allow404 = false } = {}) {
   const api = process.env.GITHUB_API_URL ?? "https://api.github.com";
-  const res = await fetch(`${api}${route}`, {
-    method,
-    headers: {
-      accept: "application/vnd.github+json",
-      "x-github-api-version": "2022-11-28",
-      "user-agent": "federation-composition-upstream-watch",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(body ? { "content-type": "application/json" } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const request = () =>
+    fetch(`${api}${route}`, {
+      method,
+      headers: {
+        accept: "application/vnd.github+json",
+        "x-github-api-version": "2022-11-28",
+        "user-agent": "federation-composition-upstream-watch",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(body ? { "content-type": "application/json" } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  // A GET is safe to repeat; a write is retried by its caller (see withRetries).
+  const res =
+    method === "GET"
+      ? await withRetries(`${method} ${route}`, request)
+      : await request();
   if (allow404 && res.status === 404) return null;
   if (!res.ok) {
     throw new Error(
@@ -410,4 +420,30 @@ async function openOrUpdateIssue(target, title, body) {
     labels: [LABEL],
   });
   console.log(`opened ${created.html_url}`);
+}
+
+/**
+ * Runs `attempt`, repeating it after a network error: `fetch` rejects (TypeError "fetch failed")
+ * only when no HTTP response arrived, e.g. a connection GitHub closed mid-request (EPIPE,
+ * ECONNRESET). An HTTP error status is an answer, not a network error, and is not retried.
+ */
+async function withRetries(what, attempt, tries = 4) {
+  for (let i = 1; ; i++) {
+    try {
+      return await attempt();
+    } catch (err) {
+      if (
+        !(err instanceof TypeError) ||
+        err.message !== "fetch failed" ||
+        i === tries
+      ) {
+        throw err;
+      }
+      const wait = 2 ** i * 1000;
+      console.warn(
+        `${what}: ${err.cause?.code ?? err.cause?.message ?? err.message}; retrying in ${wait / 1000}s (${i}/${tries - 1})`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+  }
 }
