@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/lemonberrylabs/federation-composition/compare/federation-composition-wasm-v0.1.1...federation-composition-wasm-v0.1.2) - 2026-11-23
+
+### Other
+
+- updated the following local packages: federation-composition
+
 ## [0.1.1](https://github.com/lemonberrylabs/federation-composition/compare/federation-composition-wasm-v0.1.0...federation-composition-wasm-v0.1.1) - 2026-10-20
 
 ### Other
